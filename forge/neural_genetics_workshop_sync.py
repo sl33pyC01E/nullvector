@@ -15,14 +15,14 @@ from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FUSION_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_pilot_v2"
-DEFAULT_LATENT_SOURCE = PROJECT_ROOT / "outputs" / "neural_latent_fusion_pilot_v3"
+DEFAULT_LATENT_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_production_v1_run2"
 DEFAULT_EVOLUTION_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_evolution_v4"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game" / "generated" / "neural_genetics" / "v1"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game" / "generated" / "neural_genetics" / "v2"
 
-FORMAT = "nullvector-neural-genetics-workshop-assets-v1"
+FORMAT = "nullvector-neural-genetics-workshop-assets-v2"
 LAYERS = ("base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite")
 FUSION_FORMAT = "nullvector-neural-fusion-pilot-v1"
-LATENT_FORMAT = "nullvector-neural-latent-fusion-pilot-v1"
+LATENT_FORMAT = "nullvector-production-neural-latent-fusion-v1"
 EVOLUTION_FORMAT = "nullvector-neural-fusion-evolution-v1"
 FUSION_COUNT = 10
 LATENT_COUNT = 12
@@ -153,11 +153,14 @@ def _motion_bank(source_root: Path, runtime_root: Path, manifest: dict[str, Any]
         if latent:
             record = {
                 "sample_id": specimen_id,
-                "family": str(source_record.get("family", "lineage-derived")),
-                "mode": str(source_record["latent_mode"]),
+                "family": str(source_record.get("family", "cross-family latent hybrid")),
+                "mode": str(source_record["fusion_mode"]),
+                "mutation_mode": str(source_record["mutation_mode"]),
+                "mutation_strength": float(source_record["mutation_strength"]),
                 "alpha": float(source_record["alpha"]),
-                "quality_tier": str(source_record["quality_tier"]),
+                "quality_tier": str(manifest["quality_tier"]),
                 "parents": [str(source_record["parent_a"]), str(source_record["parent_b"])],
+                "binding_sha256": str(source_record["binding_sha256"]),
             }
         else:
             record = {
@@ -180,8 +183,8 @@ def _motion_bank(source_root: Path, runtime_root: Path, manifest: dict[str, Any]
         )
         records.append(record)
     return {
-        "status": "experimental" if latent else "ready",
-        "truth_label": "learned-fsq-smoke-not-production" if latent else "verified-categorical-fusion",
+        "status": "ready",
+        "truth_label": "production-ema-fsq-latent-genetics" if latent else "verified-categorical-fusion",
         "specimen_count": len(records),
         "clip_count": sum(len(record["clips"]) for record in records),
         "frame_count": sum(record["layout"]["frame_count"] for record in records),
@@ -253,12 +256,12 @@ def sync_genetics_workshop(
     if usage.free - PLANNED_BYTES < MIN_FREE_BYTES:
         raise RuntimeError("neural genetics runtime sync would breach the 100 GiB disk floor")
     fusion_manifest_path = Path(fusion_source) / "fusion_manifest.json"
-    latent_manifest_path = Path(latent_source) / "latent_fusion_manifest.json"
+    latent_manifest_path = Path(latent_source) / "production_fusion_manifest.json"
     evolution_manifest_path = Path(evolution_source) / "evolution_manifest.json"
     fusion_manifest = _load_manifest(fusion_manifest_path, expected_format=FUSION_FORMAT, status="ready", hash_key="bank_sha256")
-    latent_manifest = _load_manifest(latent_manifest_path, expected_format=LATENT_FORMAT, status="experimental", hash_key="bank_sha256")
+    latent_manifest = _load_manifest(latent_manifest_path, expected_format=LATENT_FORMAT, status="ready", hash_key="bank_sha256")
     evolution_manifest = _load_manifest(evolution_manifest_path, expected_format=EVOLUTION_FORMAT, status="ready", hash_key="evolution_sha256")
-    if fusion_manifest["counts"]["specimen_count"] != FUSION_COUNT or latent_manifest["counts"]["specimen_count"] != LATENT_COUNT or evolution_manifest["counts"]["selected_count"] != EVOLUTION_COUNT:
+    if fusion_manifest["counts"]["specimen_count"] != FUSION_COUNT or latent_manifest["counts"]["specimens"] != LATENT_COUNT or evolution_manifest["counts"]["selected_count"] != EVOLUTION_COUNT:
         raise GeneticsContractError("neural genetics source census mismatch")
     destination.mkdir(parents=True, exist_ok=True)
     fusion = _motion_bank(Path(fusion_source), destination, fusion_manifest, latent=False)
@@ -267,7 +270,7 @@ def sync_genetics_workshop(
     inventory = _inventory(destination)
     index = {
         "format": FORMAT,
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "status": "ready",
         "engine": "Godot 4.3",
         "pixel_filter": "nearest",
@@ -286,7 +289,9 @@ def sync_genetics_workshop(
         "generator_sha256": _sha_file(Path(__file__)),
         "gates": {
             "categorical_fusion_ready": True,
-            "latent_quality_truthfully_experimental": True,
+            "production_latent_authority_ready": True,
+            "production_latent_all_fusion_modes_present": latent_manifest["counts"]["fusion_modes"] == 6,
+            "production_latent_all_mutation_modes_present": latent_manifest["counts"]["mutation_modes"] == 6,
             "evolution_selection_ready": True,
             "all_motion_atlases_exact": True,
             "all_evolution_images_exact": True,
@@ -327,7 +332,7 @@ def validate_genetics_workshop(index_path: Path = DEFAULT_DESTINATION / "asset_i
                 errors.append(f"inventory {relative}")
         except (KeyError, TypeError, ValueError, GeneticsContractError):
             errors.append("inventory record")
-    expected = (("fusion", FUSION_COUNT, "ready"), ("latent", LATENT_COUNT, "experimental"))
+    expected = (("fusion", FUSION_COUNT, "ready"), ("latent", LATENT_COUNT, "ready"))
     for bank_name, count, status in expected:
         bank = index.get(bank_name, {})
         if bank.get("status") != status or int(bank.get("specimen_count", -1)) != count or tuple(bank.get("layers", [])) != LAYERS:

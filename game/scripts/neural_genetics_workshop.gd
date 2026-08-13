@@ -1,8 +1,8 @@
 extends Node2D
 
-const INDEX_PATH := "res://generated/neural_genetics/v1/asset_index.json"
-const INDEX_FORMAT := "nullvector-neural-genetics-workshop-assets-v1"
-const ROOT := "res://generated/neural_genetics/v1/"
+const INDEX_PATH := "res://generated/neural_genetics/v2/asset_index.json"
+const INDEX_FORMAT := "nullvector-neural-genetics-workshop-assets-v2"
+const ROOT := "res://generated/neural_genetics/v2/"
 const MODES := ["fusion", "latent", "evolution"]
 const LAYERS := ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"]
 const CYAN := Color("#38ecff")
@@ -200,7 +200,7 @@ func _atlas_texture(specimen: Dictionary, layer: String, cell: int) -> AtlasText
 func _refresh() -> void:
 	if not startup_errors.is_empty() or index.is_empty(): return
 	var specimen := _specimen(); if specimen.is_empty(): return
-	mode_label.text = ("VERIFIED CATEGORICAL FUSION" if mode_index == 0 else "EXPERIMENTAL LEARNED LATENT" if mode_index == 1 else "MOTION-GATED EVOLUTION")
+	mode_label.text = ("VERIFIED CATEGORICAL FUSION" if mode_index == 0 else "PRODUCTION EMA-FSQ GENETICS" if mode_index == 1 else "MOTION-GATED EVOLUTION")
 	mode_label.modulate = PINK if mode_index == 0 else VIOLET if mode_index == 1 else LIME
 	truth_label.text = str(index.get(_bank_name(), {}).get("truth_label", "missing truth label")).replace("-", " ").to_upper()
 	specimen_label.text = "%02d / %02d\n%s" % [specimen_index + 1, _specimens().size(), str(specimen.get("sample_id", "missing"))]
@@ -226,7 +226,7 @@ func _refresh() -> void:
 		for parent in parents: parent_lines.append("%s // %s" % [str(parent.get("family", "")), str(parent.get("sample_id", ""))])
 		lineage_label.text = "FAMILY  %s\nFUSION  %s\nMUTATION  %s × %d\n\nPARENTS\n%s" % [str(specimen.get("family", "")), str(specimen.get("mode", "")), str(specimen.get("mutation_mode", "")), int(specimen.get("mutation_strength", 0)), "\n".join(parent_lines)]
 	else:
-		lineage_label.text = "LATENT MODE  %s\nALPHA  %.2f\n\nPARENTS\n%s\n%s\n\nQUALITY\n%s" % [str(specimen.get("mode", "")), float(specimen.get("alpha", 0.0)), str(specimen.get("parents", ["", ""])[0]), str(specimen.get("parents", ["", ""])[1]), str(specimen.get("quality_tier", ""))]
+		lineage_label.text = "FUSION  %s\nMUTATION  %s x %.2f\nALPHA  %.2f\n\nPARENTS\n%s\n%s\n\nQUALITY\n%s" % [str(specimen.get("mode", "")), str(specimen.get("mutation_mode", "")), float(specimen.get("mutation_strength", 0.0)), float(specimen.get("alpha", 0.0)), str(specimen.get("parents", ["", ""])[0]), str(specimen.get("parents", ["", ""])[1]), str(specimen.get("quality_tier", ""))]
 	var metrics: Dictionary = specimen.get("metrics", {}); var lines: Array[String] = []
 	for key in metrics.keys():
 		if metrics[key] is float or metrics[key] is int: lines.append("%-24s %s" % [str(key).replace("_", " ").to_upper(), str(metrics[key])])
@@ -293,13 +293,13 @@ func _run_smoke_if_requested() -> void:
 		if texture == null or texture.get_width() != 48 or texture.get_height() != 48: errors.append("evolution image")
 		else: evolution_count += 1
 	if atlas_count != 154: errors.append("atlas total")
-	if clip_count != 118 or frame_count != 1080 or region_count != 1080: errors.append("motion totals")
+	if clip_count != 106 or frame_count != 972 or region_count != 972: errors.append("motion totals")
 	if evolution_count != 24 or hash_count != 178: errors.append("asset totals")
-	var report := {"format": "nullvector-neural-genetics-workshop-godot-smoke-v1", "passed": errors.is_empty(), "errors": errors, "bundle_id": index.get("bundle_id", ""), "coverage": {"fusion_specimens": 10, "latent_specimens": 12, "evolution_specimens": evolution_count, "motion_atlases": atlas_count, "motion_clips": clip_count, "motion_frames": frame_count, "atlas_regions": region_count, "hashes": hash_count}, "engine": Engine.get_version_info().get("string", "")}
+	var report := {"format": "nullvector-neural-genetics-workshop-godot-smoke-v2", "passed": errors.is_empty(), "errors": errors, "bundle_id": index.get("bundle_id", ""), "coverage": {"fusion_specimens": 10, "latent_specimens": 12, "evolution_specimens": evolution_count, "motion_atlases": atlas_count, "motion_clips": clip_count, "motion_frames": frame_count, "atlas_regions": region_count, "hashes": hash_count}, "engine": Engine.get_version_info().get("string", "")}
 	for argument in args:
 		if argument.begins_with("--neural-genetics-report="):
 			var output_path := argument.trim_prefix("--neural-genetics-report="); var file := FileAccess.open(output_path, FileAccess.WRITE)
 			if file != null: file.store_string(JSON.stringify(report, "  ", false) + "\n")
-	if errors.is_empty(): print("NEURAL_GENETICS_SMOKE_OK fusion=10 latent=12 evolution=24 atlases=154 clips=118 frames=1080 regions=1080 hashes=178")
+	if errors.is_empty(): print("NEURAL_GENETICS_SMOKE_OK fusion=10 latent=12 evolution=24 atlases=154 clips=106 frames=972 regions=972 hashes=178")
 	else: push_error("NEURAL_GENETICS_SMOKE_FAILED " + ", ".join(errors))
 	get_tree().quit(0 if errors.is_empty() else 1)

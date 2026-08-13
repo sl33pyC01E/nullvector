@@ -38,9 +38,15 @@ def test_checked_in_local_genetics_runtime_bank_is_current_and_truthful() -> Non
     assert index["fusion"]["status"] == "ready"
     assert index["fusion"]["truth_label"] == "verified-categorical-fusion"
     assert index["fusion"]["specimen_count"] == FUSION_COUNT
-    assert index["latent"]["status"] == "experimental"
-    assert index["latent"]["truth_label"] == "learned-fsq-smoke-not-production"
+    assert index["latent"]["status"] == "ready"
+    assert index["latent"]["truth_label"] == "production-ema-fsq-latent-genetics"
     assert index["latent"]["specimen_count"] == LATENT_COUNT
+    assert {item["mode"] for item in index["latent"]["specimens"]} == {
+        "linear", "spatial_weave", "voronoi_mosaic", "radial_graft", "channel_crossover", "spectral_splice"
+    }
+    assert {item["mutation_mode"] for item in index["latent"]["specimens"]} == {
+        "none", "latent_gaussian", "spatial_burst", "channel_phase", "donor_transplant", "phase_wave"
+    }
     assert index["evolution"]["selected_count"] == EVOLUTION_COUNT
 
 
@@ -48,8 +54,8 @@ def test_all_native_genetics_atlases_and_regions_are_addressable() -> None:
     index = _load()
     assert index["fusion"]["clip_count"] == 70
     assert index["fusion"]["frame_count"] == 660
-    assert index["latent"]["clip_count"] == 48
-    assert index["latent"]["frame_count"] == 420
+    assert index["latent"]["clip_count"] == 36
+    assert index["latent"]["frame_count"] == 312
     for bank_name in ("fusion", "latent"):
         for specimen in index[bank_name]["specimens"]:
             layout = specimen["layout"]
@@ -110,6 +116,6 @@ def test_native_scene_is_additive_and_smoke_is_exhaustive() -> None:
     assert "neural_genetics_workshop.gd" in scene
     assert "NEURAL_GENETICS_SMOKE_OK" in script
     assert "atlas_count != 154" in script
-    assert "clip_count != 118" in script
-    assert "frame_count != 1080" in script
+    assert "clip_count != 106" in script
+    assert "frame_count != 972" in script
     assert "hash_count != 178" in script
