@@ -16,6 +16,8 @@ The production source hash binds the core codec/corpus/training modules and ever
 
 The supervisor launches each two-epoch segment in a fresh process, allows at most three attempts, records Windows access violations, and publishes a segment only after the canonical report and immutable checkpoint replay. Checkpoints bind model, EMA, optimizer, RNG, completed history, frozen data provenance, and the exact predecessor checkpoint SHA. Partial calibration epochs are explicitly marked and cannot be resumed into production.
 
+Training uses a production-only flattened categorical loss adapter. It is mathematically equivalent to the core `N,C,H,W` cross-entropy, but routes CUDA NLL through the deterministic `N*H*W,C` kernel. The CPU test suite proves the complete loss and every component match the core loss within `1e-6`; deterministic-algorithm enforcement remains enabled during CUDA work.
+
 The 100 GiB free-disk floor is checked before training and before every segment. The worker also requires at least 4 GiB free CUDA memory. Existing outputs are never overwritten.
 
 ## Honest quality verdict

@@ -32,6 +32,7 @@ PRODUCTION_SOURCE_FILES = (
     "forge/sprite_latent_production/checkpoint.py",
     "forge/sprite_latent_production/contract.py",
     "forge/sprite_latent_production/evaluation.py",
+    "forge/sprite_latent_production/loss.py",
     "forge/sprite_latent_production/supervisor.py",
     "forge/sprite_latent_production/worker.py",
 )

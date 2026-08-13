@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from ..sprite_latent.codec import SemanticSpriteFSQ, sprite_codec_loss
+from ..sprite_latent.codec import SemanticSpriteFSQ
 from ..sprite_latent.training import canonical_state_hash, load_production_training_contract
 from .checkpoint import load_checkpoint, save_checkpoint_new
 from .contract import (
@@ -24,6 +24,7 @@ from .contract import (
     sha256_file,
 )
 from .evaluation import batch_from_indices, evaluate_model
+from .loss import deterministic_sprite_codec_loss
 
 
 def _seed_everything(seed: int) -> None:
@@ -162,7 +163,15 @@ def run_segment(
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 output_values = model(batch["part"], batch["material"], batch["emission"], batch["morphology"], batch["subtype"], batch["role"], batch["genes"], quantize=quantize)
-                loss, pieces = sprite_codec_loss(output_values, batch["part"], batch["material"], batch["emission"], legal, config=model.config, class_weights=weights)
+                loss, pieces = deterministic_sprite_codec_loss(
+                    output_values,
+                    batch["part"],
+                    batch["material"],
+                    batch["emission"],
+                    legal,
+                    config=model.config,
+                    class_weights=weights,
+                )
             if not bool(torch.isfinite(loss)): raise FloatingPointError("production loss became non-finite")
             loss.backward(); gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip)
             if not bool(torch.isfinite(gradient_norm)): raise FloatingPointError("production gradient became non-finite")

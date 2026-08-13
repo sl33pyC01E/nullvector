@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from forge.morphology import allowed_training_field_tuples
-from forge.sprite_latent import SemanticSpriteFSQ
+from forge.sprite_latent import SemanticSpriteFSQ, sprite_codec_loss
 from forge.sprite_latent.corpus import (
     FROZEN_PRODUCTION_CORPUS_SHA256,
     FROZEN_PRODUCTION_LEGAL_TUPLE_FINGERPRINT,
@@ -19,6 +19,7 @@ from forge.sprite_latent.training import canonical_state_hash
 from forge.sprite_latent_production import ProductionConfig, production_source_hash
 from forge.sprite_latent_production.checkpoint import load_checkpoint, save_checkpoint_new, validate_checkpoint
 from forge.sprite_latent_production.evaluation import evaluate_model
+from forge.sprite_latent_production.loss import deterministic_sprite_codec_loss
 
 
 def _tiny_config() -> ProductionConfig:
@@ -162,3 +163,25 @@ def test_background_only_codec_cannot_pass_foreground_quality_gates() -> None:
     assert result["visible_silhouette_iou"] == 0.0
     assert result["quality_gates"]["visible_tuple_accuracy"] is False
     assert result["quality_gates"]["visible_silhouette_iou"] is False
+
+
+def test_flattened_production_loss_matches_core_loss_on_cpu() -> None:
+    torch.manual_seed(77)
+    config = _tiny_config().codec_config()
+    model = SemanticSpriteFSQ(config)
+    count = 2
+    part = torch.zeros((count, 48, 48), dtype=torch.long)
+    material = torch.zeros_like(part)
+    emission = torch.zeros_like(part)
+    morphology = torch.tensor([0, 1])
+    subtype = torch.tensor([0, 4])
+    role = torch.tensor([0, 1])
+    genes = torch.zeros((count, 24), dtype=torch.float32)
+    output = model(part, material, emission, morphology, subtype, role, genes, quantize=True)
+    legal = torch.tensor(sorted(allowed_training_field_tuples()), dtype=torch.long)
+    core, core_parts = sprite_codec_loss(output, part, material, emission, legal, config=config)
+    production, production_parts = deterministic_sprite_codec_loss(output, part, material, emission, legal, config=config)
+    assert torch.allclose(core, production, rtol=1e-6, atol=1e-6)
+    assert set(core_parts) == set(production_parts)
+    for name in core_parts:
+        assert torch.allclose(core_parts[name], production_parts[name], rtol=1e-6, atol=1e-6)
