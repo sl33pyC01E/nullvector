@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-rig-motion-v1.json",
+  "title": "NULLVECTOR Tuple-Preserving Neural Rig Motion Clip",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "id", "motion_program_version", "motion_renderer_version",
+    "binder_source_sha256", "binding_sha256", "source_raw_fields_sha256",
+    "condition", "motion", "facing", "loop", "fps", "frame_count",
+    "canvas_size", "safety_margin", "driver_names",
+    "clip_fit_source_to_destination", "events", "frames", "metrics", "hashes"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-neural-rig-motion-clip-v1" },
+    "id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}__(idle_breathe|idle_wiggle|locomote|joy|anger|fear|confused|sleep|taunt|attack|cast|hit|death)__(north|northeast|east|southeast|south|southwest|west|northwest)$" },
+    "motion_program_version": { "const": "graph-driver-motion-program-v1" },
+    "motion_renderer_version": { "const": "graph-layer-rig-v1" },
+    "binder_source_sha256": { "$ref": "#/$defs/sha256" },
+    "binding_sha256": { "$ref": "#/$defs/sha256" },
+    "source_raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "family_id", "subtype_id", "role_id"],
+      "properties": {
+        "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "family_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 }
+      }
+    },
+    "motion": { "$ref": "#/$defs/motion" },
+    "facing": { "$ref": "#/$defs/facing" },
+    "loop": { "type": "boolean" },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "frame_count": { "type": "integer", "minimum": 3, "maximum": 256 },
+    "canvas_size": { "const": [48, 48] },
+    "safety_margin": { "const": 3 },
+    "driver_names": { "const": ["body", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon"] },
+    "clip_fit_source_to_destination": { "$ref": "#/$defs/matrix" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "frame", "phase", "socket"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+          "frame": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "phase": { "type": "number", "minimum": 0, "maximum": 1 },
+          "socket": {
+            "type": ["string", "null"],
+            "enum": [null, "focus", "muzzle", "left_hand", "right_hand", "left_foot", "right_foot", "appendage_tip"]
+          }
+        }
+      }
+    },
+    "frames": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/frame" }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unique_field_frames", "root_span", "left_foot_span", "right_foot_span",
+        "all_source_tuples_preserved", "procedural_pixel_substitution", "margin_clear"
+      ],
+      "properties": {
+        "unique_field_frames": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "root_span": { "$ref": "#/$defs/span" },
+        "left_foot_span": { "$ref": "#/$defs/span" },
+        "right_foot_span": { "$ref": "#/$defs/span" },
+        "all_source_tuples_preserved": { "const": true },
+        "procedural_pixel_substitution": { "const": false },
+        "margin_clear": { "const": true }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_sha256"],
+      "properties": { "clip_sha256": { "$ref": "#/$defs/sha256" } }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "motion": { "enum": ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"] },
+    "facing": { "enum": ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] },
+    "point": {
+      "type": "array", "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 47 },
+        { "type": "integer", "minimum": 0, "maximum": 47 }
+      ], "minItems": 2, "maxItems": 2
+    },
+    "span": {
+      "type": "array", "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 47 },
+        { "type": "integer", "minimum": 0, "maximum": 47 }
+      ], "minItems": 2, "maxItems": 2
+    },
+    "matrix": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "array", "minItems": 3, "maxItems": 3,
+        "items": { "type": "number", "minimum": -192, "maximum": 192 }
+      }
+    },
+    "anchorMap": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+      "additionalProperties": { "$ref": "#/$defs/point" }
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format", "index", "phase", "bound_frame_sha256", "raw_fields_sha256",
+        "driver_index_sha256", "joints", "sockets", "emission_pulse",
+        "motion_frame_sha256"
+      ],
+      "properties": {
+        "format": { "const": "nullvector-neural-rig-motion-frame-v1" },
+        "index": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "phase": { "type": "number", "minimum": 0, "maximum": 1 },
+        "bound_frame_sha256": { "$ref": "#/$defs/sha256" },
+        "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+        "driver_index_sha256": { "$ref": "#/$defs/sha256" },
+        "joints": { "$ref": "#/$defs/anchorMap" },
+        "sockets": { "$ref": "#/$defs/anchorMap" },
+        "emission_pulse": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "motion_frame_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

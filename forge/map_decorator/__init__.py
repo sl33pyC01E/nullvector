@@ -1,0 +1,68 @@
+"""Topology-locked, deterministic neural map-decoration foundations."""
+
+from .catalog import (
+    CATALOG_SHA256,
+    EMPTY_CLASS,
+    EMISSION_CLASS_COUNT,
+    MAX_DECAL_CLASSES,
+    MAX_PROP_CLASSES,
+    VARIANT_CLASS_COUNT,
+    DecorationClass,
+    LegalClassMasks,
+    ThemeCatalog,
+    build_legal_class_masks,
+    catalog_for,
+    catalog_manifest,
+    validate_decoration_fields,
+)
+from .contract import (
+    CHANNEL_INDEX,
+    FEATURE_CHANNELS,
+    FEATURE_CONTRACT_SHA256,
+    FEATURE_CONTRACT_VERSION,
+    FeatureChannel,
+    feature_manifest,
+)
+from .features import (
+    EncodedFeatures,
+    FeatureInputs,
+    FeatureValidationError,
+    assert_valid_encoded_features,
+    encode_features,
+    validate_encoded_features,
+    validate_feature_inputs,
+)
+from .foundation import FoundationCase, FoundationResult, build_foundation, fuzz_foundation
+
+__all__ = [
+    "CATALOG_SHA256",
+    "CHANNEL_INDEX",
+    "EMPTY_CLASS",
+    "EMISSION_CLASS_COUNT",
+    "FEATURE_CHANNELS",
+    "FEATURE_CONTRACT_SHA256",
+    "FEATURE_CONTRACT_VERSION",
+    "MAX_DECAL_CLASSES",
+    "MAX_PROP_CLASSES",
+    "VARIANT_CLASS_COUNT",
+    "DecorationClass",
+    "EncodedFeatures",
+    "FeatureChannel",
+    "FeatureInputs",
+    "FeatureValidationError",
+    "FoundationResult",
+    "FoundationCase",
+    "LegalClassMasks",
+    "ThemeCatalog",
+    "assert_valid_encoded_features",
+    "build_foundation",
+    "build_legal_class_masks",
+    "catalog_for",
+    "catalog_manifest",
+    "encode_features",
+    "feature_manifest",
+    "fuzz_foundation",
+    "validate_decoration_fields",
+    "validate_encoded_features",
+    "validate_feature_inputs",
+]

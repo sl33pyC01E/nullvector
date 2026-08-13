@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-raw-sample-v1.json",
+  "title": "NULLVECTOR Authoritative Raw Multi-field Sample",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "render_format", "condition", "raw_fields_sha256",
+    "checkpoint_sha256", "canonical_ema_hash", "corpus_sha256",
+    "training_source_hash", "evaluation_source_hash", "guide_policy",
+    "legal_tuple_fingerprint", "temperature", "artifacts", "validation"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-raw-sample-v1" },
+    "render_format": { "const": "nullvector-multifield-raster-v1" },
+    "condition": { "type": "object" },
+    "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+    "checkpoint_sha256": { "$ref": "#/$defs/sha256" },
+    "canonical_ema_hash": { "$ref": "#/$defs/sha256" },
+    "corpus_sha256": { "$ref": "#/$defs/sha256" },
+    "training_source_hash": { "$ref": "#/$defs/sha256" },
+    "evaluation_source_hash": { "$ref": "#/$defs/sha256" },
+    "guide_policy": { "type": "object" },
+    "legal_tuple_fingerprint": { "$ref": "#/$defs/sha256" },
+    "temperature": { "type": "number", "exclusiveMinimum": 0 },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "rgba", "emission"],
+      "properties": {
+        "fields": { "$ref": "#/$defs/artifact" },
+        "rgba": { "$ref": "#/$defs/artifact" },
+        "emission": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["format", "sample_id", "raw_fields_sha256", "errors", "topology", "margins", "tuples", "source_similarity", "condition_adherence", "hard_gates", "hard_valid", "condition_exact_match", "condition_in_distribution", "accepted"],
+      "properties": {
+        "format": { "const": "nullvector-multifield-generation-validation-v2" },
+        "errors": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "hard_gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "categorical_domains", "guide_contract", "target_contract",
+            "condition_contract", "legal_table_contract", "nonempty",
+            "occupancy", "visible_connected", "structural_margin",
+            "visible_margin", "legal_tuples", "scaffold_coverage",
+            "essential_owners"
+          ],
+          "properties": {
+            "categorical_domains": { "type": "boolean" },
+            "guide_contract": { "type": "boolean" },
+            "target_contract": { "type": "boolean" },
+            "condition_contract": { "type": "boolean" },
+            "legal_table_contract": { "type": "boolean" },
+            "nonempty": { "type": "boolean" },
+            "occupancy": { "type": "boolean" },
+            "visible_connected": { "type": "boolean" },
+            "structural_margin": { "type": "boolean" },
+            "visible_margin": { "type": "boolean" },
+            "legal_tuples": { "type": "boolean" },
+            "scaffold_coverage": { "type": "boolean" },
+            "essential_owners": { "type": "boolean" }
+          }
+        },
+        "hard_valid": { "type": "boolean" },
+        "condition_exact_match": { "type": "boolean" },
+        "condition_in_distribution": { "type": "boolean" },
+        "accepted": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-conditioning-audit-v3.json",
+  "title": "NULLVECTOR Reference-normalized Conditioning Audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "source_provenance", "checkpoint", "bank",
+    "reference_calibration", "paired_reference_normalized",
+    "denoising_counterfactual", "same_noise_intervention", "decision", "samples"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-condition-diagnostic-v3" },
+    "status": { "const": "ready" },
+    "source_provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conditioning_audit_source_hash", "evaluation_source_hash", "bank_manifest", "bank_manifest_sha256", "benchmark", "benchmark_sha256"],
+      "properties": {
+        "conditioning_audit_source_hash": { "$ref": "#/$defs/sha256" },
+        "evaluation_source_hash": { "$ref": "#/$defs/sha256" },
+        "bank_manifest": { "type": "string", "minLength": 1 },
+        "bank_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "benchmark": { "type": "string", "minLength": 1 },
+        "benchmark_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "canonical_ema_hash", "training_source_hash", "published_next_epoch", "global_step", "corpus_sha256", "split_fingerprint", "condition_template_fingerprint"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "canonical_ema_hash": { "$ref": "#/$defs/sha256" },
+        "training_source_hash": { "$ref": "#/$defs/sha256" },
+        "published_next_epoch": { "type": "integer", "minimum": 1 },
+        "global_step": { "type": "integer", "minimum": 1 },
+        "corpus_sha256": { "$ref": "#/$defs/sha256" },
+        "split_fingerprint": { "$ref": "#/$defs/sha256" },
+        "condition_template_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "bank": {
+      "type": "object", "additionalProperties": false,
+      "required": ["samples", "grid", "hard_valid_rate", "exact_unique_fraction"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 1 },
+        "grid": { "type": "object" },
+        "hard_valid_rate": { "$ref": "#/$defs/fraction" },
+        "exact_unique_fraction": { "$ref": "#/$defs/fraction" }
+      }
+    },
+    "reference_calibration": { "type": "object" },
+    "paired_reference_normalized": {
+      "type": "object", "additionalProperties": false,
+      "required": ["morphology", "subtype", "role", "all"],
+      "properties": {
+        "morphology": { "$ref": "#/$defs/paired" },
+        "subtype": { "$ref": "#/$defs/paired" },
+        "role": { "$ref": "#/$defs/paired" },
+        "all": { "$ref": "#/$defs/paired" }
+      }
+    },
+    "denoising_counterfactual": {
+      "type": "object", "additionalProperties": false,
+      "required": ["examples", "combined", "morphology_subtype", "role", "genes"],
+      "properties": {
+        "examples": { "type": "integer", "minimum": 1 },
+        "combined": { "$ref": "#/$defs/counterfactual" },
+        "morphology_subtype": { "$ref": "#/$defs/counterfactual" },
+        "role": { "$ref": "#/$defs/counterfactual" },
+        "genes": { "$ref": "#/$defs/counterfactual" }
+      }
+    },
+    "same_noise_intervention": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {
+            "status": { "const": "not_run" },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "contract", "interpretation", "checkpoint_sha256", "device", "precision", "gpu_name", "samples", "records", "temperature", "same_seed_control", "axes", "all_axes_effect_detected", "elapsed_seconds", "cuda_peak_allocated_bytes", "cuda_peak_reserved_bytes"],
+          "properties": {
+            "status": { "const": "ready" },
+            "contract": { "const": "same-noise-axis-sensitivity-v1" },
+            "interpretation": { "type": "string", "minLength": 1 },
+            "checkpoint_sha256": { "$ref": "#/$defs/sha256" },
+            "device": { "type": "string", "minLength": 1 },
+            "precision": { "enum": ["fp32", "bf16", "fp16"] },
+            "gpu_name": { "type": ["string", "null"] },
+            "samples": { "type": "integer", "minimum": 1 },
+            "records": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+            "temperature": { "type": "number", "exclusiveMinimum": 0 },
+            "same_seed_control": { "$ref": "#/$defs/interventionSummary" },
+            "axes": {
+              "type": "object", "additionalProperties": false,
+              "required": ["morphology_with_family_local_subtype", "subtype_within_family", "role", "genes_inverted"],
+              "properties": {
+                "morphology_with_family_local_subtype": { "$ref": "#/$defs/interventionSummary" },
+                "subtype_within_family": { "$ref": "#/$defs/interventionSummary" },
+                "role": { "$ref": "#/$defs/interventionSummary" },
+                "genes_inverted": { "$ref": "#/$defs/interventionSummary" }
+              }
+            },
+            "all_axes_effect_detected": { "type": "boolean" },
+            "elapsed_seconds": { "type": "number", "minimum": 0 },
+            "cuda_peak_allocated_bytes": { "type": "integer", "minimum": 0 },
+            "cuda_peak_reserved_bytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proxy_ceiling_limited", "paired_regression_detected", "counterfactual_condition_use_supported", "conclusion", "training_change_warranted", "training_run_started", "rationale"],
+      "properties": {
+        "proxy_ceiling_limited": { "type": "boolean" },
+        "paired_regression_detected": { "type": "boolean" },
+        "counterfactual_condition_use_supported": { "type": "boolean" },
+        "conclusion": { "enum": ["weak_proxy_dominates_no_conditioning_regression_detected", "paired_conditioning_regression_detected", "conditioning_evidence_inconclusive"] },
+        "training_change_warranted": { "type": "boolean" },
+        "training_run_started": { "const": false },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "samples": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sample_id", "source_index", "raw_fields_sha256", "condition", "generated_prediction", "reference_prediction", "generated_exact", "reference_exact"],
+        "properties": {
+          "sample_id": { "type": "string", "minLength": 1 },
+          "source_index": { "type": "integer", "minimum": 0 },
+          "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+          "condition": { "$ref": "#/$defs/condition" },
+          "generated_prediction": { "$ref": "#/$defs/prediction" },
+          "reference_prediction": { "$ref": "#/$defs/prediction" },
+          "generated_exact": { "type": "boolean" },
+          "reference_exact": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+    "condition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["morphology_id", "subtype_id", "role_id"],
+      "properties": {
+        "morphology_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 }
+      }
+    },
+    "prediction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["morphology", "subtype", "role"],
+      "properties": {
+        "morphology": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "role": { "type": "integer", "minimum": 0, "maximum": 7 }
+      }
+    },
+    "counterfactual": {
+      "type": "object", "additionalProperties": false,
+      "required": ["preference_rate", "mean_nll_margin"],
+      "properties": {
+        "preference_rate": { "$ref": "#/$defs/fraction" },
+        "mean_nll_margin": { "type": "number" }
+      }
+    },
+    "paired": {
+      "type": "object", "additionalProperties": false,
+      "required": ["samples", "generated_matches", "generated_rate", "reference_matches", "reference_rate", "generated_minus_reference_rate", "prediction_agreement", "prediction_agreement_rate", "both_correct", "generated_only_correct", "reference_only_correct", "both_wrong", "retention_given_reference_correct", "correction_given_reference_wrong", "mcnemar_two_sided_exact_p", "generated_significantly_worse_at_0_01"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 1 },
+        "generated_matches": { "type": "integer", "minimum": 0 },
+        "generated_rate": { "$ref": "#/$defs/fraction" },
+        "reference_matches": { "type": "integer", "minimum": 0 },
+        "reference_rate": { "$ref": "#/$defs/fraction" },
+        "generated_minus_reference_rate": { "type": "number", "minimum": -1, "maximum": 1 },
+        "prediction_agreement": { "type": "integer", "minimum": 0 },
+        "prediction_agreement_rate": { "$ref": "#/$defs/fraction" },
+        "both_correct": { "type": "integer", "minimum": 0 },
+        "generated_only_correct": { "type": "integer", "minimum": 0 },
+        "reference_only_correct": { "type": "integer", "minimum": 0 },
+        "both_wrong": { "type": "integer", "minimum": 0 },
+        "retention_given_reference_correct": { "$ref": "#/$defs/fraction" },
+        "correction_given_reference_wrong": { "$ref": "#/$defs/fraction" },
+        "mcnemar_two_sided_exact_p": { "$ref": "#/$defs/fraction" },
+        "generated_significantly_worse_at_0_01": { "type": "boolean" }
+      }
+    },
+    "interventionSample": {
+      "type": "object", "additionalProperties": false,
+      "required": ["categorical_hamming", "part_hamming", "material_hamming", "emission_hamming", "silhouette_iou", "exactly_unchanged"],
+      "properties": {
+        "categorical_hamming": { "$ref": "#/$defs/fraction" },
+        "part_hamming": { "$ref": "#/$defs/fraction" },
+        "material_hamming": { "$ref": "#/$defs/fraction" },
+        "emission_hamming": { "$ref": "#/$defs/fraction" },
+        "silhouette_iou": { "$ref": "#/$defs/fraction" },
+        "exactly_unchanged": { "type": "boolean" }
+      }
+    },
+    "interventionSummary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["samples", "exactly_unchanged", "exactly_changed", "mean_categorical_hamming", "minimum_categorical_hamming", "maximum_categorical_hamming", "mean_part_hamming", "mean_material_hamming", "mean_emission_hamming", "mean_silhouette_iou", "condition_effect_detected", "per_sample"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 1 },
+        "exactly_unchanged": { "type": "integer", "minimum": 0 },
+        "exactly_changed": { "type": "integer", "minimum": 0 },
+        "mean_categorical_hamming": { "$ref": "#/$defs/fraction" },
+        "minimum_categorical_hamming": { "$ref": "#/$defs/fraction" },
+        "maximum_categorical_hamming": { "$ref": "#/$defs/fraction" },
+        "mean_part_hamming": { "$ref": "#/$defs/fraction" },
+        "mean_material_hamming": { "$ref": "#/$defs/fraction" },
+        "mean_emission_hamming": { "$ref": "#/$defs/fraction" },
+        "mean_silhouette_iou": { "$ref": "#/$defs/fraction" },
+        "condition_effect_detected": { "type": "boolean" },
+        "per_sample": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/interventionSample" } }
+      }
+    }
+  }
+}

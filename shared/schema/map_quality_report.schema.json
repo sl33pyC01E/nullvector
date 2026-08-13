@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map-quality-report-v1.json",
+  "title": "NullVector topology-v2 map quality audit",
+  "oneOf": [
+    { "$ref": "#/$defs/mapRecord" },
+    { "$ref": "#/$defs/bank" }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_source_sha256",
+        "map_generator_version",
+        "map_schema_version",
+        "python_version",
+        "numpy_version"
+      ],
+      "properties": {
+        "audit_source_sha256": { "$ref": "#/$defs/sha256" },
+        "map_generator_version": { "const": "2.0.0" },
+        "map_schema_version": { "const": "2.0.0" },
+        "python_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "numpy_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "integer", "minimum": 0 }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "pathMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "geometric_length",
+        "manhattan_direct",
+        "geometric_detour_ratio",
+        "safe_length",
+        "safe_detour_ratio_vs_geometric",
+        "radius_one_safe_length",
+        "radius_one_safe_detour_ratio_vs_geometric",
+        "canonical_geometric_minimum_clearance_radius",
+        "canonical_geometric_median_clearance_radius",
+        "canonical_geometric_narrow_cell_fraction",
+        "canonical_geometric_minimum_hazard_distance",
+        "canonical_geometric_hazard_nearby_fraction",
+        "canonical_geometric_hazard_fraction",
+        "canonical_geometric_elevation_change_sum",
+        "canonical_geometric_elevation_levels_used",
+        "geometric_widest_shortest_clearance_radius",
+        "geometric_minimum_hazard_cells_on_shortest_path",
+        "geometric_minimum_hazard_fraction_on_shortest_path",
+        "safe_widest_shortest_clearance_radius",
+        "radius_one_safe_widest_shortest_clearance_radius"
+      ],
+      "properties": {
+        "target": { "$ref": "#/$defs/point" },
+        "geometric_length": { "type": "integer", "minimum": 0 },
+        "manhattan_direct": { "type": "integer", "minimum": 0 },
+        "geometric_detour_ratio": { "type": "number", "minimum": 1 },
+        "safe_length": { "type": "integer", "minimum": 0 },
+        "safe_detour_ratio_vs_geometric": { "type": "number", "minimum": 1 },
+        "radius_one_safe_length": { "type": "integer", "minimum": -1 },
+        "radius_one_safe_detour_ratio_vs_geometric": { "type": "number", "minimum": -1 },
+        "canonical_geometric_minimum_clearance_radius": { "type": "integer", "minimum": 1 },
+        "canonical_geometric_median_clearance_radius": { "type": "number", "minimum": 1 },
+        "canonical_geometric_narrow_cell_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "canonical_geometric_minimum_hazard_distance": { "type": "integer", "minimum": -1 },
+        "canonical_geometric_hazard_nearby_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "canonical_geometric_hazard_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "canonical_geometric_elevation_change_sum": { "type": "integer", "minimum": 0 },
+        "canonical_geometric_elevation_levels_used": { "type": "integer", "minimum": 1 },
+        "geometric_widest_shortest_clearance_radius": { "type": "integer", "minimum": 1 },
+        "geometric_minimum_hazard_cells_on_shortest_path": { "type": "integer", "minimum": 0 },
+        "geometric_minimum_hazard_fraction_on_shortest_path": { "type": "number", "minimum": 0, "maximum": 1 },
+        "safe_widest_shortest_clearance_radius": { "type": "integer", "minimum": 1 },
+        "radius_one_safe_widest_shortest_clearance_radius": { "type": "integer", "minimum": -1 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "walkable_component_count",
+        "required_component_fraction",
+        "articulation_cell_count",
+        "mission_relevant_articulation_count",
+        "mission_relevant_articulation_fraction",
+        "agent_scale_articulation_cell_count",
+        "agent_scale_mission_articulation_count",
+        "agent_scale_mission_articulation_fraction",
+        "radius_one_walkable_fraction",
+        "radius_one_safe_walkable_fraction",
+        "protected_minimum_clearance_radius",
+        "protected_median_clearance_radius",
+        "protected_narrow_cell_fraction",
+        "safe_walkable_fraction",
+        "hazard_density_on_walkable",
+        "zone_count",
+        "elevation_levels_used",
+        "elevation_entropy_bits",
+        "spawn_pair_minimum_manhattan",
+        "spawn_pair_median_manhattan",
+        "required_paths",
+        "maximum_required_detour_ratio",
+        "minimum_canonical_geometric_path_clearance",
+        "maximum_canonical_geometric_path_narrow_fraction",
+        "maximum_safe_detour_ratio_vs_geometric",
+        "maximum_radius_one_safe_detour_ratio_vs_geometric",
+        "maximum_canonical_geometric_path_hazard_fraction",
+        "minimum_canonical_geometric_path_hazard_distance",
+        "minimum_widest_shortest_clearance_radius",
+        "maximum_minimum_hazard_fraction_on_shortest_path"
+      ],
+      "properties": {
+        "walkable_component_count": { "type": "integer", "minimum": 1 },
+        "required_component_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "articulation_cell_count": { "type": "integer", "minimum": 0 },
+        "mission_relevant_articulation_count": { "type": "integer", "minimum": 0 },
+        "mission_relevant_articulation_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "agent_scale_articulation_cell_count": { "type": "integer", "minimum": 0 },
+        "agent_scale_mission_articulation_count": { "type": "integer", "minimum": 0 },
+        "agent_scale_mission_articulation_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "radius_one_walkable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "radius_one_safe_walkable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "protected_minimum_clearance_radius": { "type": "integer", "minimum": 1 },
+        "protected_median_clearance_radius": { "type": "number", "minimum": 1 },
+        "protected_narrow_cell_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "safe_walkable_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "hazard_density_on_walkable": { "type": "number", "minimum": 0, "maximum": 1 },
+        "zone_count": { "type": "integer", "minimum": 1 },
+        "elevation_levels_used": { "type": "integer", "minimum": 1 },
+        "elevation_entropy_bits": { "type": "number", "minimum": 0 },
+        "spawn_pair_minimum_manhattan": { "type": "integer", "minimum": -1 },
+        "spawn_pair_median_manhattan": { "type": "number", "minimum": -1 },
+        "required_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/pathMetric" }
+        },
+        "maximum_required_detour_ratio": { "type": "number", "minimum": 1 },
+        "minimum_canonical_geometric_path_clearance": { "type": "integer", "minimum": 1 },
+        "maximum_canonical_geometric_path_narrow_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maximum_safe_detour_ratio_vs_geometric": { "type": "number", "minimum": 1 },
+        "maximum_radius_one_safe_detour_ratio_vs_geometric": { "type": "number", "minimum": -1 },
+        "maximum_canonical_geometric_path_hazard_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "minimum_canonical_geometric_path_hazard_distance": { "type": "integer", "minimum": -1 },
+        "minimum_widest_shortest_clearance_radius": { "type": "integer", "minimum": 1 },
+        "maximum_minimum_hazard_fraction_on_shortest_path": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mission_has_alternate_agent_scale_routes",
+        "radius_one_safe_route_exists",
+        "required_paths_not_excessively_detoured",
+        "spawn_distribution_noncollapsed",
+        "elevation_is_nontrivial"
+      ],
+      "properties": {
+        "mission_has_alternate_agent_scale_routes": { "type": "boolean" },
+        "radius_one_safe_route_exists": { "type": "boolean" },
+        "required_paths_not_excessively_detoured": { "type": "boolean" },
+        "spawn_distribution_noncollapsed": { "type": "boolean" },
+        "elevation_is_nontrivial": { "type": "boolean" }
+      }
+    },
+    "mapRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "audit_source_sha256",
+        "contract",
+        "map_id",
+        "seed",
+        "theme",
+        "dimensions",
+        "source_semantic_sha256",
+        "source_manifest_sha256",
+        "metrics",
+        "diagnostics",
+        "hard_validity_preserved",
+        "report_sha256"
+      ],
+      "properties": {
+        "format": { "const": "nullvector-map-quality-audit-v1" },
+        "audit_source_sha256": { "$ref": "#/$defs/sha256" },
+        "contract": { "$ref": "#/$defs/contract" },
+        "map_id": { "type": "string", "minLength": 1 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
+        "theme": {
+          "enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]
+        },
+        "dimensions": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "integer", "minimum": 32, "maximum": 256 },
+            { "type": "integer", "minimum": 32, "maximum": 256 }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "source_semantic_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "source_manifest_sha256": {
+          "oneOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "metrics": { "$ref": "#/$defs/metrics" },
+        "diagnostics": { "$ref": "#/$defs/diagnostics" },
+        "hard_validity_preserved": { "const": true },
+        "report_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "statistic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum", "mean", "median", "maximum"],
+      "properties": {
+        "minimum": { "type": "number" },
+        "mean": { "type": "number" },
+        "median": { "type": "number" },
+        "maximum": { "type": "number" }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/statistic" }
+    },
+    "bank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "audit_source_sha256",
+        "contract",
+        "status",
+        "map_count",
+        "unique_semantic_count",
+        "themes",
+        "all_hard_valid",
+        "aggregate",
+        "by_theme",
+        "maps",
+        "report_sha256"
+      ],
+      "properties": {
+        "format": { "const": "nullvector-map-quality-bank-v1" },
+        "audit_source_sha256": { "$ref": "#/$defs/sha256" },
+        "contract": { "$ref": "#/$defs/contract" },
+        "status": { "const": "ready" },
+        "map_count": { "type": "integer", "minimum": 1 },
+        "unique_semantic_count": { "type": "integer", "minimum": 1 },
+        "themes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]
+          }
+        },
+        "all_hard_valid": { "const": true },
+        "aggregate": { "$ref": "#/$defs/aggregate" },
+        "by_theme": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "arena": { "$ref": "#/$defs/aggregate" },
+            "rooms": { "$ref": "#/$defs/aggregate" },
+            "caves": { "$ref": "#/$defs/aggregate" },
+            "archipelago": { "$ref": "#/$defs/aggregate" },
+            "garden": { "$ref": "#/$defs/aggregate" },
+            "anomaly": { "$ref": "#/$defs/aggregate" }
+          }
+        },
+        "maps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/mapRecord" }
+        },
+        "report_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

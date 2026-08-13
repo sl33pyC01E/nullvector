@@ -1,0 +1,37 @@
+{
+  "format_version": "1.0.0",
+  "device": "cpu",
+  "model": {
+    "base_channels": 48,
+    "condition_channels": 96,
+    "residual_blocks_per_scale": 1,
+    "padding_multiple": 4
+  },
+  "training": {
+    "learning_rate": 0.0002,
+    "weight_decay": 0.0001,
+    "corruption_min": 0.2,
+    "corruption_max": 0.95,
+    "ema_decay": 0.999,
+    "seed": 233572990
+  },
+  "sampler": {
+    "steps": 8,
+    "temperature": 0.85,
+    "deterministic_seeded_sampling": true
+  },
+  "heads": {
+    "variant": 8,
+    "decal": 3,
+    "prop": 3,
+    "emission": 4
+  },
+  "teacher": {
+    "required_map_schema": "2.0.0",
+    "topology_mask_contract": "1.0.0",
+    "feature_channels": 53,
+    "split_policy": "canonical-map-identity-sha256-80-10-10-v1"
+  },
+  "disk_floor_gib": 100,
+  "production_training_authorized": false
+}

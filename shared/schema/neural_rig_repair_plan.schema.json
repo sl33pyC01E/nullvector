@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-rig-repair-plan-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "repair_version", "sample_id", "ordinal", "condition", "source", "baseline_v1", "repair", "expected", "gates", "hashes"],
+  "properties": {
+    "format": { "const": "nullvector-neural-rig-repair-plan-v1" },
+    "status": { "const": "ready" },
+    "repair_version": { "const": "logical-neural-rig-repair-v2" },
+    "sample_id": { "$ref": "#/$defs/id" },
+    "ordinal": { "type": "integer", "minimum": 0, "maximum": 79 },
+    "condition": { "$ref": "#/$defs/condition" },
+    "source": { "$ref": "#/$defs/source" },
+    "baseline_v1": { "$ref": "#/$defs/baseline" },
+    "repair": { "$ref": "#/$defs/repair" },
+    "expected": { "$ref": "#/$defs/expected" },
+    "gates": { "$ref": "#/$defs/gates" },
+    "hashes": {
+      "type": "object", "additionalProperties": false, "required": ["plan_sha256"],
+      "properties": { "plan_sha256": { "$ref": "#/$defs/sha" } }
+    }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha" } }
+    },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "driver": { "enum": ["body", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon"] },
+    "point": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "type": "integer", "minimum": 0, "maximum": 47 }, { "type": "integer", "minimum": 0, "maximum": 47 }], "items": false },
+    "condition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["family", "family_id", "subtype_id", "role_id", "corpus_seed", "sample_seed"],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" }, "family_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 }, "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "corpus_seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "sample_seed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generation_manifest", "style_manifest", "raw_manifest", "raw_archive", "raw_fields_sha256", "compiled_fields_sha256", "static_palette_sha256", "legal_tuple_fingerprint", "frozen_bridge_source_sha256"],
+      "properties": {
+        "generation_manifest": { "$ref": "#/$defs/artifact" }, "style_manifest": { "$ref": "#/$defs/artifact" },
+        "raw_manifest": { "$ref": "#/$defs/artifact" }, "raw_archive": { "$ref": "#/$defs/artifact" },
+        "raw_fields_sha256": { "$ref": "#/$defs/sha" }, "compiled_fields_sha256": { "$ref": "#/$defs/sha" },
+        "static_palette_sha256": { "$ref": "#/$defs/sha" }, "legal_tuple_fingerprint": { "$ref": "#/$defs/sha" },
+        "frozen_bridge_source_sha256": { "const": "46372e031c91d0202d0e55a8422385978c5157f76d83ed20adef9ed3e7250305" }
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false, "required": ["status", "binding_sha256", "categories", "reasons"],
+      "properties": {
+        "status": { "enum": ["accepted", "rejected"] }, "binding_sha256": { "oneOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
+        "categories": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "enum": ["anchor_on_background", "plant_topology", "required_owner_absence", "safety_margin"] } },
+        "reasons": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "anchor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "kind", "driver", "source_point", "point", "support_point", "displacement", "observed_owner", "policy"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "kind": { "enum": ["joint", "socket"] }, "driver": { "$ref": "#/$defs/driver" },
+        "source_point": { "$ref": "#/$defs/point" }, "point": { "$ref": "#/$defs/point" }, "support_point": { "$ref": "#/$defs/point" },
+        "displacement": { "type": "number", "minimum": 0, "maximum": 12 }, "observed_owner": { "type": "integer", "minimum": 1, "maximum": 15 },
+        "policy": { "enum": ["exact-conditioned-point", "nearest-existing-physical-driver-support"] }
+      }
+    },
+    "component": {
+      "type": "object", "additionalProperties": false, "required": ["component", "pixel_count", "dominant_driver", "physical"],
+      "properties": { "component": { "type": "integer", "minimum": 0, "maximum": 2 }, "pixel_count": { "type": "integer", "minimum": 1, "maximum": 2304 }, "dominant_driver": { "$ref": "#/$defs/driver" }, "physical": { "const": true } }
+    },
+    "link": {
+      "type": "object", "additionalProperties": false, "required": ["component", "source_point", "target_component", "target_point", "distance", "joint_type", "pixels_inserted"],
+      "properties": {
+        "component": { "type": "integer", "minimum": 1, "maximum": 2 }, "source_point": { "$ref": "#/$defs/point" }, "target_component": { "const": 0 }, "target_point": { "$ref": "#/$defs/point" },
+        "distance": { "type": "number", "minimum": 1, "maximum": 48 }, "joint_type": { "enum": ["fixed-logical", "orbital"] }, "pixels_inserted": { "const": 0 }
+      }
+    },
+    "restMargin": {
+      "type": "object", "additionalProperties": false, "required": ["unsafe_foreground_pixels", "unsafe_physical_pixels", "unsafe_aura_pixels", "physical_margin_clear", "aura_deferred_to_motion_envelope"],
+      "properties": {
+        "unsafe_foreground_pixels": { "type": "integer", "minimum": 0, "maximum": 2304 }, "unsafe_physical_pixels": { "const": 0 }, "unsafe_aura_pixels": { "type": "integer", "minimum": 0, "maximum": 2304 },
+        "physical_margin_clear": { "const": true }, "aura_deferred_to_motion_envelope": { "type": "boolean" }
+      }
+    },
+    "repair": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operations", "driver_policy", "anchor_policy", "aura_policy", "component_policy", "motion_envelope_policy", "required_owner_fallbacks", "anchors", "physical_components", "logical_links", "rest_margin"],
+      "properties": {
+        "operations": { "type": "array", "minItems": 3, "maxItems": 7, "uniqueItems": true, "items": { "enum": ["logical_driver_projection_v2", "nonphysical_aura_attachment_v1", "per_clip_motion_envelope_fit_v1", "anchor_support_reselection_v1", "logical_component_link_v1", "guide_anchor_owner_fallback_v1", "aura_margin_deferred_to_clip_fit_v1"] } },
+        "driver_policy": { "const": "robust-minimum-12px-segment-voronoi-v2" }, "anchor_policy": { "const": "nearest-existing-physical-driver-support-v1" },
+        "aura_policy": { "const": "nonphysical-nearest-physical-driver-effect-attachment-v1" }, "component_policy": { "const": "preserve-pixels-add-logical-links-only-v1" },
+        "motion_envelope_policy": { "const": "clip-wide-facing-preserving-bounded-attenuation-v1" },
+        "required_owner_fallbacks": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "enum": ["body", "head", "core"] } },
+        "anchors": { "type": "array", "minItems": 15, "maxItems": 15, "items": { "$ref": "#/$defs/anchor" } },
+        "physical_components": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "$ref": "#/$defs/component" } },
+        "logical_links": { "type": "array", "maxItems": 2, "items": { "$ref": "#/$defs/link" } }, "rest_margin": { "$ref": "#/$defs/restMargin" }
+      }
+    },
+    "expected": {
+      "type": "object", "additionalProperties": false, "required": ["driver_index_sha256", "physical_component_count", "logical_link_count", "maximum_anchor_displacement", "minimum_driver_pixels"],
+      "properties": {
+        "driver_index_sha256": { "$ref": "#/$defs/sha" }, "physical_component_count": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "logical_link_count": { "type": "integer", "minimum": 0, "maximum": 2 }, "maximum_anchor_displacement": { "type": "number", "minimum": 0, "maximum": 12 }, "minimum_driver_pixels": { "const": 12 }
+      }
+    },
+    "gates": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_rest_arrays_unchanged", "raw_and_compiled_fields_identical", "no_pixels_inserted_removed_translated_cropped_or_relabeled_at_rest", "anchors_use_existing_physical_pixels", "all_drivers_have_minimum_support", "aura_is_nonphysical_effect_metadata", "disconnected_components_use_logical_links_only", "motion_fit_is_clip_local_and_rest_preserving", "source_artifacts_hash_bound"],
+      "properties": {
+        "raw_rest_arrays_unchanged": { "const": true }, "raw_and_compiled_fields_identical": { "const": true }, "no_pixels_inserted_removed_translated_cropped_or_relabeled_at_rest": { "const": true },
+        "anchors_use_existing_physical_pixels": { "const": true }, "all_drivers_have_minimum_support": { "const": true }, "aura_is_nonphysical_effect_metadata": { "const": true },
+        "disconnected_components_use_logical_links_only": { "const": true }, "motion_fit_is_clip_local_and_rest_preserving": { "const": true }, "source_artifacts_hash_bound": { "const": true }
+      }
+    }
+  }
+}

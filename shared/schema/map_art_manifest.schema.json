@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_art_manifest.schema.json",
+  "title": "NULLVECTOR Pixel-Neon Map Art Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "art_id", "map_id", "seed", "theme", "source",
+    "dimensions", "renderer", "animation", "atlases", "semantics",
+    "statistics", "validation", "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "art_id": {"type": "string", "pattern": "^[a-z]+-[0-9a-f]{16}-[0-9]+x[0-9]+-art-v1$"},
+    "map_id": {"type": "string", "pattern": "^[a-z]+-[0-9a-f]{16}-[0-9]+x[0-9]+$"},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_array_sha256", "expected_array_file", "coordinate_system"],
+      "properties": {
+        "semantic_array_sha256": {"$ref": "#/$defs/sha256"},
+        "expected_array_file": {"const": "semantics.npz"},
+        "coordinate_system": {"type": "string", "minLength": 20}
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cells", "pixels", "tile_size"],
+      "properties": {
+        "cells": {"$ref": "#/$defs/dimensions"},
+        "pixels": {"$ref": "#/$defs/pixelDimensions"},
+        "tile_size": {"const": 8}
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "deterministic", "random_access_hash", "source_sha256"],
+      "properties": {
+        "name": {"const": "nullvector-map-art-forge"},
+        "version": {"const": "1.0.0"},
+        "deterministic": {"const": true},
+        "random_access_hash": {"const": "splitmix64-coordinate-v1"},
+        "source_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frame_count", "duration_ms", "loop", "grid"],
+      "properties": {
+        "frame_count": {"const": 8},
+        "duration_ms": {"type": "integer", "minimum": 16, "maximum": 1000},
+        "loop": {"const": "cyclic"},
+        "grid": {
+          "type": "object", "additionalProperties": false, "required": ["columns", "rows"],
+          "properties": {"columns": {"const": 4}, "rows": {"const": 2}}
+        }
+      }
+    },
+    "atlases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terrain", "hazard", "objects"],
+      "properties": {
+        "terrain": {"$ref": "#/$defs/atlas"},
+        "hazard": {"$ref": "#/$defs/atlas"},
+        "objects": {"$ref": "#/$defs/atlas"}
+      }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "format", "array_sha256", "arrays"],
+      "properties": {
+        "file": {"const": "art_semantics.npz"},
+        "format": {"const": "npz-deflate"},
+        "array_sha256": {"$ref": "#/$defs/sha256"},
+        "arrays": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["autotile_mask", "elevation_edge_mask", "variant", "collision", "occlusion", "prop_id", "decal_id"],
+          "properties": {
+            "autotile_mask": {"$ref": "#/$defs/arrayDescriptor"},
+            "elevation_edge_mask": {"$ref": "#/$defs/arrayDescriptor"},
+            "variant": {"$ref": "#/$defs/arrayDescriptor"},
+            "collision": {"$ref": "#/$defs/arrayDescriptor"},
+            "occlusion": {"$ref": "#/$defs/arrayDescriptor"},
+            "prop_id": {"$ref": "#/$defs/arrayDescriptor"},
+            "decal_id": {"$ref": "#/$defs/arrayDescriptor"}
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instance_count", "prop_count", "decal_count", "emissive_pixels",
+        "animated_hazard_cells", "collision_cells", "occluding_cells", "catalog_count",
+        "terrain_atlas_entries", "hazard_atlas_entries", "object_atlas_entries"
+      ],
+      "properties": {
+        "instance_count": {"type": "integer", "minimum": 0},
+        "prop_count": {"type": "integer", "minimum": 0},
+        "decal_count": {"type": "integer", "minimum": 0},
+        "emissive_pixels": {"type": "integer", "minimum": 1},
+        "animated_hazard_cells": {"type": "integer", "minimum": 0},
+        "collision_cells": {"type": "integer", "minimum": 1},
+        "occluding_cells": {"type": "integer", "minimum": 1},
+        "catalog_count": {"type": "integer", "minimum": 1},
+        "terrain_atlas_entries": {"const": 144},
+        "hazard_atlas_entries": {"const": 32},
+        "object_atlas_entries": {"type": "integer", "minimum": 4}
+      }
+    },
+    "validation": {
+      "type": "array", "minItems": 20,
+      "items": {"$ref": "#/$defs/check"}
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_color", "emissive", "preview", "hazard_color_frames", "hazard_emissive_frames",
+        "hazard_frame_metadata", "terrain_atlas", "terrain_emissive_atlas", "hazard_atlas",
+        "hazard_emissive_atlas", "object_atlas", "object_emissive_atlas", "art_semantics", "instances"
+      ],
+      "properties": {
+        "base_color": {"$ref": "#/$defs/artifact"},
+        "emissive": {"$ref": "#/$defs/artifact"},
+        "preview": {"$ref": "#/$defs/artifact"},
+        "hazard_color_frames": {"$ref": "#/$defs/artifact"},
+        "hazard_emissive_frames": {"$ref": "#/$defs/artifact"},
+        "hazard_frame_metadata": {"$ref": "#/$defs/artifact"},
+        "terrain_atlas": {"$ref": "#/$defs/artifact"},
+        "terrain_emissive_atlas": {"$ref": "#/$defs/artifact"},
+        "hazard_atlas": {"$ref": "#/$defs/artifact"},
+        "hazard_emissive_atlas": {"$ref": "#/$defs/artifact"},
+        "object_atlas": {"$ref": "#/$defs/artifact"},
+        "object_emissive_atlas": {"$ref": "#/$defs/artifact"},
+        "art_semantics": {"$ref": "#/$defs/artifact"},
+        "instances": {"$ref": "#/$defs/artifact"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "dimensions": {
+      "type": "object", "additionalProperties": false, "required": ["width", "height"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 32, "maximum": 256},
+        "height": {"type": "integer", "minimum": 32, "maximum": 256}
+      }
+    },
+    "pixelDimensions": {
+      "type": "object", "additionalProperties": false, "required": ["width", "height"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 256, "maximum": 2048},
+        "height": {"type": "integer", "minimum": 256, "maximum": 2048}
+      }
+    },
+    "arrayDescriptor": {
+      "type": "object", "additionalProperties": false, "required": ["dtype", "shape"],
+      "properties": {
+        "dtype": {"enum": ["uint8", "int16"]},
+        "shape": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "prefixItems": [
+            {"type": "integer", "minimum": 32, "maximum": 256},
+            {"type": "integer", "minimum": 32, "maximum": 256}
+          ]
+        }
+      }
+    },
+    "atlas": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tile_size", "columns", "rows", "color_file", "emissive_file", "entries"],
+      "properties": {
+        "tile_size": {"const": 8},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 32},
+        "rows": {"type": "integer", "minimum": 1, "maximum": 16},
+        "color_file": {"type": "string", "pattern": "^[a-z_]+\\.png$"},
+        "emissive_file": {"type": "string", "pattern": "^[a-z_]+\\.png$"},
+        "entries": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false, "required": ["name", "passed", "detail"],
+      "properties": {
+        "name": {"type": "string", "minLength": 3},
+        "passed": {"const": true},
+        "detail": {"type": "string", "minLength": 3}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["file", "format", "sha256"],
+      "properties": {
+        "file": {"type": "string", "pattern": "^[a-z_.]+$"},
+        "format": {"type": "string", "minLength": 3},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "mode": {"enum": ["RGB", "RGBA"]},
+        "pixel_size": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "prefixItems": [
+            {"type": "integer", "minimum": 8, "maximum": 16384},
+            {"type": "integer", "minimum": 8, "maximum": 16384}
+          ]
+        }
+      }
+    }
+  }
+}

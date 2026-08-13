@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-rig-repair-replay-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "mode", "neural_output", "bank_manifest", "bank_sha256", "source", "counts", "identity_results", "gates", "replay_sha256"],
+  "properties": {
+    "format": { "const": "nullvector-neural-rig-repair-replay-v1" },
+    "status": { "enum": ["passed", "inspected"] },
+    "mode": { "enum": ["exact_motion", "metadata_only"] },
+    "neural_output": { "type": "boolean" },
+    "bank_manifest": { "$ref": "#/$defs/artifact" },
+    "bank_sha256": { "$ref": "#/$defs/sha" },
+    "source": { "$ref": "#/$defs/source" },
+    "counts": { "$ref": "#/$defs/counts" },
+    "identity_results": { "type": "array", "minItems": 80, "maxItems": 80, "items": { "$ref": "#/$defs/identity" } },
+    "gates": { "$ref": "#/$defs/gates" },
+    "replay_sha256": { "$ref": "#/$defs/sha" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "exact_motion" } }, "required": ["mode"] },
+      "then": {
+        "properties": {
+          "status": { "const": "passed" },
+          "neural_output": { "const": true },
+          "identity_results": { "items": { "properties": { "motion_audit_exact": { "const": true } } } },
+          "gates": { "properties": { "all_8320_clip_audits_exactly_rerendered": { "const": true }, "all_gates_true": { "const": true } } }
+        }
+      },
+      "else": {
+        "properties": {
+          "status": { "const": "inspected" },
+          "neural_output": { "const": false },
+          "identity_results": { "items": { "properties": { "motion_audit_exact": { "const": false } } } },
+          "gates": { "properties": { "all_8320_clip_audits_exactly_rerendered": { "const": false }, "all_gates_true": { "const": false } } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generation_manifest_sha256", "style_manifest_sha256", "legal_tuple_fingerprint", "frozen_bridge_source_sha256", "repair_source_sha256"],
+      "properties": {
+        "generation_manifest_sha256": { "$ref": "#/$defs/sha" },
+        "style_manifest_sha256": { "$ref": "#/$defs/sha" },
+        "legal_tuple_fingerprint": { "$ref": "#/$defs/sha" },
+        "frozen_bridge_source_sha256": { "const": "46372e031c91d0202d0e55a8422385978c5157f76d83ed20adef9ed3e7250305" },
+        "repair_source_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_count", "plan_count", "binding_count", "rest_array_count", "rest_cell_count", "clip_count", "frame_count", "artifact_count_compared"],
+      "properties": {
+        "sample_count": { "const": 80 },
+        "plan_count": { "const": 80 },
+        "binding_count": { "const": 80 },
+        "rest_array_count": { "const": 240 },
+        "rest_cell_count": { "const": 184320 },
+        "clip_count": { "const": 8320 },
+        "frame_count": { "const": 75520 },
+        "artifact_count_compared": { "const": 261 }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_id", "ordinal", "family", "plan_artifact_exact", "plan_self_hash_exact", "exact_source_recompile", "binding_manifest_exact", "part_owner_rest_exact", "material_rest_exact", "emission_rest_exact", "raw_fields_hash_exact", "motion_audit_exact"],
+      "properties": {
+        "sample_id": { "type": "string", "pattern": "^[0-9]{4}_f[0-4]_s[0-9]{2}_r[0-7]_v0[01]$" },
+        "ordinal": { "type": "integer", "minimum": 0, "maximum": 79 },
+        "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "plan_artifact_exact": { "const": true },
+        "plan_self_hash_exact": { "const": true },
+        "exact_source_recompile": { "const": true },
+        "binding_manifest_exact": { "const": true },
+        "part_owner_rest_exact": { "const": true },
+        "material_rest_exact": { "const": true },
+        "emission_rest_exact": { "const": true },
+        "raw_fields_hash_exact": { "const": true },
+        "motion_audit_exact": { "type": "boolean" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bank_schema_valid", "bank_self_hash_exact", "source_artifact_records_exact", "all_80_raw_manifest_and_archive_pairs_exact", "frozen_bridge_source_hash_exact", "repair_source_hash_exact", "all_80_plan_artifacts_exact", "all_80_plan_self_hashes_exact", "all_80_plans_exactly_source_recompiled", "all_80_binding_manifests_exact", "all_240_rest_arrays_byte_exact", "frozen_v1_70_10_census_exact", "exact_10_rejection_identity_registry", "all_16_stress_shards_exact", "all_8320_stored_clip_audits_exact", "all_75520_stored_frame_records_exact", "all_8320_clip_audits_exactly_rerendered", "all_gates_true"],
+      "properties": {
+        "bank_schema_valid": { "const": true },
+        "bank_self_hash_exact": { "const": true },
+        "source_artifact_records_exact": { "const": true },
+        "all_80_raw_manifest_and_archive_pairs_exact": { "const": true },
+        "frozen_bridge_source_hash_exact": { "const": true },
+        "repair_source_hash_exact": { "const": true },
+        "all_80_plan_artifacts_exact": { "const": true },
+        "all_80_plan_self_hashes_exact": { "const": true },
+        "all_80_plans_exactly_source_recompiled": { "const": true },
+        "all_80_binding_manifests_exact": { "const": true },
+        "all_240_rest_arrays_byte_exact": { "const": true },
+        "frozen_v1_70_10_census_exact": { "const": true },
+        "exact_10_rejection_identity_registry": { "const": true },
+        "all_16_stress_shards_exact": { "const": true },
+        "all_8320_stored_clip_audits_exact": { "const": true },
+        "all_75520_stored_frame_records_exact": { "const": true },
+        "all_8320_clip_audits_exactly_rerendered": { "type": "boolean" },
+        "all_gates_true": { "type": "boolean" }
+      }
+    }
+  }
+}

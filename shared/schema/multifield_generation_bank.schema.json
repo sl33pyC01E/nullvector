@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-generation-bank-v1.json",
+  "title": "NULLVECTOR Multi-field Generation Bank",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "created_unix_seconds", "provenance",
+    "evaluation_source_hash", "grid", "generation",
+    "condition_template_fingerprint", "performance", "validation", "disk",
+    "contact_sheets", "samples"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-generation-bank-v1" },
+    "status": { "const": "ready" },
+    "created_unix_seconds": { "type": "number", "minimum": 0 },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "evaluation_source_hash": { "$ref": "#/$defs/sha256" },
+    "grid": { "$ref": "#/$defs/grid" },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode", "samples_per_condition", "base_seed", "temperature",
+        "batch_size", "legal_tuple_constrained", "raw_is_authoritative",
+        "postprocess_max_delta_fraction"
+      ],
+      "properties": {
+        "mode": { "enum": ["fixed", "stratified", "exhaustive"] },
+        "samples_per_condition": { "type": "integer", "minimum": 1 },
+        "base_seed": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "temperature": { "type": "number", "exclusiveMinimum": 0 },
+        "batch_size": { "type": "integer", "minimum": 1 },
+        "legal_tuple_constrained": { "const": true },
+        "raw_is_authoritative": { "const": true },
+        "postprocess_max_delta_fraction": { "type": "number", "minimum": 0, "maximum": 0.1 }
+      }
+    },
+    "condition_template_fingerprint": { "$ref": "#/$defs/sha256" },
+    "performance": { "$ref": "#/$defs/performance" },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acceptance", "diversity", "compiled_diversity"],
+      "properties": {
+        "acceptance": { "type": "object" },
+        "diversity": { "$ref": "#/$defs/diversity" },
+        "compiled_diversity": { "$ref": "#/$defs/diversity" }
+      }
+    },
+    "disk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before", "after"],
+      "properties": {
+        "before": { "$ref": "#/$defs/diskStatus" },
+        "after": { "$ref": "#/$defs/diskStatus" }
+      }
+    },
+    "contact_sheets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "compiled"],
+      "properties": {
+        "raw": { "$ref": "#/$defs/artifact" },
+        "compiled": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sample" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal", "sample_id", "grid_mode", "source_index", "variation",
+        "sample_seed", "morphology_id", "morphology_name", "subtype_id",
+        "subtype_name", "role_id", "role_name"
+      ],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "sample_id": { "type": "string", "pattern": "^[0-9]{4,}_f[0-4]_s[0-9]{2}_r[0-7]_v[0-9]{2,}$" },
+        "grid_mode": { "enum": ["fixed", "stratified", "exhaustive"] },
+        "source_index": { "type": "integer", "minimum": 0 },
+        "variation": { "type": "integer", "minimum": 0 },
+        "sample_seed": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "morphology_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "morphology_name": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "subtype_name": { "type": "string", "minLength": 1 },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "role_name": { "enum": ["striker", "defender", "scout", "controller", "support", "artillery", "harvester", "disruptor"] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "contract", "checkpoint", "checkpoint_sha256", "canonical_ema_hash",
+        "training_source_hash", "corpus", "split", "guide_policy",
+        "legal_tuple_fingerprint", "architecture", "published_next_epoch",
+        "global_step", "training_complete", "device", "precision",
+        "checkpoint_environment", "evaluation_environment"
+      ],
+      "properties": {
+        "contract": { "const": "nullvector-multifield-evaluation-checkpoint-v1" },
+        "checkpoint": { "type": "string", "minLength": 1 },
+        "checkpoint_sha256": { "$ref": "#/$defs/sha256" },
+        "canonical_ema_hash": { "$ref": "#/$defs/sha256" },
+        "training_source_hash": { "$ref": "#/$defs/sha256" },
+        "corpus": { "type": "object" },
+        "split": { "type": "object" },
+        "guide_policy": { "type": "object" },
+        "legal_tuple_fingerprint": { "$ref": "#/$defs/sha256" },
+        "architecture": { "type": "object" },
+        "published_next_epoch": { "type": "integer", "minimum": 1 },
+        "global_step": { "type": "integer", "minimum": 1 },
+        "training_complete": { "type": "boolean" },
+        "device": { "type": "string" },
+        "precision": { "enum": ["fp32", "bf16", "fp16"] },
+        "checkpoint_environment": { "type": "object" },
+        "evaluation_environment": { "type": "object" }
+      }
+    },
+    "grid": {
+      "type": "object",
+      "required": ["format", "mode", "samples", "family_ids", "subtype_ids", "role_ids", "family_role_pairs"],
+      "properties": {
+        "format": { "const": "nullvector-multifield-condition-grid-v1" },
+        "mode": { "enum": ["fixed", "stratified", "exhaustive"] },
+        "samples": { "type": "integer", "minimum": 1 },
+        "family_ids": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 4 }, "uniqueItems": true },
+        "subtype_ids": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 19 }, "uniqueItems": true },
+        "role_ids": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 7 }, "uniqueItems": true },
+        "family_role_pairs": { "type": "integer", "minimum": 1, "maximum": 40 },
+        "covers_all_families": { "type": "boolean" },
+        "covers_all_subtypes": { "type": "boolean" },
+        "covers_all_roles": { "type": "boolean" },
+        "covers_all_family_role_pairs": { "type": "boolean" }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "required": ["samples", "batch_size", "batches", "temperature", "elapsed_seconds", "samples_per_second", "mean_batch_latency_seconds", "p95_batch_latency_seconds", "mean_seconds_per_sample"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 1 },
+        "batch_size": { "type": "integer", "minimum": 1 },
+        "batches": { "type": "integer", "minimum": 1 },
+        "temperature": { "type": "number", "exclusiveMinimum": 0 },
+        "elapsed_seconds": { "type": "number", "minimum": 0 },
+        "samples_per_second": { "type": "number", "exclusiveMinimum": 0 },
+        "mean_batch_latency_seconds": { "type": "number", "minimum": 0 },
+        "p95_batch_latency_seconds": { "type": "number", "minimum": 0 },
+        "mean_seconds_per_sample": { "type": "number", "minimum": 0 },
+        "cuda_peak_allocated_bytes": { "type": "integer", "minimum": 0 },
+        "cuda_peak_reserved_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "diversity": {
+      "type": "object",
+      "required": ["samples", "exact_unique", "exact_unique_fraction", "pairwise_silhouette_iou", "pairwise_categorical_hamming", "same_condition_categorical_hamming"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 1 },
+        "exact_unique": { "type": "integer", "minimum": 1 },
+        "exact_unique_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pairwise_silhouette_iou": { "type": "object" },
+        "pairwise_categorical_hamming": { "type": "object" },
+        "same_condition_categorical_hamming": { "type": "object" }
+      }
+    },
+    "diskStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "total_gb", "used_gb", "free_gb", "floor_gb", "planned_gb", "safe"],
+      "properties": {
+        "root": { "type": "string" },
+        "total_gb": { "type": "number", "minimum": 0 },
+        "used_gb": { "type": "number", "minimum": 0 },
+        "free_gb": { "type": "number", "minimum": 0 },
+        "floor_gb": { "type": "number", "minimum": 100 },
+        "planned_gb": { "type": "number", "minimum": 0 },
+        "safe": { "const": true }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "raw_manifest", "raw_fields_sha256", "compiled_fields_sha256", "compiled_artifacts", "raw_validation", "postprocess", "postprocess_validation"],
+      "properties": {
+        "condition": { "$ref": "#/$defs/condition" },
+        "raw_manifest": { "$ref": "#/$defs/artifact" },
+        "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+        "compiled_fields_sha256": { "$ref": "#/$defs/sha256" },
+        "compiled_artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields", "rgba", "emission"],
+          "properties": {
+            "fields": { "$ref": "#/$defs/artifact" },
+            "rgba": { "$ref": "#/$defs/artifact" },
+            "emission": { "$ref": "#/$defs/artifact" }
+          }
+        },
+        "raw_validation": { "type": "object" },
+        "postprocess": {
+          "type": "object",
+          "required": ["format", "max_delta_fraction", "changed_pixels", "changed_fraction", "raw_fields_sha256", "processed_fields_sha256"],
+          "properties": {
+            "format": { "const": "nullvector-bounded-field-postprocess-v1" },
+            "max_delta_fraction": { "type": "number", "minimum": 0, "maximum": 0.1 },
+            "changed_pixels": { "type": "integer", "minimum": 0 },
+            "changed_fraction": { "type": "number", "minimum": 0, "maximum": 0.1 },
+            "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+            "processed_fields_sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "postprocess_validation": { "type": "object" }
+      }
+    }
+  }
+}

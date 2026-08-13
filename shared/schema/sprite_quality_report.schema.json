@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-sprite-quality-report-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "scope", "auditor", "sources", "coverage",
+    "categorical_quality", "presentation_quality", "motion_quality", "proof",
+    "gates", "report_sha256"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-neural-sprite-quality-report-v1" },
+    "status": { "const": "passed" },
+    "scope": { "type": "object" },
+    "auditor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "source_sha256"],
+      "properties": {
+        "id": { "const": "read-only-neural-sprite-quality-audit-v1" },
+        "source_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "sources": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generation_manifest", "static_style_manifest", "motion_manifest", "motion_replay"],
+      "properties": {
+        "generation_manifest": { "$ref": "#/$defs/source" },
+        "static_style_manifest": { "$ref": "#/$defs/source" },
+        "motion_manifest": { "$ref": "#/$defs/source" },
+        "motion_replay": { "$ref": "#/$defs/source" }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["static_sample_count", "motion_identity_count", "all_80_motion_claimed"],
+      "properties": {
+        "static_sample_count": { "const": 80 },
+        "motion_identity_count": { "const": 5 },
+        "all_80_motion_claimed": { "const": false }
+      }
+    },
+    "categorical_quality": {
+      "type": "object",
+      "required": ["sample_count", "unique_categorical_field_count", "vocabularies"],
+      "properties": {
+        "sample_count": { "const": 80 },
+        "unique_categorical_field_count": { "const": 80 },
+        "vocabularies": { "type": "array", "minItems": 3, "maxItems": 3 }
+      }
+    },
+    "presentation_quality": { "type": "object" },
+    "motion_quality": {
+      "type": "object",
+      "required": [
+        "identity_count", "clip_count", "stored_frame_count", "collapsed_composite_clip_count",
+        "all_loop_endpoints_exact", "by_family_motion", "clips"
+      ],
+      "properties": {
+        "identity_count": { "const": 5 },
+        "clip_count": { "const": 520 },
+        "stored_frame_count": { "const": 4720 },
+        "collapsed_composite_clip_count": { "const": 0 },
+        "all_loop_endpoints_exact": { "const": true },
+        "by_family_motion": { "type": "array", "minItems": 65, "maxItems": 65 },
+        "clips": { "type": "array", "minItems": 520, "maxItems": 520 }
+      }
+    },
+    "proof": { "type": "object" },
+    "gates": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": { "const": true }
+    },
+    "artifacts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["motion_energy_heatmap"],
+      "properties": { "motion_energy_heatmap": { "$ref": "#/$defs/artifact" } }
+    },
+    "report_sha256": { "$ref": "#/$defs/sha" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": {
+      "type": "string", "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "artifact": { "$ref": "#/$defs/source" }
+  }
+}

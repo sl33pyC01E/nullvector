@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.test-tmp/
+.venv/
+data/
+checkpoints/
+outputs/*
+!outputs/.gitkeep
+game/.godot/
+game/generated/
+work/
+webui/

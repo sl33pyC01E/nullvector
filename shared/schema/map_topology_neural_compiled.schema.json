@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_topology_neural_compiled.schema.json",
+  "title": "Deterministically compiled neural topology",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "authority", "source_sha256", "tensor_contract_sha256", "compiler", "compiler_source_sha256", "seed", "theme", "config", "points", "raw_manifest_sha256", "raw_identity_sha256", "raw_topology_sha256", "compiled_arrays_sha256", "ledger_sha256", "report_sha256", "compiled_identity_sha256", "raw_manifest", "arrays", "ledger", "report", "gates"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"const": "compiled_topology"},
+    "authority": {"const": "deterministically_repaired_candidate_not_map_pack_v2"},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "tensor_contract_sha256": {"$ref": "#/$defs/sha"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": {"name": {"const": "nullvector-neural-topology-deterministic-compiler"}, "version": {"const": "1.0.0"}}},
+    "compiler_source_sha256": {"$ref": "#/$defs/sha"},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+    "config": {"$ref": "#/$defs/config"},
+    "points": {"$ref": "#/$defs/points"},
+    "raw_manifest_sha256": {"$ref": "#/$defs/sha"},
+    "raw_identity_sha256": {"$ref": "#/$defs/sha"},
+    "raw_topology_sha256": {"$ref": "#/$defs/sha"},
+    "compiled_arrays_sha256": {"$ref": "#/$defs/sha"},
+    "ledger_sha256": {"$ref": "#/$defs/sha"},
+    "report_sha256": {"$ref": "#/$defs/sha"},
+    "compiled_identity_sha256": {"$ref": "#/$defs/sha"},
+    "raw_manifest": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"const": "../raw/raw_manifest.json"}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "arrays": {"type": "object", "required": ["file", "bytes", "sha256", "canonical_arrays_sha256", "members"], "additionalProperties": false, "properties": {"file": {"const": "compiled_topology.npz"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 16777216}, "sha256": {"$ref": "#/$defs/sha"}, "canonical_arrays_sha256": {"$ref": "#/$defs/sha"}, "members": {"type": "object", "additionalProperties": false, "required": ["terrain", "walkability", "hazard", "elevation", "zone", "nav_cost", "protected_backbone", "required_clearance", "decoration_forbidden"], "properties": {"terrain": {"$ref": "#/$defs/member"}, "walkability": {"$ref": "#/$defs/member"}, "hazard": {"$ref": "#/$defs/member"}, "elevation": {"$ref": "#/$defs/member"}, "zone": {"$ref": "#/$defs/member"}, "nav_cost": {"$ref": "#/$defs/member"}, "protected_backbone": {"$ref": "#/$defs/member"}, "required_clearance": {"$ref": "#/$defs/member"}, "decoration_forbidden": {"$ref": "#/$defs/member"}}}}},
+    "ledger": {"type": "object", "additionalProperties": false, "required": ["file", "bytes", "sha256", "entry_count", "ledger_sha256"], "properties": {"file": {"const": "edit_ledger.json"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}, "entry_count": {"type": "integer", "minimum": 0, "maximum": 2000000}, "ledger_sha256": {"$ref": "#/$defs/sha"}}},
+    "report": {"type": "object", "additionalProperties": false, "required": ["file", "bytes", "sha256", "report_sha256"], "properties": {"file": {"const": "compile_report.json"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}, "report_sha256": {"$ref": "#/$defs/sha"}}},
+    "gates": {"type": "object", "additionalProperties": false, "required": ["authoritative_assert_valid", "exact_compiler_replay", "raw_never_runtime", "published_as_map_pack_v2"], "properties": {"authoritative_assert_valid": {"const": true}, "exact_compiler_replay": {"const": true}, "raw_never_runtime": {"const": true}, "published_as_map_pack_v2": {"const": false}}}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "point": {"type": "array", "prefixItems": [{"type": "integer", "minimum": 0, "maximum": 255}, {"type": "integer", "minimum": 0, "maximum": 255}], "items": false, "minItems": 2, "maxItems": 2},
+    "points": {"type": "object", "additionalProperties": false, "required": ["start", "exit", "objectives", "spawns"], "properties": {"start": {"$ref": "#/$defs/point"}, "exit": {"$ref": "#/$defs/point"}, "objectives": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"$ref": "#/$defs/point"}}, "spawns": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/point"}}}},
+    "config": {"type": "object", "additionalProperties": false, "required": ["width", "height", "objective_count", "spawn_count", "min_start_exit_distance", "spawn_clearance_start", "spawn_clearance_objective", "spawn_clearance_hazard"], "properties": {"width": {"type": "integer", "minimum": 32, "maximum": 256}, "height": {"type": "integer", "minimum": 32, "maximum": 256}, "objective_count": {"type": "integer", "minimum": 1, "maximum": 12}, "spawn_count": {"type": "integer", "minimum": 0, "maximum": 256}, "min_start_exit_distance": {"type": "integer", "minimum": 0}, "spawn_clearance_start": {"type": "integer", "minimum": 0}, "spawn_clearance_objective": {"type": "integer", "minimum": 0}, "spawn_clearance_hazard": {"type": "integer", "minimum": 0}}},
+    "member": {"type": "object", "additionalProperties": false, "required": ["dtype", "shape", "nbytes", "array_sha256"], "properties": {"dtype": {"type": "string", "enum": ["|u1", "|i1", "<i2", "<f4"]}, "shape": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 32, "maximum": 256}}, "nbytes": {"type": "integer", "minimum": 1}, "array_sha256": {"$ref": "#/$defs/sha"}}}
+  }
+}

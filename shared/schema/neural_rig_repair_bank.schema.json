@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-rig-repair-bank-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "repair_version", "source", "build_contract", "baseline_v1", "repaired_v2", "plans", "artifacts", "motion_result", "gates", "bank_sha256"],
+  "properties": {
+    "format": { "const": "nullvector-neural-rig-repair-bank-v1" },
+    "status": { "const": "ready" },
+    "repair_version": { "const": "logical-neural-rig-repair-v2" },
+    "source": { "$ref": "#/$defs/source" },
+    "build_contract": { "$ref": "#/$defs/buildContract" },
+    "baseline_v1": { "$ref": "#/$defs/baseline" },
+    "repaired_v2": { "$ref": "#/$defs/repaired" },
+    "plans": { "type": "array", "minItems": 80, "maxItems": 80, "items": { "$ref": "#/$defs/plan" } },
+    "artifacts": { "$ref": "#/$defs/artifacts" },
+    "motion_result": { "$ref": "#/$defs/motionResult" },
+    "gates": { "$ref": "#/$defs/gates" },
+    "bank_sha256": { "$ref": "#/$defs/sha" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sampleId": { "type": "string", "pattern": "^[0-9]{4}_f[0-4]_s[0-9]{2}_r[0-7]_v0[01]$" },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "path": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generation_manifest", "style_manifest", "legal_tuple_fingerprint", "frozen_bridge_source_sha256", "repair_source_sha256"],
+      "properties": {
+        "generation_manifest": { "$ref": "#/$defs/artifact" },
+        "style_manifest": { "$ref": "#/$defs/artifact" },
+        "legal_tuple_fingerprint": { "$ref": "#/$defs/sha" },
+        "frozen_bridge_source_sha256": { "const": "46372e031c91d0202d0e55a8422385978c5157f76d83ed20adef9ed3e7250305" },
+        "repair_source_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "buildContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu_only", "cuda_used", "sample_count", "baseline_v1_bindable", "baseline_v1_rejected", "repaired_v2_bindable", "repaired_v2_rejected", "minimum_driver_pixels", "motion_count_per_sample", "facing_count_per_motion", "clip_count", "frame_count", "stress_shard_count", "stress_worker_limit", "stress_timeout_seconds", "stress_max_attempts"],
+      "properties": {
+        "cpu_only": { "const": true },
+        "cuda_used": { "const": false },
+        "sample_count": { "const": 80 },
+        "baseline_v1_bindable": { "const": 70 },
+        "baseline_v1_rejected": { "const": 10 },
+        "repaired_v2_bindable": { "const": 80 },
+        "repaired_v2_rejected": { "const": 0 },
+        "minimum_driver_pixels": { "const": 12 },
+        "motion_count_per_sample": { "const": 13 },
+        "facing_count_per_motion": { "const": 8 },
+        "clip_count": { "const": 8320 },
+        "frame_count": { "const": 75520 },
+        "stress_shard_count": { "const": 16 },
+        "stress_worker_limit": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "stress_timeout_seconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+        "stress_max_attempts": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor_on_background", "plant_topology", "required_owner_absence", "safety_margin"],
+      "properties": {
+        "anchor_on_background": { "const": 3 },
+        "plant_topology": { "const": 1 },
+        "required_owner_absence": { "const": 3 },
+        "safety_margin": { "const": 3 }
+      }
+    },
+    "rejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "family_index", "sample_id", "category"],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" },
+        "family_index": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "sample_id": { "$ref": "#/$defs/sampleId" },
+        "category": { "enum": ["anchor_on_background", "plant_topology", "required_owner_absence", "safety_margin"] }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bindable", "rejected", "rejection_categories", "rejections"],
+      "properties": {
+        "bindable": { "const": 70 },
+        "rejected": { "const": 10 },
+        "rejection_categories": { "$ref": "#/$defs/categories" },
+        "rejections": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "$ref": "#/$defs/rejection" } }
+      }
+    },
+    "repaired": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bindable", "rejected", "unrepairable"],
+      "properties": {
+        "bindable": { "const": 80 },
+        "rejected": { "const": 0 },
+        "unrepairable": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_id", "ordinal", "family", "plan_sha256", "binding_sha256", "artifact"],
+      "properties": {
+        "sample_id": { "$ref": "#/$defs/sampleId" },
+        "ordinal": { "type": "integer", "minimum": 0, "maximum": 79 },
+        "family": { "$ref": "#/$defs/family" },
+        "plan_sha256": { "$ref": "#/$defs/sha" },
+        "binding_sha256": { "$ref": "#/$defs/sha" },
+        "artifact": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rest_audit", "motion_stress", "crash_telemetry"],
+      "properties": {
+        "rest_audit": { "$ref": "#/$defs/artifact" },
+        "motion_stress": { "$ref": "#/$defs/artifact" },
+        "crash_telemetry": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "strengthHistogram": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 9,
+      "propertyNames": { "pattern": "^(1\\.000|0\\.(875|750|625|500|375|250|125|000))$" },
+      "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 8320 }
+    },
+    "motionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_count", "clip_count", "frame_count", "strength_histogram", "stress_sha256"],
+      "properties": {
+        "sample_count": { "const": 80 },
+        "clip_count": { "const": 8320 },
+        "frame_count": { "const": 75520 },
+        "strength_histogram": { "$ref": "#/$defs/strengthHistogram" },
+        "stress_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_artifacts_hash_bound", "repair_source_hash_bound", "all_80_plans_schema_valid_and_self_hashed", "all_80_plans_exactly_source_recompiled", "all_80_raw_rest_matrices_byte_exact", "all_80_bindings_valid", "all_10_v1_rejections_logically_repaired", "all_8320_motion_facing_clips_passed", "all_75520_motion_frames_passed", "process_sharded_crash_telemetry_present", "no_cuda", "no_atlas_compilation"],
+      "properties": {
+        "source_artifacts_hash_bound": { "const": true },
+        "repair_source_hash_bound": { "const": true },
+        "all_80_plans_schema_valid_and_self_hashed": { "const": true },
+        "all_80_plans_exactly_source_recompiled": { "const": true },
+        "all_80_raw_rest_matrices_byte_exact": { "const": true },
+        "all_80_bindings_valid": { "const": true },
+        "all_10_v1_rejections_logically_repaired": { "const": true },
+        "all_8320_motion_facing_clips_passed": { "const": true },
+        "all_75520_motion_frames_passed": { "const": true },
+        "process_sharded_crash_telemetry_present": { "const": true },
+        "no_cuda": { "const": true },
+        "no_atlas_compilation": { "const": true }
+      }
+    }
+  }
+}

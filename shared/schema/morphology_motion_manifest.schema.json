@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent-surge.local/schema/morphology-motion-manifest-v1.json",
+  "title": "Graph-Driven Neural Morphology Motion Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "id", "source_id", "source_semantic_sha256",
+    "motion_renderer_version", "family", "motion", "facing", "loop",
+    "fps", "frame_count", "canvas_size", "safety_margin", "layer_names",
+    "joint_names", "socket_names", "events", "frame_sha256", "metrics", "hashes"
+  ],
+  "properties": {
+    "format": { "const": "neural-morphology-motion-manifest-v1" },
+    "id": {
+      "type": "string",
+      "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[a-f0-9]{8}__(idle_breathe|idle_wiggle|locomote|joy|anger|fear|confused|sleep|taunt|attack|cast|hit|death)__(north|northeast|east|southeast|south|southwest|west|northwest)$"
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[a-f0-9]{8}$"
+    },
+    "source_semantic_sha256": { "$ref": "#/$defs/hash" },
+    "motion_renderer_version": { "const": "graph-layer-rig-v1" },
+    "family": {
+      "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]
+    },
+    "motion": {
+      "enum": [
+        "idle_breathe", "idle_wiggle", "locomote", "joy", "anger",
+        "fear", "confused", "sleep", "taunt", "attack", "cast",
+        "hit", "death"
+      ]
+    },
+    "facing": {
+      "enum": [
+        "north", "northeast", "east", "southeast", "south",
+        "southwest", "west", "northwest"
+      ]
+    },
+    "loop": { "type": "boolean" },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "frame_count": { "type": "integer", "minimum": 3, "maximum": 256 },
+    "canvas_size": { "const": [48, 48] },
+    "safety_margin": { "const": 3 },
+    "layer_names": {
+      "const": [
+        "body", "armor", "head", "left_arm", "right_arm", "left_leg",
+        "right_leg", "appendage", "weapon", "core", "detail", "emission"
+      ]
+    },
+    "joint_names": {
+      "const": [
+        "root", "head", "left_shoulder", "right_shoulder", "left_hip",
+        "right_hip", "appendage_base", "weapon_mount"
+      ]
+    },
+    "socket_names": {
+      "const": [
+        "focus", "muzzle", "left_hand", "right_hand", "left_foot",
+        "right_foot", "appendage_tip"
+      ]
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "frame", "phase", "socket"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "frame": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "phase": { "type": "number", "minimum": 0, "maximum": 1 },
+          "socket": {
+            "type": ["string", "null"],
+            "enum": [
+              "focus", "muzzle", "left_hand", "right_hand", "left_foot",
+              "right_foot", "appendage_tip", null
+            ]
+          }
+        }
+      }
+    },
+    "frame_sha256": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/hash" }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unique_semantic_frames", "max_changed_pixel_fraction", "root_span",
+        "left_foot_span", "right_foot_span", "max_structural_components",
+        "margin_clear", "field_tuples_valid"
+      ],
+      "properties": {
+        "unique_semantic_frames": {
+          "type": "integer", "minimum": 2, "maximum": 256
+        },
+        "max_changed_pixel_fraction": {
+          "type": "number", "exclusiveMinimum": 0, "maximum": 1
+        },
+        "root_span": { "$ref": "#/$defs/span" },
+        "left_foot_span": { "$ref": "#/$defs/span" },
+        "right_foot_span": { "$ref": "#/$defs/span" },
+        "max_structural_components": { "const": 1 },
+        "margin_clear": { "const": true },
+        "field_tuples_valid": { "const": true }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_sha256"],
+      "properties": {
+        "clip_sha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "span": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 47 },
+        { "type": "integer", "minimum": 0, "maximum": 47 }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

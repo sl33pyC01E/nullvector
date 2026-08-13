@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-reference-calibration-v1.json",
+  "title": "NULLVECTOR Multi-field Reference Calibration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "validation_format", "template_format", "population",
+    "population_fingerprint", "samples", "hard_valid", "hard_valid_rate",
+    "hard_gate_policy", "hard_gate_passes", "hard_gate_failures", "visible_component_counts", "owner_presence",
+    "minimum_scaffold_coverage", "occupancy_range",
+    "diagnostic_condition_adherence", "status", "corpus", "split",
+    "guide_policy", "legal_tuple_count", "legal_tuple_fingerprint",
+    "condition_template_fingerprint", "evaluation_source_hash"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-reference-calibration-v1" },
+    "validation_format": { "const": "nullvector-multifield-generation-validation-v2" },
+    "template_format": { "const": "nullvector-condition-template-bank-v2-diagnostic" },
+    "population": { "const": "held-out-authoritative-corpus-fields" },
+    "population_fingerprint": { "$ref": "#/$defs/sha256" },
+    "samples": { "type": "integer", "minimum": 1 },
+    "hard_valid": { "type": "integer", "minimum": 0 },
+    "hard_valid_rate": { "$ref": "#/$defs/fraction" },
+    "hard_gate_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categorical_domains_exact", "guide_contract_exact", "target_contract_exact", "condition_contract_exact", "legal_table_contract_exact", "legal_tuple_fingerprint", "visible_component_count", "structural_safety_margin", "visible_safety_margin", "occupancy_range", "minimum_scaffold_coverage_radius_2", "essential_owner_names", "condition_templates_are_diagnostic_only"],
+      "properties": {
+        "categorical_domains_exact": { "const": true },
+        "guide_contract_exact": { "const": true },
+        "target_contract_exact": { "const": true },
+        "condition_contract_exact": { "const": true },
+        "legal_table_contract_exact": { "const": true },
+        "legal_tuple_fingerprint": { "type": "string", "minLength": 1 },
+        "visible_component_count": { "const": 1 },
+        "structural_safety_margin": { "const": 3 },
+        "visible_safety_margin": { "const": 2 },
+        "occupancy_range": { "const": [0.02, 0.6] },
+        "minimum_scaffold_coverage_radius_2": { "const": 0.45 },
+        "essential_owner_names": { "const": ["core"] },
+        "condition_templates_are_diagnostic_only": { "const": true }
+      }
+    },
+    "hard_gate_passes": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "hard_gate_failures": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    },
+    "visible_component_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    },
+    "owner_presence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body", "head", "core"],
+      "properties": {
+        "body": { "$ref": "#/$defs/owner" },
+        "head": { "$ref": "#/$defs/owner" },
+        "core": { "$ref": "#/$defs/owner" }
+      }
+    },
+    "minimum_scaffold_coverage": { "$ref": "#/$defs/fraction" },
+    "occupancy_range": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/fraction" },
+        { "$ref": "#/$defs/fraction" }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "diagnostic_condition_adherence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exact_match", "in_distribution"],
+      "properties": {
+        "exact_match": { "$ref": "#/$defs/axes" },
+        "in_distribution": { "$ref": "#/$defs/axes" }
+      }
+    },
+    "status": { "const": "calibrated" },
+    "corpus": { "type": "object" },
+    "split": { "type": "object" },
+    "guide_policy": { "type": "object" },
+    "legal_tuple_count": { "type": "integer", "minimum": 1 },
+    "legal_tuple_fingerprint": { "$ref": "#/$defs/sha256" },
+    "condition_template_fingerprint": { "$ref": "#/$defs/sha256" },
+    "evaluation_source_hash": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "rate", "hard_required"],
+      "properties": {
+        "present": { "type": "integer", "minimum": 0 },
+        "rate": { "$ref": "#/$defs/fraction" },
+        "hard_required": { "type": "boolean" }
+      }
+    },
+    "axisResult": {
+      "type": "object",
+      "required": ["rate"],
+      "properties": {
+        "matched": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "rate": { "$ref": "#/$defs/fraction" }
+      }
+    },
+    "axes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["morphology", "subtype", "role", "all"],
+      "properties": {
+        "morphology": { "$ref": "#/$defs/axisResult" },
+        "subtype": { "$ref": "#/$defs/axisResult" },
+        "role": { "$ref": "#/$defs/axisResult" },
+        "all": { "$ref": "#/$defs/axisResult" }
+      }
+    }
+  }
+}

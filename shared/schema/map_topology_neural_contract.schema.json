@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_topology_neural_contract.schema.json",
+  "title": "Neural topology tensor contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_name", "contract_version", "authority", "categorical", "point_heatmaps", "global_conditions", "dimensions", "crop"],
+  "properties": {
+    "contract_name": {"const": "nullvector-neural-map-topology-tensor"},
+    "contract_version": {"const": "1.0.0"},
+    "authority": {"type": "object"},
+    "categorical": {"type": "object"},
+    "point_heatmaps": {"type": "object"},
+    "global_conditions": {"type": "object"},
+    "dimensions": {"type": "object"},
+    "crop": {"type": "string"}
+  }
+}

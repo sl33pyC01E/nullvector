@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_manifest.schema.json",
+  "title": "NULLVECTOR Semantic Map Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "map_id",
+    "seed",
+    "seed_hex",
+    "theme",
+    "dimensions",
+    "generator",
+    "semantics",
+    "points",
+    "topology",
+    "statistics",
+    "semantic_array_hash_algorithm",
+    "semantic_array_sha256",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "map_id": {"type": "string", "pattern": "^[a-z]+-[0-9a-f]{16}-[0-9]+x[0-9]+$"},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "seed_hex": {"type": "string", "pattern": "^0x[0-9a-f]{16}$"},
+    "theme": {
+      "type": "string",
+      "enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 32, "maximum": 256},
+        "height": {"type": "integer", "minimum": 32, "maximum": 256}
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "rng", "config", "theme_parameters"],
+      "properties": {
+        "name": {"const": "nullvector-map-forge"},
+        "version": {"const": "2.0.0"},
+        "rng": {"const": "numpy.random.PCG64"},
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "width",
+            "height",
+            "objective_count",
+            "spawn_count",
+            "min_start_exit_distance",
+            "spawn_clearance_start",
+            "spawn_clearance_objective",
+            "spawn_clearance_hazard"
+          ],
+          "properties": {
+            "width": {"type": "integer", "minimum": 32, "maximum": 256},
+            "height": {"type": "integer", "minimum": 32, "maximum": 256},
+            "objective_count": {"type": "integer", "minimum": 1, "maximum": 12},
+            "spawn_count": {"type": "integer", "minimum": 0, "maximum": 256},
+            "min_start_exit_distance": {"type": "integer", "minimum": 1},
+            "spawn_clearance_start": {"type": "integer", "minimum": 0},
+            "spawn_clearance_objective": {"type": "integer", "minimum": 0},
+            "spawn_clearance_hazard": {"type": "integer", "minimum": 0}
+          }
+        },
+        "theme_parameters": {"type": "object"}
+      }
+    },
+    "semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coordinate_system", "terrain", "hazard", "arrays", "nav_cost", "zone", "topology_masks"],
+      "properties": {
+        "coordinate_system": {"type": "string", "minLength": 10},
+        "terrain": {"$ref": "#/$defs/idDictionary"},
+        "hazard": {"$ref": "#/$defs/idDictionary"},
+        "arrays": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terrain",
+            "walkability",
+            "hazard",
+            "elevation",
+            "zone",
+            "nav_cost",
+            "protected_backbone",
+            "required_clearance",
+            "decoration_forbidden"
+          ],
+          "properties": {
+            "terrain": {"$ref": "#/$defs/arrayDescriptor"},
+            "walkability": {"$ref": "#/$defs/arrayDescriptor"},
+            "hazard": {"$ref": "#/$defs/arrayDescriptor"},
+            "elevation": {"$ref": "#/$defs/arrayDescriptor"},
+            "zone": {"$ref": "#/$defs/arrayDescriptor"},
+            "nav_cost": {"$ref": "#/$defs/arrayDescriptor"},
+            "protected_backbone": {"$ref": "#/$defs/arrayDescriptor"},
+            "required_clearance": {"$ref": "#/$defs/arrayDescriptor"},
+            "decoration_forbidden": {"$ref": "#/$defs/arrayDescriptor"}
+          }
+        },
+        "nav_cost": {"type": "string", "minLength": 10},
+        "zone": {"type": "string", "minLength": 10},
+        "topology_masks": {"$ref": "#/$defs/topologyMaskContract"}
+      }
+    },
+    "points": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "exit", "objectives", "spawns"],
+      "properties": {
+        "start": {"$ref": "#/$defs/point"},
+        "exit": {"$ref": "#/$defs/point"},
+        "objectives": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"$ref": "#/$defs/point"}},
+        "spawns": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/point"}}
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_route_repairs",
+        "protected_backbone_segments",
+        "start_exit_path_length",
+        "minimum_start_exit_path_length",
+        "invariants"
+      ],
+      "properties": {
+        "required_route_repairs": {"type": "integer", "minimum": 0},
+        "protected_backbone_segments": {"type": "integer", "minimum": 2, "maximum": 13},
+        "start_exit_path_length": {"type": "integer", "minimum": 1},
+        "minimum_start_exit_path_length": {"type": "integer", "minimum": 1},
+        "invariants": {
+          "type": "array",
+          "minItems": 20,
+          "items": {"$ref": "#/$defs/invariant"}
+        }
+      }
+    },
+    "statistics": {"$ref": "#/$defs/statistics"},
+    "semantic_array_hash_algorithm": {"const": "sha256-canonical-named-arrays-v1"},
+    "semantic_array_sha256": {"$ref": "#/$defs/sha256"},
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arrays", "preview"],
+      "properties": {
+        "arrays": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "format", "sha256"],
+          "properties": {
+            "file": {"const": "semantics.npz"},
+            "format": {"const": "npz-deflate"},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "preview": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "format", "scale", "sha256"],
+          "properties": {
+            "file": {"const": "preview.png"},
+            "format": {"const": "png-rgb-nearest-neighbor"},
+            "scale": {"type": "integer", "minimum": 2, "maximum": 16},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 0}
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "arrayDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dtype", "shape"],
+      "properties": {
+        "dtype": {"type": "string", "enum": ["uint8", "int8", "int16", "float32"]},
+        "shape": {
+          "type": "array",
+          "prefixItems": [
+            {"type": "integer", "minimum": 32, "maximum": 256},
+            {"type": "integer", "minimum": 32, "maximum": 256}
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "idDictionary": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {"^[0-9]+$": {"type": "string", "pattern": "^[a-z_]+$"}},
+      "additionalProperties": false
+    },
+    "invariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "passed", "detail"],
+      "properties": {
+        "name": {"type": "string", "minLength": 3},
+        "passed": {"const": true},
+        "detail": {"type": "string", "minLength": 3}
+      }
+    },
+    "topologyMaskContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_name",
+        "contract_version",
+        "capture_policy",
+        "hash_algorithm",
+        "combined_sha256",
+        "members"
+      ],
+      "properties": {
+        "contract_name": {"const": "nullvector-authoritative-map-topology-masks"},
+        "contract_version": {"const": "1.0.0"},
+        "capture_policy": {"const": "captured at generation-time mutation sites; never reconstructed"},
+        "hash_algorithm": {"const": "sha256-canonical-named-arrays-v1"},
+        "combined_sha256": {"$ref": "#/$defs/sha256"},
+        "members": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "protected_backbone",
+            "required_clearance",
+            "decoration_forbidden"
+          ],
+          "properties": {
+            "protected_backbone": {"$ref": "#/$defs/topologyMaskMember"},
+            "required_clearance": {"$ref": "#/$defs/topologyMaskMember"},
+            "decoration_forbidden": {"$ref": "#/$defs/topologyMaskMember"}
+          }
+        }
+      }
+    },
+    "topologyMaskMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meaning", "provenance", "hash_scope", "sha256", "cell_count"],
+      "properties": {
+        "meaning": {"type": "string", "minLength": 40},
+        "provenance": {"const": "authoritative generation-time capture"},
+        "hash_scope": {"const": "single_named_array"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "cell_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "walkable_cells",
+        "walkable_ratio",
+        "required_component_cells",
+        "required_component_ratio",
+        "hazard_cells",
+        "protected_backbone_cells",
+        "required_clearance_cells",
+        "decoration_forbidden_cells",
+        "zone_count",
+        "start_exit_path_length",
+        "minimum_spawn_hazard_distance",
+        "repair_count"
+      ],
+      "properties": {
+        "walkable_cells": {"type": "integer", "minimum": 1},
+        "walkable_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "required_component_cells": {"type": "integer", "minimum": 1},
+        "required_component_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "hazard_free_required_component_cells": {"type": "integer", "minimum": 1},
+        "hazard_cells": {"type": "integer", "minimum": 0},
+        "protected_backbone_cells": {"type": "integer", "minimum": 1},
+        "required_clearance_cells": {"type": "integer", "minimum": 1},
+        "decoration_forbidden_cells": {"type": "integer", "minimum": 1},
+        "zone_count": {"type": "integer", "minimum": 1},
+        "start_exit_path_length": {"type": "integer", "minimum": 1},
+        "minimum_spawn_hazard_distance": {"type": "integer", "minimum": -1},
+        "repair_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

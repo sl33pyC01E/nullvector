@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-benchmark-v2.json",
+  "title": "NULLVECTOR Multi-field Checkpoint Benchmark",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "created_unix_seconds", "provenance",
+    "evaluation_source_hash", "condition_template_fingerprint", "reference_calibration", "full_mask",
+    "generation", "total_elapsed_seconds"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-checkpoint-benchmark-v2" },
+    "status": { "const": "ready" },
+    "created_unix_seconds": { "type": "number", "minimum": 0 },
+    "provenance": { "type": "object" },
+    "evaluation_source_hash": { "$ref": "#/$defs/sha256" },
+    "condition_template_fingerprint": { "$ref": "#/$defs/sha256" },
+    "reference_calibration": {
+      "type": "object",
+      "required": ["format", "validation_format", "template_format", "population", "population_fingerprint", "samples", "hard_valid", "hard_valid_rate", "hard_gate_policy", "hard_gate_passes", "hard_gate_failures", "visible_component_counts", "owner_presence", "minimum_scaffold_coverage", "occupancy_range", "diagnostic_condition_adherence"],
+      "properties": {
+        "format": { "const": "nullvector-multifield-reference-calibration-v1" },
+        "validation_format": { "const": "nullvector-multifield-generation-validation-v2" },
+        "template_format": { "const": "nullvector-condition-template-bank-v2-diagnostic" },
+        "population": { "const": "held-out-authoritative-corpus-fields" },
+        "population_fingerprint": { "$ref": "#/$defs/sha256" },
+        "samples": { "type": "integer", "minimum": 1 },
+        "hard_valid": { "type": "integer", "minimum": 0 },
+        "hard_valid_rate": { "$ref": "#/$defs/fraction" },
+        "hard_gate_failures": { "type": "object" },
+        "visible_component_counts": { "type": "object" },
+        "owner_presence": { "type": "object" },
+        "minimum_scaffold_coverage": { "$ref": "#/$defs/fraction" },
+        "occupancy_range": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/fraction" }, { "$ref": "#/$defs/fraction" }], "minItems": 2, "maxItems": 2 },
+        "diagnostic_condition_adherence": { "type": "object" }
+      }
+    },
+    "full_mask": {
+      "type": "object",
+      "required": ["examples_requested", "examples_evaluated", "batch_size", "elapsed_seconds", "examples_per_second", "metrics"],
+      "properties": {
+        "examples_requested": { "type": "integer", "minimum": 1 },
+        "examples_evaluated": { "type": "integer", "minimum": 1 },
+        "batch_size": { "type": "integer", "minimum": 1 },
+        "elapsed_seconds": { "type": "number", "minimum": 0 },
+        "examples_per_second": { "type": "number", "exclusiveMinimum": 0 },
+        "cuda_peak_allocated_bytes": { "type": "integer", "minimum": 0 },
+        "cuda_peak_reserved_bytes": { "type": "integer", "minimum": 0 },
+        "metrics": {
+          "type": "object",
+          "required": [
+            "validation_silhouette_iou", "validation_part_macro_iou",
+            "validation_material_macro_iou", "validation_emission_macro_iou",
+            "validation_joint_tuple_validity",
+            "validation_condition_preference_rate", "validation_role_preference_rate",
+            "validation_loss", "validation_examples"
+          ]
+        }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grid", "temperature", "legal_tuple_constrained", "performance", "raw_validity", "diversity", "acceptance", "samples"],
+      "properties": {
+        "grid": { "type": "object" },
+        "temperature": { "type": "number", "exclusiveMinimum": 0 },
+        "legal_tuple_constrained": { "const": true },
+        "performance": {
+          "type": "object",
+          "required": ["samples", "batch_size", "batches", "elapsed_seconds", "samples_per_second", "mean_batch_latency_seconds", "p95_batch_latency_seconds", "mean_seconds_per_sample"]
+        },
+        "raw_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hard_valid_rate", "condition_exact_match_rate", "condition_in_distribution_rate", "mean_tuple_validity", "margin_safe_rate", "mean_scaffold_coverage", "mean_silhouette_iou_to_source"],
+          "properties": {
+            "hard_valid_rate": { "$ref": "#/$defs/fraction" },
+            "condition_exact_match_rate": { "$ref": "#/$defs/fraction" },
+            "condition_in_distribution_rate": { "$ref": "#/$defs/fraction" },
+            "mean_tuple_validity": { "$ref": "#/$defs/fraction" },
+            "margin_safe_rate": { "$ref": "#/$defs/fraction" },
+            "mean_scaffold_coverage": { "$ref": "#/$defs/fraction" },
+            "mean_silhouette_iou_to_source": { "$ref": "#/$defs/fraction" }
+          }
+        },
+        "diversity": { "type": "object" },
+        "acceptance": {
+          "type": "object",
+          "required": ["overall", "per_family", "per_role", "per_subtype"]
+        },
+        "samples": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["condition", "raw_fields_sha256", "validation"],
+            "properties": {
+              "condition": { "type": "object" },
+              "raw_fields_sha256": { "$ref": "#/$defs/sha256" },
+              "validation": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "total_elapsed_seconds": { "type": "number", "minimum": 0 }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-style-neural-motion-replay-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "status",
+    "neural_output",
+    "manifest",
+    "compiler_source_sha256",
+    "identity_results",
+    "identity_count",
+    "clip_count",
+    "frame_count",
+    "artifact_count_compared",
+    "bytes_compared",
+    "exact_identity_replay",
+    "exact_showcase_replay",
+    "all_gates_passed"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-style-neural-motion-replay-v1" },
+    "status": { "const": "passed" },
+    "neural_output": { "const": true },
+    "manifest": { "$ref": "#/$defs/artifact" },
+    "compiler_source_sha256": { "$ref": "#/$defs/sha" },
+    "identity_results": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "$ref": "#/$defs/humanoidResult" },
+        { "$ref": "#/$defs/animalianResult" },
+        { "$ref": "#/$defs/plantlikeResult" },
+        { "$ref": "#/$defs/anomalyResult" },
+        { "$ref": "#/$defs/machineResult" }
+      ],
+      "items": false
+    },
+    "identity_count": { "const": 5 },
+    "clip_count": { "const": 520 },
+    "frame_count": { "const": 4720 },
+    "artifact_count_compared": { "const": 63 },
+    "bytes_compared": { "type": "integer", "minimum": 63 },
+    "exact_identity_replay": { "const": true },
+    "exact_showcase_replay": { "const": true },
+    "all_gates_passed": { "const": true }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "resultBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "sample_id",
+        "exact",
+        "artifact_count",
+        "bytes_compared",
+        "shard_count"
+      ],
+      "properties": {
+        "family": { "type": "string" },
+        "sample_id": { "type": "string" },
+        "exact": { "const": true },
+        "artifact_count": { "const": 12 },
+        "bytes_compared": { "type": "integer", "minimum": 12 },
+        "shard_count": { "const": 4 }
+      }
+    },
+    "humanoidResult": {
+      "allOf": [
+        { "$ref": "#/$defs/resultBase" },
+        {
+          "properties": {
+            "family": { "const": "humanoid" },
+            "sample_id": { "const": "0000_f0_s00_r0_v00" }
+          }
+        }
+      ]
+    },
+    "animalianResult": {
+      "allOf": [
+        { "$ref": "#/$defs/resultBase" },
+        {
+          "properties": {
+            "family": { "const": "animalian" },
+            "sample_id": { "const": "0016_f1_s04_r0_v00" }
+          }
+        }
+      ]
+    },
+    "plantlikeResult": {
+      "allOf": [
+        { "$ref": "#/$defs/resultBase" },
+        {
+          "properties": {
+            "family": { "const": "plantlike" },
+            "sample_id": { "const": "0032_f2_s08_r0_v00" }
+          }
+        }
+      ]
+    },
+    "anomalyResult": {
+      "allOf": [
+        { "$ref": "#/$defs/resultBase" },
+        {
+          "properties": {
+            "family": { "const": "anomaly" },
+            "sample_id": { "const": "0048_f3_s12_r0_v00" }
+          }
+        }
+      ]
+    },
+    "machineResult": {
+      "allOf": [
+        { "$ref": "#/$defs/resultBase" },
+        {
+          "properties": {
+            "family": { "const": "machine" },
+            "sample_id": { "const": "0064_f4_s16_r0_v00" }
+          }
+        }
+      ]
+    }
+  }
+}

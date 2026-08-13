@@ -1,0 +1,81 @@
+"""CPU/CUDA-ready categorical refinement foundations for topology-locked map art."""
+
+from .contract import (
+    CHECKPOINT_FORMAT_VERSION,
+    GLOBAL_CONDITION_DIM,
+    HEAD_CLASS_COUNTS,
+    HEAD_NAMES,
+    MODEL_CONTRACT_SHA256,
+    MODEL_CONTRACT_VERSION,
+    SPLIT_POLICY_VERSION,
+    TEACHER_PROJECTION_VERSION,
+    ModelConfig,
+    global_condition_vector,
+    model_contract_manifest,
+)
+from .legality import (
+    ILLEGAL_LOGIT,
+    TorchLegalMasks,
+    apply_legal_mask,
+    assert_selected_legal,
+    legal_masks_to_torch,
+    mask_head_logits,
+    select_legal_argmax,
+)
+from .model import CategoricalRefinementUNet, HeadLogits, crop_exact, pad_right_bottom
+from .sampling import DecorationPrediction, SamplerConfig, sample_refinement
+from .dataset import (
+    Crop,
+    TeacherDataset,
+    TeacherRecord,
+    TeacherSample,
+    assert_no_split_leakage,
+    collate_teacher_samples,
+    corpus_identity,
+    load_teacher_sample,
+    split_for_identity,
+)
+from .metrics import decoration_metrics, head_metrics
+from .training import EMA, TrainingConfig, train_batch
+
+__all__ = [
+    "CHECKPOINT_FORMAT_VERSION",
+    "GLOBAL_CONDITION_DIM",
+    "HEAD_CLASS_COUNTS",
+    "HEAD_NAMES",
+    "MODEL_CONTRACT_SHA256",
+    "MODEL_CONTRACT_VERSION",
+    "SPLIT_POLICY_VERSION",
+    "TEACHER_PROJECTION_VERSION",
+    "ModelConfig",
+    "global_condition_vector",
+    "model_contract_manifest",
+    "ILLEGAL_LOGIT",
+    "TorchLegalMasks",
+    "apply_legal_mask",
+    "assert_selected_legal",
+    "legal_masks_to_torch",
+    "mask_head_logits",
+    "select_legal_argmax",
+    "CategoricalRefinementUNet",
+    "HeadLogits",
+    "crop_exact",
+    "pad_right_bottom",
+    "DecorationPrediction",
+    "SamplerConfig",
+    "sample_refinement",
+    "Crop",
+    "TeacherDataset",
+    "TeacherRecord",
+    "TeacherSample",
+    "assert_no_split_leakage",
+    "collate_teacher_samples",
+    "corpus_identity",
+    "load_teacher_sample",
+    "split_for_identity",
+    "decoration_metrics",
+    "head_metrics",
+    "EMA",
+    "TrainingConfig",
+    "train_batch",
+]

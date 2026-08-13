@@ -1,0 +1,16 @@
+[project]
+name = "neural-sprite-forge"
+version = "0.1.0"
+description = "Pixel-native categorical diffusion and semantic VAE tooling for a Godot game."
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.0",
+  "pillow>=11.0",
+  "jsonschema>=4.23",
+  "torch>=2.6",
+  "tqdm>=4.67",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

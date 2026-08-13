@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_topology_neural_smoke.schema.json",
+  "title": "Neural topology CPU foundation smoke bank",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "authority", "source_sha256", "source_manifest", "corpus_sha256", "corpus_manifest_file_sha256", "tensor_contract_sha256", "compiler_source_sha256", "theme_order", "counts", "limits", "disk", "runtime", "cases", "contact_sheet", "codec", "gates", "smoke_identity_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-neural-map-topology-smoke-v1"},
+    "authority": {"const": "foundation_only_representation_codec_and_deterministic_compiler"},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "source_manifest": {"type": "object"},
+    "corpus_sha256": {"const": "16ed5f3b1a661e2bfc2abe9e16c39e9b8caaecba81f50fed6658cc4f73cffab8"},
+    "corpus_manifest_file_sha256": {"const": "fd5ee2e88725262f23ef1943e34aad7f19c1b0886100f43298f93226de2ccbaf"},
+    "tensor_contract_sha256": {"$ref": "#/$defs/sha"},
+    "compiler_source_sha256": {"$ref": "#/$defs/sha"},
+    "theme_order": {"const": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["themes", "raw_artifacts", "compiled_artifacts", "codec_steps"], "properties": {"themes": {"const": 6}, "raw_artifacts": {"const": 6}, "compiled_artifacts": {"const": 6}, "codec_steps": {"const": 2}}},
+    "limits": {"type": "object"},
+    "disk": {"type": "object"},
+    "runtime": {"type": "object"},
+    "cases": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/case"}},
+    "contact_sheet": {"type": "object", "additionalProperties": false, "required": ["file", "bytes", "sha256", "columns", "rows", "visually_inspected"], "properties": {"file": {"const": "topology_repair_contact_sheet.png"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}, "columns": {"const": ["source", "corrupt", "compiled", "edit_overlay"]}, "rows": {"const": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]}, "visually_inspected": {"type": "boolean"}}},
+    "codec": {"type": "object", "additionalProperties": false, "required": ["authority", "config", "model_init_seed", "training_seed", "checkpoint", "checkpoint_sha256", "checkpoint_sidecar", "checkpoint_sidecar_sha256", "ema_state_sha256", "metrics", "metrics_sha256", "decode_sha256"], "properties": {"authority": {"const": "representation_only_not_generative"}, "config": {"type": "object"}, "model_init_seed": {"type": "integer"}, "training_seed": {"type": "integer"}, "checkpoint": {"const": "codec/checkpoint.pt"}, "checkpoint_sha256": {"$ref": "#/$defs/sha"}, "checkpoint_sidecar": {"const": "codec/checkpoint.pt.json"}, "checkpoint_sidecar_sha256": {"$ref": "#/$defs/sha"}, "ema_state_sha256": {"$ref": "#/$defs/sha"}, "metrics": {"const": "codec/metrics.json"}, "metrics_sha256": {"$ref": "#/$defs/sha"}, "decode_sha256": {"$ref": "#/$defs/sha"}}},
+    "gates": {"type": "object", "additionalProperties": false, "required": ["all_six_themes", "raw_artifacts_proposal_only", "compiled_authoritative_validation", "exact_compiler_replay", "contact_sheet_exact_replay", "checkpoint_bounded_safe_load", "cpu_only", "cuda_device_or_api_used", "production_training_started", "godot_integrated"], "properties": {"all_six_themes": {"const": true}, "raw_artifacts_proposal_only": {"const": true}, "compiled_authoritative_validation": {"const": true}, "exact_compiler_replay": {"const": true}, "contact_sheet_exact_replay": {"const": true}, "checkpoint_bounded_safe_load": {"const": true}, "cpu_only": {"const": true}, "cuda_device_or_api_used": {"const": false}, "production_training_started": {"const": false}, "godot_integrated": {"const": false}}},
+    "smoke_identity_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "case": {"type": "object", "additionalProperties": false, "required": ["theme", "source", "corruption_changed_cells", "raw", "compiled", "costs", "tensor_sha256"], "properties": {"theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]}, "source": {"type": "object"}, "corruption_changed_cells": {"type": "object"}, "raw": {"type": "object"}, "compiled": {"type": "object"}, "costs": {"type": "object"}, "tensor_sha256": {"$ref": "#/$defs/sha"}}}
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-style-procedural-reference-v1.json",
+  "title": "NULLVECTOR Procedural Five-Family Style Reference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "source_kind", "neural_output", "compiler", "authority",
+    "parent", "background_catalog", "disk_guard", "contact_sheets", "sample_count",
+    "family_coverage", "all_metrics_passed", "samples"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-style-procedural-reference-v1" },
+    "status": { "const": "ready" },
+    "source_kind": { "const": "authoritative-procedural-reference" },
+    "neural_output": { "const": false },
+    "compiler": { "$ref": "#/$defs/compiler" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "parent": { "$ref": "#/$defs/parent" },
+    "background_catalog": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/background" }
+    },
+    "disk_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["floor_bytes", "enforced"],
+      "properties": {
+        "floor_bytes": { "const": 107374182400 },
+        "enforced": { "const": true }
+      }
+    },
+    "contact_sheets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layers", "five_family_reference", "map_context"],
+      "properties": {
+        "layers": { "$ref": "#/$defs/artifact" },
+        "five_family_reference": { "$ref": "#/$defs/artifact" },
+        "map_context": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "sample_count": { "const": 5 },
+    "family_coverage": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "const": "humanoid" },
+        { "const": "animalian" },
+        { "const": "plantlike" },
+        { "const": "anomaly" },
+        { "const": "machine" }
+      ],
+      "items": false
+    },
+    "all_metrics_passed": { "const": true },
+    "samples": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/sample" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source_sha256", "image_size", "resampling", "color_space"],
+      "properties": {
+        "id": { "const": "deterministic-perceptual-categorical-presentation-v1" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "image_size": { "const": 48 },
+        "resampling": { "const": "none-native-48px" },
+        "color_space": { "const": "bounded-oklch-to-srgb8" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_categorical_fields_remain_authoritative", "presentation_is_derived_only",
+        "rig_authority_modified", "collision_authority_modified", "aura_is_effect_not_body",
+        "procedural_reference_only", "neural_output_claimed"
+      ],
+      "properties": {
+        "raw_categorical_fields_remain_authoritative": { "const": true },
+        "presentation_is_derived_only": { "const": true },
+        "rig_authority_modified": { "const": false },
+        "collision_authority_modified": { "const": false },
+        "aura_is_effect_not_body": { "const": true },
+        "procedural_reference_only": { "const": true },
+        "neural_output_claimed": { "const": false }
+      }
+    },
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_path", "manifest_bytes", "manifest_sha256", "format",
+        "semantic_archive_path", "semantic_archive_bytes", "semantic_archive_sha256"
+      ],
+      "properties": {
+        "manifest_path": { "$ref": "#/$defs/safePath" },
+        "manifest_bytes": { "type": "integer", "minimum": 1 },
+        "manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "format": { "const": "broad-morphology-prototype-bank-v1" },
+        "semantic_archive_path": { "$ref": "#/$defs/safePath" },
+        "semantic_archive_bytes": { "type": "integer", "minimum": 1 },
+        "semantic_archive_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "background": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "theme", "pack_manifest_path", "pack_manifest_sha256",
+        "base_color_path", "base_color_sha256", "crop_xy"
+      ],
+      "properties": {
+        "theme": { "enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"] },
+        "pack_manifest_path": { "$ref": "#/$defs/safePath" },
+        "pack_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "base_color_path": { "$ref": "#/$defs/safePath" },
+        "base_color_sha256": { "$ref": "#/$defs/sha256" },
+        "crop_xy": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sample_id", "ordinal", "sample_seed", "morphology_id", "morphology_name",
+        "subtype_id", "subtype_name", "role_id", "role_name"
+      ],
+      "properties": {
+        "sample_id": { "type": "string", "pattern": "^procedural_ref_[0-4]_(humanoid|animalian|plantlike|anomaly|machine)$" },
+        "ordinal": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "sample_seed": { "type": "integer", "minimum": 0 },
+        "morphology_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "morphology_name": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "subtype_name": { "type": "string", "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[0-3]$" },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "role_name": { "enum": ["striker", "defender", "scout", "controller", "support", "artillery", "harvester", "disruptor"] }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "procedural_sprite_id", "procedural_index", "training_arrays_sha256",
+        "semantic_sha256", "aligned_fields_sha256"
+      ],
+      "properties": {
+        "procedural_sprite_id": { "type": "string", "minLength": 1 },
+        "procedural_index": { "type": "integer", "minimum": 0 },
+        "training_arrays_sha256": { "$ref": "#/$defs/sha256" },
+        "semantic_sha256": { "$ref": "#/$defs/sha256" },
+        "aligned_fields_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer_format", "palette_format", "metrics_format", "metrics_passed", "artifacts"],
+      "properties": {
+        "layer_format": { "const": "nullvector-multifield-style-layers-v1" },
+        "palette_format": { "const": "nullvector-perceptual-palette-v1" },
+        "metrics_format": { "const": "nullvector-multifield-style-metrics-v1" },
+        "metrics_passed": { "const": true },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite", "palette", "metrics"],
+          "properties": {
+            "base": { "$ref": "#/$defs/artifact" },
+            "outline": { "$ref": "#/$defs/artifact" },
+            "emission_core": { "$ref": "#/$defs/artifact" },
+            "aura": { "$ref": "#/$defs/artifact" },
+            "bloom_r1": { "$ref": "#/$defs/artifact" },
+            "bloom_r2": { "$ref": "#/$defs/artifact" },
+            "composite": { "$ref": "#/$defs/artifact" },
+            "palette": { "$ref": "#/$defs/artifact" },
+            "metrics": { "$ref": "#/$defs/artifact" }
+          }
+        }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "source", "presentation"],
+      "properties": {
+        "condition": { "$ref": "#/$defs/condition" },
+        "source": { "$ref": "#/$defs/source" },
+        "presentation": { "$ref": "#/$defs/presentation" }
+      }
+    }
+  }
+}

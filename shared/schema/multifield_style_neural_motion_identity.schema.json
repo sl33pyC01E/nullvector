@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-style-neural-motion-identity-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "neural_output", "family", "sample_id", "condition",
+    "compiler", "authority", "source", "selection", "layout", "artifacts",
+    "clip_count", "frame_count", "gates", "clips"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-style-neural-motion-identity-v1" },
+    "status": { "const": "ready" },
+    "neural_output": { "const": true },
+    "family": { "$ref": "#/$defs/family" },
+    "sample_id": { "$ref": "#/$defs/id" },
+    "condition": { "$ref": "#/$defs/condition" },
+    "compiler": { "$ref": "#/$defs/compiler" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "source": { "$ref": "#/$defs/source" },
+    "selection": { "$ref": "#/$defs/selection" },
+    "layout": { "$ref": "#/$defs/layout" },
+    "artifacts": { "$ref": "#/$defs/artifacts" },
+    "clip_count": { "const": 104 },
+    "frame_count": { "const": 944 },
+    "gates": { "$ref": "#/$defs/gates" },
+    "clips": { "type": "array", "minItems": 104, "maxItems": 104, "items": { "$ref": "#/$defs/clip" } }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha" } }
+    },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "motion": { "enum": ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"] },
+    "facing": { "enum": ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] },
+    "condition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sample_id", "ordinal", "sample_seed", "morphology_id", "morphology_name", "subtype_id", "subtype_name", "role_id", "role_name"],
+      "properties": {
+        "sample_id": { "$ref": "#/$defs/id" }, "ordinal": { "type": "integer", "minimum": 0 }, "sample_seed": { "type": "integer", "minimum": 0 },
+        "morphology_id": { "type": "integer", "minimum": 0, "maximum": 4 }, "morphology_name": { "$ref": "#/$defs/family" },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 }, "subtype_name": { "type": "string", "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[0-3]$" },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 }, "role_name": { "enum": ["striker", "defender", "scout", "controller", "support", "artillery", "harvester", "disruptor"] }
+      }
+    },
+    "compiler": {
+      "type": "object", "additionalProperties": false, "required": ["id", "source_sha256", "presentation_source_sha256", "bridge_source_sha256"],
+      "properties": {
+        "id": { "const": "deterministic-neural-motion-presentation-v1" }, "source_sha256": { "$ref": "#/$defs/sha" },
+        "presentation_source_sha256": { "$ref": "#/$defs/sha" }, "bridge_source_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_neural_fields_are_source_authority", "binding_and_motion_program_are_derived_authority", "presentation_is_derived_only", "procedural_pixel_substitution", "collision_authority_modified", "aura_is_effect_not_body"],
+      "properties": {
+        "raw_neural_fields_are_source_authority": { "const": true }, "binding_and_motion_program_are_derived_authority": { "const": true },
+        "presentation_is_derived_only": { "const": true }, "procedural_pixel_substitution": { "const": false },
+        "collision_authority_modified": { "const": false }, "aura_is_effect_not_body": { "const": true }
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generation_manifest_sha256", "style_manifest_sha256", "raw_fields_sha256", "compiled_fields_sha256", "raw_archive_path", "raw_archive_bytes", "raw_archive_sha256", "raw_manifest_path", "raw_manifest_bytes", "raw_manifest_sha256", "binding_sha256", "static_palette_sha256"],
+      "properties": {
+        "generation_manifest_sha256": { "$ref": "#/$defs/sha" }, "style_manifest_sha256": { "$ref": "#/$defs/sha" },
+        "raw_fields_sha256": { "$ref": "#/$defs/sha" }, "compiled_fields_sha256": { "$ref": "#/$defs/sha" },
+        "raw_archive_path": { "$ref": "#/$defs/path" }, "raw_archive_bytes": { "type": "integer", "minimum": 1 }, "raw_archive_sha256": { "$ref": "#/$defs/sha" },
+        "raw_manifest_path": { "$ref": "#/$defs/path" }, "raw_manifest_bytes": { "type": "integer", "minimum": 1 }, "raw_manifest_sha256": { "$ref": "#/$defs/sha" },
+        "binding_sha256": { "$ref": "#/$defs/sha" }, "static_palette_sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "rejected": {
+      "type": "object", "additionalProperties": false, "required": ["sample_id", "candidate_ordinal_within_family", "reason"],
+      "properties": { "sample_id": { "$ref": "#/$defs/id" }, "candidate_ordinal_within_family": { "type": "integer", "minimum": 0, "maximum": 15 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 } }
+    },
+    "selection": {
+      "type": "object", "additionalProperties": false, "required": ["policy", "candidate_ordinal_within_family", "rejected_prior_candidates"],
+      "properties": {
+        "policy": { "const": "first-full-matrix-valid-per-family-v1" }, "candidate_ordinal_within_family": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "rejected_prior_candidates": { "type": "array", "maxItems": 15, "items": { "$ref": "#/$defs/rejected" } }
+      }
+    },
+    "layout": {
+      "type": "object", "additionalProperties": false, "required": ["cell_size", "columns", "rows", "frame_count", "layer_order"],
+      "properties": {
+        "cell_size": { "const": 48 }, "columns": { "const": 16 }, "rows": { "const": 59 }, "frame_count": { "const": 944 },
+        "layer_order": { "const": ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"] }
+      }
+    },
+    "artifacts": {
+      "type": "object", "additionalProperties": false, "required": ["palette", "binding_manifest", "motion_manifests", "frame_index", "layers"],
+      "properties": {
+        "palette": { "$ref": "#/$defs/artifact" }, "binding_manifest": { "$ref": "#/$defs/artifact" }, "motion_manifests": { "$ref": "#/$defs/artifact" }, "frame_index": { "$ref": "#/$defs/artifact" },
+        "layers": {
+          "type": "object", "additionalProperties": false, "required": ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"],
+          "properties": { "base": { "$ref": "#/$defs/artifact" }, "outline": { "$ref": "#/$defs/artifact" }, "emission_core": { "$ref": "#/$defs/artifact" }, "aura": { "$ref": "#/$defs/artifact" }, "bloom_r1": { "$ref": "#/$defs/artifact" }, "bloom_r2": { "$ref": "#/$defs/artifact" }, "composite": { "$ref": "#/$defs/artifact" } }
+        }
+      }
+    },
+    "gates": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_neural_fields_exact", "binding_exact", "motion_clips_valid", "source_tuples_preserved", "procedural_pixel_substitution_absent", "categorical_fields_unchanged_by_presentation", "rig_and_socket_authority_preserved", "motion_events_preserved", "palette_matches_static_neural_parent", "palette_identity_invariant", "no_temporal_palette_flicker", "loop_endpoints_exact", "outline_radius_1_exact", "bloom_radius_1_exact", "bloom_radius_2_exact", "effect_rings_unclipped", "emission_pulse_support_bounded"],
+      "properties": {
+        "raw_neural_fields_exact": { "const": true }, "binding_exact": { "const": true }, "motion_clips_valid": { "const": true }, "source_tuples_preserved": { "const": true }, "procedural_pixel_substitution_absent": { "const": true }, "categorical_fields_unchanged_by_presentation": { "const": true }, "rig_and_socket_authority_preserved": { "const": true }, "motion_events_preserved": { "const": true }, "palette_matches_static_neural_parent": { "const": true }, "palette_identity_invariant": { "const": true }, "no_temporal_palette_flicker": { "const": true }, "loop_endpoints_exact": { "const": true }, "outline_radius_1_exact": { "const": true }, "bloom_radius_1_exact": { "const": true }, "bloom_radius_2_exact": { "const": true }, "effect_rings_unclipped": { "const": true }, "emission_pulse_support_bounded": { "const": true }
+      }
+    },
+    "event": {
+      "type": "object", "additionalProperties": false, "required": ["name", "frame", "phase", "socket"],
+      "properties": { "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "frame": { "type": "integer", "minimum": 0, "maximum": 12 }, "phase": { "type": "number", "minimum": 0, "maximum": 1 }, "socket": { "enum": [null, "focus", "muzzle", "left_hand", "right_hand", "left_foot", "right_foot", "appendage_tip"] } }
+    },
+    "clipGates": {
+      "type": "object", "additionalProperties": false, "required": ["source_motion_valid", "events_preserved", "palette_identity_invariant", "loop_endpoints_exact", "categorical_and_anchor_authority_unchanged", "outline_and_bloom_radius_exact"],
+      "properties": { "source_motion_valid": { "const": true }, "events_preserved": { "const": true }, "palette_identity_invariant": { "const": true }, "loop_endpoints_exact": { "const": true }, "categorical_and_anchor_authority_unchanged": { "const": true }, "outline_and_bloom_radius_exact": { "const": true } }
+    },
+    "clip": {
+      "type": "object", "additionalProperties": false, "required": ["id", "motion", "facing", "fps", "loop", "frame_count", "start_cell", "source_clip_sha256", "derived_clip_sha256", "events", "gates"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "motion": { "$ref": "#/$defs/motion" }, "facing": { "$ref": "#/$defs/facing" }, "fps": { "type": "integer", "minimum": 1, "maximum": 60 }, "loop": { "type": "boolean" }, "frame_count": { "type": "integer", "minimum": 3, "maximum": 13 }, "start_cell": { "type": "integer", "minimum": 0, "maximum": 943 }, "source_clip_sha256": { "$ref": "#/$defs/sha" }, "derived_clip_sha256": { "$ref": "#/$defs/sha" }, "events": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/$defs/event" } }, "gates": { "$ref": "#/$defs/clipGates" }
+      }
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-style-neural-motion-bank-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "neural_output", "source_kind", "compiler", "authority",
+    "parent", "source_census", "matrix", "disk_guard", "identities", "contact_sheet", "showcase",
+    "identity_count", "clip_count", "frame_count", "gates"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-style-neural-motion-bank-v1" },
+    "status": { "const": "ready" },
+    "neural_output": { "const": true },
+    "source_kind": { "const": "accepted-raw-neural-generation-bank" },
+    "compiler": { "$ref": "#/$defs/compiler" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "parent": { "$ref": "#/$defs/parent" },
+    "source_census": { "$ref": "#/$defs/sourceCensus" },
+    "matrix": { "$ref": "#/$defs/matrix" },
+    "disk_guard": {
+      "type": "object", "additionalProperties": false, "required": ["floor_bytes", "enforced"],
+      "properties": { "floor_bytes": { "const": 107374182400 }, "enforced": { "const": true } }
+    },
+    "identities": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "$ref": "#/$defs/identity" } },
+    "contact_sheet": { "$ref": "#/$defs/contact" },
+    "showcase": { "$ref": "#/$defs/showcase" },
+    "identity_count": { "const": 5 },
+    "clip_count": { "const": 520 },
+    "frame_count": { "const": 4720 },
+    "gates": { "$ref": "#/$defs/gates" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": { "path": { "$ref": "#/$defs/path" }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha" } }
+    },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "motion": { "enum": ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"] },
+    "facing": { "enum": ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] },
+    "compiler": {
+      "type": "object", "additionalProperties": false, "required": ["id", "source_sha256", "presentation_source_sha256", "bridge_source_sha256"],
+      "properties": { "id": { "const": "deterministic-neural-motion-presentation-v1" }, "source_sha256": { "$ref": "#/$defs/sha" }, "presentation_source_sha256": { "$ref": "#/$defs/sha" }, "bridge_source_sha256": { "$ref": "#/$defs/sha" } }
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_neural_fields_are_source_authority", "binding_and_motion_program_are_derived_authority", "presentation_is_derived_only", "procedural_pixel_substitution", "collision_authority_modified", "aura_is_effect_not_body"],
+      "properties": { "raw_neural_fields_are_source_authority": { "const": true }, "binding_and_motion_program_are_derived_authority": { "const": true }, "presentation_is_derived_only": { "const": true }, "procedural_pixel_substitution": { "const": false }, "collision_authority_modified": { "const": false }, "aura_is_effect_not_body": { "const": true } }
+    },
+    "parent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generation_manifest_path", "generation_manifest_bytes", "generation_manifest_sha256", "generation_manifest_format", "style_manifest_path", "style_manifest_bytes", "style_manifest_sha256", "style_manifest_format", "corpus_path", "corpus_bytes", "corpus_sha256", "corpus_source_sha256", "split_fingerprint", "legal_tuple_count", "legal_tuple_fingerprint"],
+      "properties": {
+        "generation_manifest_path": { "$ref": "#/$defs/path" }, "generation_manifest_bytes": { "type": "integer", "minimum": 1 }, "generation_manifest_sha256": { "$ref": "#/$defs/sha" }, "generation_manifest_format": { "const": "nullvector-multifield-generation-bank-v1" },
+        "style_manifest_path": { "$ref": "#/$defs/path" }, "style_manifest_bytes": { "type": "integer", "minimum": 1 }, "style_manifest_sha256": { "$ref": "#/$defs/sha" }, "style_manifest_format": { "const": "nullvector-multifield-style-bank-v1" },
+        "corpus_path": { "$ref": "#/$defs/path" }, "corpus_bytes": { "type": "integer", "minimum": 1 }, "corpus_sha256": { "$ref": "#/$defs/sha" }, "corpus_source_sha256": { "$ref": "#/$defs/sha" },
+        "split_fingerprint": { "$ref": "#/$defs/sha" }, "legal_tuple_count": { "const": 69 }, "legal_tuple_fingerprint": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "sourceCensus": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "scope", "sample_count", "bindable_count", "rejected_count", "family_counts", "rejection_categories", "rejections", "animation_bank_scope"],
+      "properties": {
+        "format": { "const": "nullvector-neural-rig-binding-census-v1" },
+        "scope": { "const": "all-80-immutable-production-samples" },
+        "sample_count": { "const": 80 }, "bindable_count": { "const": 70 }, "rejected_count": { "const": 10 },
+        "family_counts": {
+          "type": "array", "minItems": 5, "maxItems": 5,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["family", "sample_count", "bindable_count", "rejected_count"],
+            "properties": { "family": { "$ref": "#/$defs/family" }, "sample_count": { "const": 16 }, "bindable_count": { "type": "integer", "minimum": 0, "maximum": 16 }, "rejected_count": { "type": "integer", "minimum": 0, "maximum": 16 } }
+          }
+        },
+        "rejection_categories": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "prefixItems": [
+            { "$ref": "#/$defs/anchorRejectionCount" },
+            { "$ref": "#/$defs/topologyRejectionCount" },
+            { "$ref": "#/$defs/ownerRejectionCount" },
+            { "$ref": "#/$defs/marginRejectionCount" }
+          ],
+          "items": false
+        },
+        "rejections": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "$ref": "#/$defs/rejection" } },
+        "animation_bank_scope": {
+          "type": "object", "additionalProperties": false,
+          "required": ["selected_identity_count", "all_80_animated", "policy", "binding_census_does_not_imply_animation"],
+          "properties": {
+            "selected_identity_count": { "const": 5 }, "all_80_animated": { "const": false },
+            "policy": { "const": "first-bank-ordered-full-matrix-valid-identity-per-family-v1" },
+            "binding_census_does_not_imply_animation": { "const": true }
+          }
+        }
+      }
+    },
+    "anchorRejectionCount": { "type": "object", "additionalProperties": false, "required": ["category", "count"], "properties": { "category": { "const": "anchor_on_background" }, "count": { "const": 3 } } },
+    "topologyRejectionCount": { "type": "object", "additionalProperties": false, "required": ["category", "count"], "properties": { "category": { "const": "plant_topology" }, "count": { "const": 1 } } },
+    "ownerRejectionCount": { "type": "object", "additionalProperties": false, "required": ["category", "count"], "properties": { "category": { "const": "required_owner_absence" }, "count": { "const": 3 } } },
+    "marginRejectionCount": { "type": "object", "additionalProperties": false, "required": ["category", "count"], "properties": { "category": { "const": "safety_margin" }, "count": { "const": 3 } } },
+    "rejection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["family", "candidate_ordinal_within_family", "sample_id", "category", "reason"],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" }, "candidate_ordinal_within_family": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "sample_id": { "$ref": "#/$defs/id" }, "category": { "enum": ["anchor_on_background", "plant_topology", "required_owner_absence", "safety_margin"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "matrix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["families", "motions", "facings", "layers", "cell_size", "resampling", "identity_count", "motion_count", "facing_count", "clips_per_identity", "frames_per_identity", "clip_count", "frame_count"],
+      "properties": {
+        "families": { "const": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "motions": { "type": "array", "minItems": 13, "maxItems": 13, "items": { "$ref": "#/$defs/motion" } },
+        "facings": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "$ref": "#/$defs/facing" } },
+        "layers": { "const": ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"] },
+        "cell_size": { "const": 48 }, "resampling": { "const": "none-native-48px-nearest-preview-only" }, "identity_count": { "const": 5 }, "motion_count": { "const": 13 }, "facing_count": { "const": 8 }, "clips_per_identity": { "const": 104 }, "frames_per_identity": { "const": 944 }, "clip_count": { "const": 520 }, "frame_count": { "const": 4720 }
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false, "required": ["family", "sample_id", "manifest", "binding_sha256", "raw_fields_sha256", "static_palette_sha256", "clip_count", "frame_count"],
+      "properties": { "family": { "$ref": "#/$defs/family" }, "sample_id": { "$ref": "#/$defs/id" }, "manifest": { "$ref": "#/$defs/artifact" }, "binding_sha256": { "$ref": "#/$defs/sha" }, "raw_fields_sha256": { "$ref": "#/$defs/sha" }, "static_palette_sha256": { "$ref": "#/$defs/sha" }, "clip_count": { "const": 104 }, "frame_count": { "const": 944 } }
+    },
+    "contactSelection": {
+      "type": "object", "additionalProperties": false, "required": ["family", "sample_id", "motion", "facing", "clip_id", "source_frame", "atlas_cell"],
+      "properties": { "family": { "$ref": "#/$defs/family" }, "sample_id": { "$ref": "#/$defs/id" }, "motion": { "$ref": "#/$defs/motion" }, "facing": { "$ref": "#/$defs/facing" }, "clip_id": { "type": "string", "minLength": 1 }, "source_frame": { "type": "integer", "minimum": 0, "maximum": 12 }, "atlas_cell": { "type": "integer", "minimum": 0, "maximum": 943 } }
+    },
+    "contact": {
+      "type": "object", "additionalProperties": false, "required": ["artifact", "family_count", "representative_motion_count", "selections", "visually_inspected"],
+      "properties": { "artifact": { "$ref": "#/$defs/artifact" }, "family_count": { "const": 5 }, "representative_motion_count": { "const": 6 }, "selections": { "type": "array", "minItems": 30, "maxItems": 30, "items": { "$ref": "#/$defs/contactSelection" } }, "visually_inspected": { "const": true } }
+    },
+    "ffmpeg": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "version_line"],
+      "properties": { "path": { "type": "string", "minLength": 1 }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha" }, "version_line": { "type": "string", "pattern": "^ffmpeg version .+" } }
+    },
+    "encoding": {
+      "type": "object", "additionalProperties": false, "required": ["codec", "preset", "crf", "pixel_format", "threads", "metadata", "arguments"],
+      "properties": { "codec": { "const": "libx264" }, "preset": { "const": "slow" }, "crf": { "const": 12 }, "pixel_format": { "const": "yuv420p" }, "threads": { "const": 1 }, "metadata": { "const": "stripped" }, "arguments": { "type": "array", "minItems": 20, "items": { "type": "string" } } }
+    },
+    "showcase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "artifact", "poster", "width", "height", "fps", "frame_count", "facing", "motion", "frame_sha256", "ffmpeg", "encoding", "visually_inspected"],
+      "properties": { "format": { "const": "mp4-h264-yuv420p" }, "artifact": { "$ref": "#/$defs/artifact" }, "poster": { "$ref": "#/$defs/artifact" }, "width": { "type": "integer", "minimum": 640, "maximum": 1280, "multipleOf": 2 }, "height": { "type": "integer", "minimum": 200, "maximum": 800, "multipleOf": 2 }, "fps": { "const": 12 }, "frame_count": { "const": 36 }, "facing": { "const": "southeast" }, "motion": { "const": "locomote" }, "frame_sha256": { "type": "array", "minItems": 36, "maxItems": 36, "items": { "$ref": "#/$defs/sha" } }, "ffmpeg": { "$ref": "#/$defs/ffmpeg" }, "encoding": { "$ref": "#/$defs/encoding" }, "visually_inspected": { "const": true } }
+    },
+    "gates": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actual_neural_samples_animated", "full_five_family_matrix_compiled", "raw_generation_provenance_exact", "static_style_parent_exact", "binding_source_exact", "motion_program_source_exact", "no_procedural_pixel_substitution", "categorical_authority_preserved", "rig_and_socket_authority_preserved", "motion_events_preserved", "palette_identity_invariant", "no_temporal_palette_flicker", "loop_endpoint_coherence", "outline_and_bloom_bounds_exact", "emission_pulse_support_bounded", "all_artifacts_hash_bound", "all_80_binding_census_exact", "exact_replay_ready", "ffmpeg_showcase_encoded"],
+      "properties": { "actual_neural_samples_animated": { "const": true }, "full_five_family_matrix_compiled": { "const": true }, "raw_generation_provenance_exact": { "const": true }, "static_style_parent_exact": { "const": true }, "binding_source_exact": { "const": true }, "motion_program_source_exact": { "const": true }, "no_procedural_pixel_substitution": { "const": true }, "categorical_authority_preserved": { "const": true }, "rig_and_socket_authority_preserved": { "const": true }, "motion_events_preserved": { "const": true }, "palette_identity_invariant": { "const": true }, "no_temporal_palette_flicker": { "const": true }, "loop_endpoint_coherence": { "const": true }, "outline_and_bloom_bounds_exact": { "const": true }, "emission_pulse_support_bounded": { "const": true }, "all_artifacts_hash_bound": { "const": true }, "all_80_binding_census_exact": { "const": true }, "exact_replay_ready": { "const": true }, "ffmpeg_showcase_encoded": { "const": true } }
+    }
+  }
+}

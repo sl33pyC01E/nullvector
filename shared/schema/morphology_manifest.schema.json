@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://latent-surge.local/schema/morphology-manifest-v1.json",
+  "title": "Broad Neural Morphology Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "id", "seed", "family", "canvas_size", "safety_margin",
+    "genome_version", "renderer_version", "semantic", "genome",
+    "condition_vector", "training_contract", "palette", "bounds", "topology", "joints",
+    "sockets", "hashes"
+  ],
+  "properties": {
+    "format": { "const": "neural-morphology-manifest-v1" },
+    "id": { "type": "string", "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[a-f0-9]{8}$" },
+    "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "canvas_size": {
+      "type": "array", "prefixItems": [{ "const": 48 }, { "const": 48 }],
+      "minItems": 2, "maxItems": 2
+    },
+    "safety_margin": { "const": 3 },
+    "genome_version": { "const": "broad-morphology-genome-v1" },
+    "renderer_version": { "const": "broad-morphology-grammar-v2-role-conditioned" },
+    "semantic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "background_token", "token_count", "layer_names", "layers_shape", "tokens_shape"],
+      "properties": {
+        "format": { "const": "broad-morphology-semantic-v1" },
+        "background_token": { "const": 0 },
+        "token_count": { "const": 13 },
+        "layer_names": {
+          "const": ["body", "armor", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon", "core", "detail", "emission"]
+        },
+        "layers_shape": { "const": [12, 48, 48] },
+        "tokens_shape": { "const": [48, 48] }
+      }
+    },
+    "genome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "seed", "family", "body_width", "body_height", "head_radius",
+        "limb_length", "limb_thickness", "stance_width", "appendage_length",
+        "appendage_count", "armor_depth", "weapon_length", "core_radius",
+        "detail_count", "posture", "asymmetry", "dorsal_bias", "taper", "segmentation", "x_offset", "y_offset",
+        "silhouette_variant", "subtype_id", "role_id", "palette_id", "palette_shift", "topology_seed",
+        "detail_seed", "family_name"
+      ],
+      "properties": {
+        "version": { "const": "broad-morphology-genome-v1" },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "family": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "family_name": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+        "body_width": { "type": "integer", "minimum": 10, "maximum": 20 },
+        "body_height": { "type": "integer", "minimum": 14, "maximum": 26 },
+        "head_radius": { "type": "integer", "minimum": 3, "maximum": 6 },
+        "limb_length": { "type": "integer", "minimum": 6, "maximum": 12 },
+        "limb_thickness": { "type": "integer", "minimum": 2, "maximum": 4 },
+        "stance_width": { "type": "integer", "minimum": 4, "maximum": 10 },
+        "appendage_length": { "type": "integer", "minimum": 5, "maximum": 13 },
+        "appendage_count": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "armor_depth": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "weapon_length": { "type": "integer", "minimum": 5, "maximum": 13 },
+        "core_radius": { "type": "integer", "minimum": 2, "maximum": 4 },
+        "detail_count": { "type": "integer", "minimum": 3, "maximum": 9 },
+        "posture": { "type": "integer", "minimum": -2, "maximum": 2 },
+        "asymmetry": { "type": "integer", "minimum": -2, "maximum": 2 },
+        "dorsal_bias": { "type": "integer", "minimum": -2, "maximum": 2 },
+        "taper": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "segmentation": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "x_offset": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "y_offset": { "type": "integer", "minimum": -1, "maximum": 1 },
+        "silhouette_variant": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "palette_id": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "palette_shift": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "topology_seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "detail_seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "condition_vector": {
+      "type": "array", "minItems": 24, "maxItems": 24,
+      "items": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "training_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["morphology_index", "subtype_id", "subtype_name", "role_id", "role_name", "genes_shape", "guide", "targets", "arrays_sha256"],
+      "properties": {
+        "morphology_index": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "subtype_name": { "type": "string", "minLength": 1 },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "role_name": { "type": "string", "minLength": 1 },
+        "genes_shape": { "const": [24] },
+        "guide": {
+          "type": "object", "additionalProperties": false,
+          "required": ["shape", "dtype", "channel_names"],
+          "properties": {
+            "shape": { "const": [8, 48, 48] },
+            "dtype": { "const": "float32" },
+            "channel_names": { "const": ["silhouette", "body", "skeleton", "joints", "sockets", "core", "horizontal_position", "root_distance"] }
+          }
+        },
+        "targets": {
+          "type": "object", "additionalProperties": false,
+          "required": ["part_owner", "material", "emission_level"],
+          "properties": {
+            "part_owner": {
+              "type": "object", "additionalProperties": false,
+              "required": ["shape", "dtype", "vocabulary"],
+              "properties": {
+                "shape": { "const": [48, 48] }, "dtype": { "const": "uint8" },
+                "vocabulary": { "const": ["background", "body", "armor", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon", "core", "detail", "emission", "joint", "terminal", "ornament", "aura"] }
+              }
+            },
+            "material": {
+              "type": "object", "additionalProperties": false,
+              "required": ["shape", "dtype", "vocabulary"],
+              "properties": {
+                "shape": { "const": [48, 48] }, "dtype": { "const": "uint8" },
+                "vocabulary": { "const": ["void", "tissue", "chitin", "bark", "alloy", "armor", "weapon", "organ", "marking", "energy"] }
+              }
+            },
+            "emission_level": {
+              "type": "object", "additionalProperties": false,
+              "required": ["shape", "dtype", "vocabulary"],
+              "properties": {
+                "shape": { "const": [48, 48] }, "dtype": { "const": "uint8" },
+                "vocabulary": { "const": ["off", "reactive", "emissive", "radiant"] }
+              }
+            }
+          }
+        },
+        "arrays_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outline", "shadow", "primary", "secondary", "organic", "hot"],
+      "properties": {
+        "outline": { "$ref": "#/$defs/rgba" }, "shadow": { "$ref": "#/$defs/rgba" },
+        "primary": { "$ref": "#/$defs/rgba" }, "secondary": { "$ref": "#/$defs/rgba" },
+        "organic": { "$ref": "#/$defs/rgba" }, "hot": { "$ref": "#/$defs/rgba" }
+      }
+    },
+    "bounds": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "type": "integer", "minimum": 3, "maximum": 44 },
+        { "type": "integer", "minimum": 3, "maximum": 44 },
+        { "type": "integer", "minimum": 1, "maximum": 42 },
+        { "type": "integer", "minimum": 1, "maximum": 42 }
+      ]
+    },
+    "topology": {
+      "type": "object", "additionalProperties": false,
+      "required": ["structural_components", "structural_pixels", "margin_clear"],
+      "properties": {
+        "structural_components": { "const": 1 },
+        "structural_pixels": { "type": "integer", "minimum": 1 },
+        "margin_clear": { "const": true }
+      }
+    },
+    "joints": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root", "head", "left_shoulder", "right_shoulder", "left_hip", "right_hip", "appendage_base", "weapon_mount"],
+      "properties": {
+        "root": { "$ref": "#/$defs/point" }, "head": { "$ref": "#/$defs/point" },
+        "left_shoulder": { "$ref": "#/$defs/point" }, "right_shoulder": { "$ref": "#/$defs/point" },
+        "left_hip": { "$ref": "#/$defs/point" }, "right_hip": { "$ref": "#/$defs/point" },
+        "appendage_base": { "$ref": "#/$defs/point" }, "weapon_mount": { "$ref": "#/$defs/point" }
+      }
+    },
+    "sockets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["focus", "muzzle", "left_hand", "right_hand", "left_foot", "right_foot", "appendage_tip"],
+      "properties": {
+        "focus": { "$ref": "#/$defs/point" }, "muzzle": { "$ref": "#/$defs/point" },
+        "left_hand": { "$ref": "#/$defs/point" }, "right_hand": { "$ref": "#/$defs/point" },
+        "left_foot": { "$ref": "#/$defs/point" }, "right_foot": { "$ref": "#/$defs/point" },
+        "appendage_tip": { "$ref": "#/$defs/point" }
+      }
+    },
+    "hashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["genome_sha256", "semantic_sha256", "training_arrays_sha256"],
+      "properties": {
+        "genome_sha256": { "$ref": "#/$defs/hash" },
+        "semantic_sha256": { "$ref": "#/$defs/hash" },
+        "training_arrays_sha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 47 },
+        { "type": "integer", "minimum": 0, "maximum": 47 }
+      ]
+    },
+    "rgba": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 255 },
+        { "type": "integer", "minimum": 0, "maximum": 255 },
+        { "type": "integer", "minimum": 0, "maximum": 255 },
+        { "const": 255 }
+      ]
+    },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

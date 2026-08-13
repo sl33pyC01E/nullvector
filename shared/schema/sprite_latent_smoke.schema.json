@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/semantic-sprite-fsq-smoke-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "scope", "neural_reconstruction_output",
+    "production_quality_claimed", "generative_prior_present", "source", "config",
+    "training", "reconstruction", "artifacts", "gates", "manifest_sha256"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-semantic-sprite-fsq-smoke-v1" },
+    "status": { "const": "passed" },
+    "scope": { "const": "cpu-foundation-smoke-not-production" },
+    "neural_reconstruction_output": { "const": true },
+    "production_quality_claimed": { "const": false },
+    "generative_prior_present": { "const": false },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "source_sha256", "morphology_corpus_source_sha256", "morphology_renderer_version",
+        "fixture", "fixture_sha256", "legal_tuple_sha256", "legal_tuple_count",
+        "runtime", "research_basis"
+      ],
+      "properties": {
+        "source_sha256": { "$ref": "#/$defs/sha" },
+        "morphology_corpus_source_sha256": { "$ref": "#/$defs/sha" },
+        "morphology_renderer_version": { "type": "string", "minLength": 1 },
+        "fixture": { "type": "string", "minLength": 1 },
+        "fixture_sha256": { "$ref": "#/$defs/sha" },
+        "legal_tuple_sha256": { "$ref": "#/$defs/sha" },
+        "legal_tuple_count": { "type": "integer", "minimum": 1 },
+        "runtime": {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "python", "python_implementation", "platform", "machine", "byteorder",
+            "torch", "torch_build_cuda", "numpy", "pillow", "execution_device"
+          ],
+          "properties": {
+            "python": { "type": "string", "minLength": 1 },
+            "python_implementation": { "type": "string", "minLength": 1 },
+            "platform": { "type": "string", "minLength": 1 },
+            "machine": { "type": "string" },
+            "byteorder": { "enum": ["little", "big"] },
+            "torch": { "type": "string", "minLength": 1 },
+            "torch_build_cuda": { "type": "string", "minLength": 1 },
+            "numpy": { "type": "string", "minLength": 1 },
+            "pillow": { "type": "string", "minLength": 1 },
+            "execution_device": { "const": "cpu" }
+          }
+        },
+        "research_basis": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "items": { "type": "string", "pattern": "^https://arxiv\\.org/abs/.+" }
+        }
+      }
+    },
+    "config": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "image_size", "width", "latent_levels", "residual_depth", "part_embedding_dim",
+        "material_embedding_dim", "emission_embedding_dim", "condition_dim",
+        "joint_tuple_weight", "foreground_dice_weight", "latent_usage_weight",
+        "soft_entropy_temperature", "latent_dim", "implicit_code_count",
+        "latent_grid_size", "quantizer", "usage_regularizer"
+      ],
+      "properties": {
+        "image_size": { "const": 48 },
+        "width": { "type": "integer", "minimum": 8, "multipleOf": 8 },
+        "latent_levels": {
+          "type": "array", "minItems": 2, "maxItems": 8,
+          "items": { "type": "integer", "minimum": 2, "maximum": 32 }
+        },
+        "residual_depth": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "part_embedding_dim": { "type": "integer", "minimum": 1 },
+        "material_embedding_dim": { "type": "integer", "minimum": 1 },
+        "emission_embedding_dim": { "type": "integer", "minimum": 1 },
+        "condition_dim": { "type": "integer", "minimum": 1 },
+        "joint_tuple_weight": { "type": "number", "minimum": 0 },
+        "foreground_dice_weight": { "type": "number", "minimum": 0 },
+        "latent_usage_weight": { "type": "number", "minimum": 0 },
+        "soft_entropy_temperature": { "type": "number", "exclusiveMinimum": 0 },
+        "latent_dim": { "type": "integer", "minimum": 2, "maximum": 8 },
+        "implicit_code_count": { "type": "integer", "minimum": 4 },
+        "latent_grid_size": { "const": 12 },
+        "quantizer": { "const": "finite-scalar-quantization-sigmoid-ste-v1" },
+        "usage_regularizer": { "const": "differentiable-soft-fsq-marginal-entropy-rbf-v1" }
+      }
+    },
+    "training": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "seed", "continuous_warmup_steps", "quantized_steps", "total_steps",
+        "initial_state_sha256", "final_state_sha256", "history"
+      ],
+      "properties": {
+        "seed": { "type": "integer", "minimum": 1 },
+        "continuous_warmup_steps": { "type": "integer", "minimum": 1 },
+        "quantized_steps": { "type": "integer", "minimum": 1 },
+        "total_steps": { "type": "integer", "minimum": 2 },
+        "initial_state_sha256": { "$ref": "#/$defs/sha" },
+        "final_state_sha256": { "$ref": "#/$defs/sha" },
+        "history": {
+          "type": "array", "minItems": 2,
+          "items": { "$ref": "#/$defs/historyRow" }
+        }
+      }
+    },
+    "reconstruction": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "aligned_tuple_accuracy", "part_accuracy", "material_accuracy", "emission_accuracy",
+        "visible_silhouette_iou", "legal_projection_fraction", "code_perplexity",
+        "code_utilization", "marginal_entropy", "soft_marginal_entropy",
+        "minimum_code", "maximum_code",
+        "unique_code_count"
+      ],
+      "properties": {
+        "aligned_tuple_accuracy": { "$ref": "#/$defs/unit" },
+        "part_accuracy": { "$ref": "#/$defs/unit" },
+        "material_accuracy": { "$ref": "#/$defs/unit" },
+        "emission_accuracy": { "$ref": "#/$defs/unit" },
+        "visible_silhouette_iou": { "$ref": "#/$defs/unit" },
+        "legal_projection_fraction": { "const": 1.0 },
+        "code_perplexity": { "type": "number", "minimum": 1 },
+        "code_utilization": { "$ref": "#/$defs/unit" },
+        "marginal_entropy": { "$ref": "#/$defs/unit" },
+        "soft_marginal_entropy": { "$ref": "#/$defs/unit" },
+        "minimum_code": { "type": "integer", "minimum": 0 },
+        "maximum_code": { "type": "integer", "minimum": 0 },
+        "unique_code_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "artifacts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint", "contact_sheet"],
+      "properties": {
+        "checkpoint": { "$ref": "#/$defs/artifact" },
+        "contact_sheet": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "gates": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "cpu_only", "cuda_not_initialized", "deterministic_algorithms_enabled",
+        "finite_losses_and_gradients", "continuous_warmup_exercised",
+        "fsq_phase_exercised", "state_changed", "all_projected_tuples_legal",
+        "all_five_families_present", "native_48px_reconstruction",
+        "implicit_code_indices_bounded", "soft_usage_regularizer_has_gradient",
+        "production_quality_not_claimed"
+      ],
+      "properties": {
+        "cpu_only": { "const": true },
+        "cuda_not_initialized": { "const": true },
+        "deterministic_algorithms_enabled": { "const": true },
+        "finite_losses_and_gradients": { "const": true },
+        "continuous_warmup_exercised": { "const": true },
+        "fsq_phase_exercised": { "const": true },
+        "state_changed": { "const": true },
+        "all_projected_tuples_legal": { "const": true },
+        "all_five_families_present": { "const": true },
+        "native_48px_reconstruction": { "const": true },
+        "implicit_code_indices_bounded": { "const": true },
+        "soft_usage_regularizer_has_gradient": { "const": true },
+        "production_quality_not_claimed": { "const": true }
+      }
+    },
+    "manifest_sha256": { "$ref": "#/$defs/sha" }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "path": {
+      "type": "string", "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "historyRow": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "step", "phase", "loss", "reconstruction", "part_ce", "material_ce",
+        "emission_ce", "joint_tuple_ce", "foreground_dice_loss", "usage_penalty",
+        "perplexity", "utilization", "marginal_entropy", "soft_marginal_entropy",
+        "gradient_norm", "quantized"
+      ],
+      "properties": {
+        "step": { "type": "integer", "minimum": 1 },
+        "phase": { "enum": ["continuous_autoencoder_warmup", "fsq"] },
+        "loss": { "type": "number" },
+        "reconstruction": { "type": "number" },
+        "part_ce": { "type": "number" },
+        "material_ce": { "type": "number" },
+        "emission_ce": { "type": "number" },
+        "joint_tuple_ce": { "type": "number" },
+        "foreground_dice_loss": { "type": "number" },
+        "usage_penalty": { "type": "number" },
+        "perplexity": { "type": "number", "minimum": 1 },
+        "utilization": { "$ref": "#/$defs/unit" },
+        "marginal_entropy": { "$ref": "#/$defs/unit" },
+        "soft_marginal_entropy": { "$ref": "#/$defs/unit" },
+        "gradient_norm": { "type": "number", "minimum": 0 },
+        "quantized": { "enum": [0.0, 1.0] }
+      }
+    }
+  }
+}

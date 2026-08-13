@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/multifield-style-motion-bank-v1.json",
+  "title": "NULLVECTOR Motion-Coherent Derived Presentation Bank",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "source_kind", "compiler", "authority", "parent",
+    "matrix", "disk_guard", "families", "contact_sheet", "showcase",
+    "clip_count", "frame_count", "gates"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-multifield-style-motion-bank-v1" },
+    "status": { "const": "ready" },
+    "source_kind": { "const": "authoritative-categorical-motion-bank" },
+    "compiler": { "$ref": "#/$defs/compiler" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "parent": { "$ref": "#/$defs/parent" },
+    "matrix": { "$ref": "#/$defs/matrix" },
+    "disk_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["floor_bytes", "enforced"],
+      "properties": {
+        "floor_bytes": { "const": 107374182400 },
+        "enforced": { "const": true }
+      }
+    },
+    "families": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/familyRecord" }
+    },
+    "contact_sheet": { "$ref": "#/$defs/contactSheet" },
+    "showcase": { "$ref": "#/$defs/showcase" },
+    "clip_count": { "const": 520 },
+    "frame_count": { "const": 4720 },
+    "gates": { "$ref": "#/$defs/gates" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "family": {
+      "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]
+    },
+    "motion": {
+      "enum": [
+        "idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear",
+        "confused", "sleep", "taunt", "attack", "cast", "hit", "death"
+      ]
+    },
+    "facing": {
+      "enum": [
+        "north", "northeast", "east", "southeast", "south", "southwest",
+        "west", "northwest"
+      ]
+    },
+    "layer": {
+      "enum": [
+        "base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"
+      ]
+    },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "source_sha256", "presentation_source_sha256", "motion_source_sha256"
+      ],
+      "properties": {
+        "id": { "const": "deterministic-motion-coherent-categorical-presentation-v1" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "presentation_source_sha256": { "$ref": "#/$defs/sha256" },
+        "motion_source_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "categorical_fields_remain_source_authority", "rig_and_sockets_remain_source_authority",
+        "motion_events_remain_source_authority", "presentation_is_derived_only",
+        "collision_authority_modified", "aura_is_effect_not_body"
+      ],
+      "properties": {
+        "categorical_fields_remain_source_authority": { "const": true },
+        "rig_and_sockets_remain_source_authority": { "const": true },
+        "motion_events_remain_source_authority": { "const": true },
+        "presentation_is_derived_only": { "const": true },
+        "collision_authority_modified": { "const": false },
+        "aura_is_effect_not_body": { "const": true }
+      }
+    },
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_index_path", "asset_index_bytes", "asset_index_sha256", "asset_index_format",
+        "source_manifest_path", "source_manifest_bytes", "source_manifest_sha256",
+        "source_manifest_format", "source_archive_path", "source_archive_bytes",
+        "source_archive_sha256", "forge_lab_source_sha256"
+      ],
+      "properties": {
+        "asset_index_path": { "$ref": "#/$defs/safePath" },
+        "asset_index_bytes": { "type": "integer", "minimum": 1 },
+        "asset_index_sha256": { "$ref": "#/$defs/sha256" },
+        "asset_index_format": { "const": "nullvector-forge-lab-assets-v1" },
+        "source_manifest_path": { "$ref": "#/$defs/safePath" },
+        "source_manifest_bytes": { "type": "integer", "minimum": 1 },
+        "source_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "source_manifest_format": { "const": "neural-morphology-motion-bank-v1" },
+        "source_archive_path": { "$ref": "#/$defs/safePath" },
+        "source_archive_bytes": { "type": "integer", "minimum": 1 },
+        "source_archive_sha256": { "$ref": "#/$defs/sha256" },
+        "forge_lab_source_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "families", "motions", "facings", "layers", "cell_size", "resampling",
+        "family_count", "motion_count", "facing_count", "clip_count", "frame_count"
+      ],
+      "properties": {
+        "families": {
+          "type": "array", "minItems": 5, "maxItems": 5, "items": { "$ref": "#/$defs/family" }
+        },
+        "motions": {
+          "type": "array", "minItems": 13, "maxItems": 13, "items": { "$ref": "#/$defs/motion" }
+        },
+        "facings": {
+          "type": "array", "minItems": 8, "maxItems": 8, "items": { "$ref": "#/$defs/facing" }
+        },
+        "layers": {
+          "type": "array", "minItems": 7, "maxItems": 7, "items": { "$ref": "#/$defs/layer" }
+        },
+        "cell_size": { "const": 48 },
+        "resampling": { "const": "none-native-48px-nearest-preview-only" },
+        "family_count": { "const": 5 },
+        "motion_count": { "const": 13 },
+        "facing_count": { "const": 8 },
+        "clip_count": { "const": 520 },
+        "frame_count": { "const": 4720 }
+      }
+    },
+    "familyRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family", "manifest", "style_identity_sha256", "palette_sha256", "clip_count", "frame_count"
+      ],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" },
+        "manifest": { "$ref": "#/$defs/artifact" },
+        "style_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "palette_sha256": { "$ref": "#/$defs/sha256" },
+        "clip_count": { "const": 104 },
+        "frame_count": { "const": 944 }
+      }
+    },
+    "contactSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "motion", "facing", "clip_id", "source_frame", "atlas_cell"],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" },
+        "motion": { "$ref": "#/$defs/motion" },
+        "facing": { "$ref": "#/$defs/facing" },
+        "clip_id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$" },
+        "source_frame": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "atlas_cell": { "type": "integer", "minimum": 0, "maximum": 943 }
+      }
+    },
+    "contactSheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact", "family_count", "representative_motion_count", "selections", "visually_inspected"],
+      "properties": {
+        "artifact": { "$ref": "#/$defs/artifact" },
+        "family_count": { "const": 5 },
+        "representative_motion_count": { "const": 6 },
+        "selections": {
+          "type": "array", "minItems": 30, "maxItems": 30, "items": { "$ref": "#/$defs/contactSelection" }
+        },
+        "visually_inspected": { "type": "boolean" }
+      }
+    },
+    "showcaseSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "motion", "facing", "clip_id", "fps", "source_frame_count"],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" },
+        "motion": { "$ref": "#/$defs/motion" },
+        "facing": { "$ref": "#/$defs/facing" },
+        "clip_id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$" },
+        "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "source_frame_count": { "type": "integer", "minimum": 3, "maximum": 13 }
+      }
+    },
+    "ffmpeg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "version_line"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "version_line": { "type": "string", "pattern": "^ffmpeg version .+" }
+      }
+    },
+    "encoding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codec", "preset", "crf", "pixel_format", "threads", "metadata", "arguments"],
+      "properties": {
+        "codec": { "const": "libx264" },
+        "preset": { "const": "slow" },
+        "crf": { "const": 12 },
+        "pixel_format": { "const": "yuv420p" },
+        "threads": { "const": 1 },
+        "metadata": { "const": "stripped" },
+        "arguments": {
+          "type": "array", "minItems": 20, "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "showcase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format", "artifact", "poster", "width", "height", "fps", "frame_count",
+        "facing", "selections", "frame_sha256", "ffmpeg", "encoding", "visually_inspected"
+      ],
+      "properties": {
+        "format": { "const": "mp4-h264-yuv420p" },
+        "artifact": { "$ref": "#/$defs/artifact" },
+        "poster": { "$ref": "#/$defs/artifact" },
+        "width": { "type": "integer", "minimum": 640, "maximum": 1280, "multipleOf": 2 },
+        "height": { "type": "integer", "minimum": 576, "maximum": 1280, "multipleOf": 2 },
+        "fps": { "const": 12 },
+        "frame_count": { "const": 36 },
+        "facing": { "const": "southeast" },
+        "selections": {
+          "type": "array", "minItems": 25, "maxItems": 25, "items": { "$ref": "#/$defs/showcaseSelection" }
+        },
+        "frame_sha256": {
+          "type": "array", "minItems": 36, "maxItems": 36, "items": { "$ref": "#/$defs/sha256" }
+        },
+        "ffmpeg": { "$ref": "#/$defs/ffmpeg" },
+        "encoding": { "$ref": "#/$defs/encoding" },
+        "visually_inspected": { "type": "boolean" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "full_motion_matrix_compiled", "source_hashes_exact", "categorical_authority_preserved",
+        "rig_and_socket_authority_preserved", "motion_events_preserved",
+        "palette_identity_invariant", "no_temporal_palette_flicker", "loop_endpoint_coherence",
+        "outline_and_bloom_bounds_exact", "all_artifacts_hash_bound", "exact_replay_ready",
+        "ffmpeg_showcase_encoded"
+      ],
+      "properties": {
+        "full_motion_matrix_compiled": { "const": true },
+        "source_hashes_exact": { "const": true },
+        "categorical_authority_preserved": { "const": true },
+        "rig_and_socket_authority_preserved": { "const": true },
+        "motion_events_preserved": { "const": true },
+        "palette_identity_invariant": { "const": true },
+        "no_temporal_palette_flicker": { "const": true },
+        "loop_endpoint_coherence": { "const": true },
+        "outline_and_bloom_bounds_exact": { "const": true },
+        "all_artifacts_hash_bound": { "const": true },
+        "exact_replay_ready": { "const": true },
+        "ffmpeg_showcase_encoded": { "const": true }
+      }
+    }
+  }
+}

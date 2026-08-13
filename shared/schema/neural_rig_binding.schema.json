@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/neural-rig-binding-v1.json",
+  "title": "NULLVECTOR Neural Multi-field Rig Binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "id", "binder_version", "canvas_size", "safety_margin",
+    "condition", "owner_names", "driver_names", "owner_layers",
+    "joint_bindings", "socket_bindings", "graph", "topology", "source",
+    "adapter", "hashes"
+  ],
+  "properties": {
+    "format": { "const": "nullvector-neural-rig-binding-v1" },
+    "id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" },
+    "binder_version": { "const": "neural-owner-rig-bridge-v1" },
+    "canvas_size": { "const": [48, 48] },
+    "safety_margin": { "const": 3 },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family", "family_id", "subtype_id", "subtype_name", "role_id",
+        "role_name", "corpus_seed"
+      ],
+      "properties": {
+        "family": { "$ref": "#/$defs/family" },
+        "family_id": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "subtype_id": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "subtype_name": { "type": "string", "pattern": "^(humanoid|animalian|plantlike|anomaly|machine)_[0-3]$" },
+        "role_id": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "role_name": { "enum": ["striker", "defender", "scout", "controller", "support", "artillery", "harvester", "disruptor"] },
+        "corpus_seed": { "type": ["integer", "null"], "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "owner_names": {
+      "const": [
+        "background", "body", "armor", "head", "left_arm", "right_arm",
+        "left_leg", "right_leg", "appendage", "weapon", "core", "detail",
+        "emission", "joint", "terminal", "ornament", "aura"
+      ]
+    },
+    "driver_names": { "const": ["body", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon"] },
+    "owner_layers": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/ownerLayer" }
+    },
+    "joint_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "head", "left_shoulder", "right_shoulder", "left_hip", "right_hip", "appendage_base", "weapon_mount"],
+      "properties": {
+        "root": { "$ref": "#/$defs/anchor" },
+        "head": { "$ref": "#/$defs/anchor" },
+        "left_shoulder": { "$ref": "#/$defs/anchor" },
+        "right_shoulder": { "$ref": "#/$defs/anchor" },
+        "left_hip": { "$ref": "#/$defs/anchor" },
+        "right_hip": { "$ref": "#/$defs/anchor" },
+        "appendage_base": { "$ref": "#/$defs/anchor" },
+        "weapon_mount": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "socket_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["focus", "muzzle", "left_hand", "right_hand", "left_foot", "right_foot", "appendage_tip"],
+      "properties": {
+        "focus": { "$ref": "#/$defs/anchor" },
+        "muzzle": { "$ref": "#/$defs/anchor" },
+        "left_hand": { "$ref": "#/$defs/anchor" },
+        "right_hand": { "$ref": "#/$defs/anchor" },
+        "left_foot": { "$ref": "#/$defs/anchor" },
+        "right_foot": { "$ref": "#/$defs/anchor" },
+        "appendage_tip": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "nodes", "edges", "connected"],
+      "properties": {
+        "root": { "const": "body" },
+        "nodes": {
+          "type": "array", "minItems": 8, "maxItems": 8,
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "edges": {
+          "type": "array", "minItems": 7, "maxItems": 7,
+          "items": { "$ref": "#/$defs/edge" }
+        },
+        "connected": { "const": true }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "physical_component_count", "physical_pixels", "dominant_component_fraction", "logical_graph_connected", "components"],
+      "properties": {
+        "policy": { "enum": ["single-physical-component-v1", "anomaly-dominant-plus-orbitals-v1"] },
+        "physical_component_count": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "physical_pixels": { "type": "integer", "minimum": 1, "maximum": 2304 },
+        "dominant_component_fraction": { "type": "number", "minimum": 0.85, "maximum": 1 },
+        "logical_graph_connected": { "const": true },
+        "components": {
+          "type": "array", "minItems": 1, "maxItems": 3,
+          "items": { "$ref": "#/$defs/component" }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pixel_authority", "procedural_pixel_substitution", "raw_fields_sha256",
+        "guide_sha256", "genes_sha256", "legal_tuples_sha256", "anatomy_sha256",
+        "anatomy_source", "anatomy_source_sha256", "driver_index_sha256",
+        "binder_source_sha256", "upstream_hashes"
+      ],
+      "properties": {
+        "pixel_authority": { "const": "raw_neural_aligned_fields" },
+        "procedural_pixel_substitution": { "const": false },
+        "raw_fields_sha256": { "$ref": "#/$defs/hash" },
+        "guide_sha256": { "$ref": "#/$defs/hash" },
+        "genes_sha256": { "anyOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "legal_tuples_sha256": { "$ref": "#/$defs/hash" },
+        "anatomy_sha256": { "$ref": "#/$defs/hash" },
+        "anatomy_source": { "enum": ["conditioned_anatomy_points_v1", "guide_owner_geometry-v1"] },
+        "anatomy_source_sha256": { "$ref": "#/$defs/hash" },
+        "driver_index_sha256": { "$ref": "#/$defs/hash" },
+        "binder_source_sha256": { "$ref": "#/$defs/hash" },
+        "upstream_hashes": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "motion_renderer_version", "matrix_convention", "tuple_policy", "rest_frame_exact", "compiler_integration"],
+      "properties": {
+        "format": { "const": "nullvector-neural-rig-motion-adapter-v1" },
+        "motion_renderer_version": { "const": "graph-layer-rig-v1" },
+        "matrix_convention": { "const": "source_to_destination_affine_3x3" },
+        "tuple_policy": { "const": "copy_existing_tuple_only" },
+        "rest_frame_exact": { "const": true },
+        "compiler_integration": { "const": "driver-matrix-adapter" }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_sha256"],
+      "properties": { "binding_sha256": { "$ref": "#/$defs/hash" } }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "family": { "enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"] },
+    "driver": { "enum": ["body", "head", "left_arm", "right_arm", "left_leg", "right_leg", "appendage", "weapon"] },
+    "point": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "prefixItems": [{ "type": "integer", "minimum": 0, "maximum": 47 }, { "type": "integer", "minimum": 0, "maximum": 47 }]
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind", "point", "support_point", "driver", "observed_owner", "source"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "kind": { "enum": ["joint", "socket"] },
+        "point": { "$ref": "#/$defs/point" },
+        "support_point": { "$ref": "#/$defs/point" },
+        "driver": { "$ref": "#/$defs/driver" },
+        "observed_owner": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "source": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ownerLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_id", "owner_name", "pixel_count", "drivers", "tuple_sha256"],
+      "properties": {
+        "owner_id": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "owner_name": { "type": "string", "minLength": 1 },
+        "pixel_count": { "type": "integer", "minimum": 0, "maximum": 2304 },
+        "drivers": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/driver" } },
+        "tuple_sha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "parent", "pivot", "joint", "joint_type", "pixel_count"],
+      "properties": {
+        "id": { "$ref": "#/$defs/driver" },
+        "parent": { "anyOf": [{ "$ref": "#/$defs/driver" }, { "type": "null" }] },
+        "pivot": { "$ref": "#/$defs/point" },
+        "joint": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "joint_type": { "enum": ["fixed", "hinge", "orbital", "spline"] },
+        "pixel_count": { "type": "integer", "minimum": 1, "maximum": 2304 }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parent", "child", "joint", "joint_type"],
+      "properties": {
+        "parent": { "$ref": "#/$defs/driver" },
+        "child": { "$ref": "#/$defs/driver" },
+        "joint": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "joint_type": { "enum": ["fixed", "hinge", "orbital", "spline"] }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "pixel_count", "dominant_driver", "logical_parent", "joint_type", "logical_only"],
+      "properties": {
+        "component": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "pixel_count": { "type": "integer", "minimum": 1, "maximum": 2304 },
+        "dominant_driver": { "$ref": "#/$defs/driver" },
+        "logical_parent": { "enum": ["body", null] },
+        "joint_type": { "enum": ["fixed", "orbital"] },
+        "logical_only": { "type": "boolean" }
+      }
+    }
+  }
+}

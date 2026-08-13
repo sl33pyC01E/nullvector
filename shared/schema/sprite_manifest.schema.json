@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/sprite-manifest-v2.json",
+  "title": "Neural Sprite Manifest",
+  "type": "object",
+  "required": [
+    "id",
+    "seed",
+    "archetype",
+    "atlas",
+    "emission_atlas",
+    "frame_size",
+    "pivot",
+    "sockets",
+    "animations",
+    "model_hash",
+    "genome",
+    "faction",
+    "generation",
+    "selection",
+    "source",
+    "rig_version",
+    "postprocess_version",
+    "inference_source_hash"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "archetype": {
+      "type": "string",
+      "enum": ["dart", "hound", "oracle", "bulwark"]
+    },
+    "atlas": { "type": "string", "pattern": "\\.png$" },
+    "emission_atlas": { "type": "string", "pattern": "\\.png$" },
+    "frame_size": {
+      "type": "array",
+      "prefixItems": [
+        { "const": 32 },
+        { "const": 32 }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "pivot": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "sockets": {
+      "type": "object",
+      "required": ["muzzle", "core", "left", "right"],
+      "properties": {
+        "muzzle": { "$ref": "#/$defs/point" },
+        "core": { "$ref": "#/$defs/point" },
+        "left": { "$ref": "#/$defs/point" },
+        "right": { "$ref": "#/$defs/point" }
+      }
+    },
+    "animations": {
+      "type": "object",
+      "required": ["idle", "move", "attack", "hit"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["loop", "frames"],
+        "properties": {
+          "loop": { "type": "boolean" },
+          "frames": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "rect", "duration_ms", "event", "sockets"],
+              "properties": {
+                "name": { "type": "string" },
+                "rect": {
+                  "type": "array",
+                  "prefixItems": [
+                    { "type": "integer" },
+                    { "type": "integer" },
+                    { "const": 32 },
+                    { "const": 32 }
+                  ],
+                  "minItems": 4,
+                  "maxItems": 4
+                },
+                "duration_ms": { "type": "integer", "minimum": 1 },
+                "event": { "type": ["string", "null"] },
+                "sockets": {
+                  "type": "object",
+                  "required": ["muzzle", "core", "left", "right"],
+                  "properties": {
+                    "muzzle": { "$ref": "#/$defs/point" },
+                    "core": { "$ref": "#/$defs/point" },
+                    "left": { "$ref": "#/$defs/point" },
+                    "right": { "$ref": "#/$defs/point" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "model_hash": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+    "faction": { "type": "string", "enum": ["player", "hostile"] },
+    "rig_version": { "type": "string", "minLength": 1 },
+    "postprocess_version": { "type": "string", "minLength": 1 },
+    "inference_source_hash": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+    "generation": {
+      "type": "object",
+      "required": ["sampler", "schedule", "temperature", "noise_seed", "candidate_index"],
+      "properties": {
+        "sampler": { "type": "string", "minLength": 1 },
+        "schedule": { "type": "string", "minLength": 1 },
+        "temperature": { "type": "number", "exclusiveMinimum": 0 },
+        "noise_seed": { "type": "integer", "minimum": 0 },
+        "candidate_index": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["version", "raw_valid", "processed_valid", "raw_score", "processed_score"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "raw_valid": { "const": true },
+        "processed_valid": { "const": true },
+        "raw_score": { "type": "number" },
+        "processed_score": { "type": "number" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["raw_tokens", "processed_tokens", "semantic_layers"],
+      "properties": {
+        "raw_tokens": { "type": "string", "pattern": "\\.png$" },
+        "processed_tokens": { "type": "string", "pattern": "\\.png$" },
+        "semantic_layers": { "type": "string", "pattern": "\\.npz$" }
+      }
+    },
+    "genome": {
+      "type": "object",
+      "required": ["seed", "genes"],
+      "properties": {
+        "seed": { "type": "integer", "minimum": 0 },
+        "genes": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "integer", "minimum": 0, "maximum": 31 },
+        { "type": "integer", "minimum": 0, "maximum": 31 }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

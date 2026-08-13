@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_topology_neural_checkpoint.schema.json",
+  "title": "CPU topology codec checkpoint sidecar",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "file", "bytes", "sha256", "payload_identity_sha256", "model_state_sha256", "ema_state_sha256", "tensor_count", "tensor_elements", "tensor_bytes", "source_sha256", "corpus_sha256", "tensor_contract_sha256", "model_config_sha256", "model_init_seed", "step", "device"],
+  "properties": {
+    "format": {"const": "nullvector-neural-topology-codec-checkpoint-sidecar-v1"},
+    "file": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
+    "bytes": {"type": "integer", "minimum": 1, "maximum": 67108864},
+    "sha256": {"$ref": "#/$defs/sha"},
+    "payload_identity_sha256": {"$ref": "#/$defs/sha"},
+    "model_state_sha256": {"$ref": "#/$defs/sha"},
+    "ema_state_sha256": {"$ref": "#/$defs/sha"},
+    "tensor_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "tensor_elements": {"type": "integer", "minimum": 1},
+    "tensor_bytes": {"type": "integer", "minimum": 1, "maximum": 50331648},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "corpus_sha256": {"$ref": "#/$defs/sha"},
+    "tensor_contract_sha256": {"$ref": "#/$defs/sha"},
+    "model_config_sha256": {"$ref": "#/$defs/sha"},
+    "model_init_seed": {"type": "integer", "minimum": 0},
+    "step": {"type": "integer", "minimum": 1, "maximum": 2},
+    "device": {"const": "cpu"}
+  },
+  "$defs": {"sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}
