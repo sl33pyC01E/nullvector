@@ -131,7 +131,9 @@
       "properties": {
         "rest_audit": { "$ref": "#/$defs/artifact" },
         "motion_stress": { "$ref": "#/$defs/artifact" },
-        "crash_telemetry": { "$ref": "#/$defs/artifact" }
+        "crash_telemetry": { "$ref": "#/$defs/artifact" },
+        "motion_replay": { "$ref": "#/$defs/artifact" },
+        "motion_replay_telemetry": { "$ref": "#/$defs/artifact" }
       }
     },
     "strengthHistogram": {
@@ -151,6 +153,7 @@
         "frame_count": { "const": 75520 },
         "strength_histogram": { "$ref": "#/$defs/strengthHistogram" },
         "stress_sha256": { "$ref": "#/$defs/sha" }
+        ,"replay_stress_sha256": { "$ref": "#/$defs/sha" }
       }
     },
     "gates": {
@@ -170,6 +173,7 @@
         "process_sharded_crash_telemetry_present": { "const": true },
         "no_cuda": { "const": true },
         "no_atlas_compilation": { "const": true }
+        ,"independent_process_sharded_motion_replay_exact": { "const": true }
       }
     }
   }

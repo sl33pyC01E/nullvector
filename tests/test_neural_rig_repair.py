@@ -22,6 +22,8 @@ from forge.neural_rig_repair.constants import (
     PLAN_SCHEMA,
     PROJECT_ROOT,
     REPAIR_MIN_DRIVER_PIXELS,
+    REPAIR_ANCHOR_SUPPORT_PIXELS,
+    REPAIR_ANCHOR_SUPPORT_RADIUS,
     REPLAY_SCHEMA,
 )
 from forge.neural_rig_repair.hashing import canonical_json_bytes, source_hash
@@ -243,7 +245,7 @@ def test_diagonal_facing_appendage_root_uses_bounded_raster_support(repair_matri
     )
     clip = compile_motion_clip_audit(binding, "idle_breathe", "northeast")
     assert clip["motion_strength"] > 0.0
-    assert 2.8 < clip["metrics"]["maximum_anchor_support_distance"] <= (
+    assert clip["metrics"]["maximum_anchor_support_distance"] <= (
         MAX_POSED_ANCHOR_SUPPORT_DISTANCE
     )
     assert all(clip["gates"].values())
@@ -252,6 +254,37 @@ def test_diagonal_facing_appendage_root_uses_bounded_raster_support(repair_matri
         sample.material.tobytes(),
         sample.emission_level.tobytes(),
     )
+
+
+@pytest.mark.parametrize(
+    ("sample_id", "motion"),
+    [
+        ("0009_f0_s00_r4_v01", "fear"),
+        ("0011_f0_s01_r5_v01", "idle_breathe"),
+    ],
+)
+def test_diagonal_anchor_support_is_a_connected_physical_cluster(
+    repair_matrix, sample_id, motion
+):
+    sample, _plan, binding = _by_id(repair_matrix, sample_id)
+    anchor = binding.joints["appendage_base"]
+    x, y = anchor.support_point
+    points = np.argwhere(
+        (binding.driver_index == DRIVER_INDEX[anchor.driver])
+        & (binding.part_owner != 0)
+        & (binding.part_owner != 16)
+    )
+    local = points[
+        np.maximum(np.abs(points[:, 0] - y), np.abs(points[:, 1] - x))
+        <= REPAIR_ANCHOR_SUPPORT_RADIUS
+    ]
+    assert len(local) >= REPAIR_ANCHOR_SUPPORT_PIXELS
+    clip = compile_motion_clip_audit(binding, motion, "northeast")
+    assert clip["metrics"]["maximum_anchor_support_distance"] <= (
+        MAX_POSED_ANCHOR_SUPPORT_DISTANCE
+    )
+    assert all(clip["gates"].values())
+    assert np.array_equal(binding.part_owner, sample.part_owner)
 
 
 def test_complete_104_clip_matrix_for_difficult_machine(repair_matrix):

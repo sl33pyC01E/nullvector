@@ -27,6 +27,8 @@ from .constants import (
     PLAN_FORMAT,
     PROJECT_ROOT,
     REPAIR_VERSION,
+    REPAIR_ANCHOR_SUPPORT_PIXELS,
+    REPAIR_ANCHOR_SUPPORT_RADIUS,
     REPAIR_MIN_DRIVER_PIXELS,
     REQUIRED_OWNER_IDS,
 )
@@ -166,6 +168,7 @@ def derive_logical_projection(
     # Reserve one nearest physical support for every named anchor. This retains
     # exact points whenever possible while resolving cross-driver co-location
     # without changing a neural tuple.
+    anchor_supports: list[dict[str, Any]] = []
     for _kind, _name, driver, source_point in _anchor_specs(anatomy):
         available = physical_points[~reserved[physical_points[:, 0], physical_points[:, 1]]]
         if not len(available):
@@ -178,6 +181,60 @@ def derive_logical_projection(
         y, x = map(int, candidates[order[0]])
         result[y, x] = DRIVER_INDEX[driver]
         reserved[y, x] = True
+        anchor_supports.append(
+            {
+                "driver": driver,
+                "primary": (y, x),
+                "points": [(y, x)],
+            }
+        )
+
+    # A single logical anchor pixel can disappear under inverse-nearest
+    # rasterization when a fitted diagonal transform places its sub-pixel cell
+    # between every destination centre.  Grow each anchor round-robin into a
+    # tiny connected cluster of existing physical pixels.  This changes only
+    # logical driver ownership: the authoritative owner/material/emission tuple
+    # at every rest pixel remains byte-identical.
+    for _round in range(REPAIR_ANCHOR_SUPPORT_PIXELS - 1):
+        for support in anchor_supports:
+            if len(support["points"]) >= REPAIR_ANCHOR_SUPPORT_PIXELS:
+                continue
+            available = physical_points[
+                ~reserved[physical_points[:, 0], physical_points[:, 1]]
+            ]
+            if not len(available):
+                continue
+            primary_y, primary_x = support["primary"]
+            within_radius = (
+                np.maximum(
+                    np.abs(available[:, 0] - primary_y),
+                    np.abs(available[:, 1] - primary_x),
+                )
+                <= REPAIR_ANCHOR_SUPPORT_RADIUS
+            )
+            candidates = available[within_radius]
+            if not len(candidates):
+                continue
+            assigned = np.asarray(support["points"], dtype=np.int64)
+            adjacent = (
+                np.maximum(
+                    np.abs(candidates[:, None, 0] - assigned[None, :, 0]),
+                    np.abs(candidates[:, None, 1] - assigned[None, :, 1]),
+                )
+                <= 1
+            ).any(axis=1)
+            candidates = candidates[adjacent]
+            if not len(candidates):
+                continue
+            distance = (
+                (candidates[:, 0] - primary_y) ** 2
+                + (candidates[:, 1] - primary_x) ** 2
+            )
+            order = np.lexsort((candidates[:, 1], candidates[:, 0], distance))
+            y, x = map(int, candidates[order[0]])
+            result[y, x] = DRIVER_INDEX[support["driver"]]
+            reserved[y, x] = True
+            support["points"].append((y, x))
 
     inverse_direct: dict[str, set[int]] = {driver: set() for driver in DRIVER_NAMES}
     for owner_id, driver in DIRECT_OWNER_DRIVER.items():
@@ -445,7 +502,7 @@ def compile_repair_plan(source: RepairSource, sample: RepairSourceSample) -> dic
         "repair": {
             "operations": operations,
             "driver_policy": "robust-minimum-12px-segment-voronoi-v2",
-            "anchor_policy": "nearest-existing-physical-driver-support-v1",
+            "anchor_policy": "connected-existing-physical-driver-support-v2",
             "aura_policy": "nonphysical-nearest-physical-driver-effect-attachment-v1",
             "component_policy": "preserve-pixels-add-logical-links-only-v1",
             "motion_envelope_policy": "clip-wide-facing-preserving-bounded-attenuation-v1",

@@ -56,6 +56,7 @@ def replay_repair_bank(
     *,
     report_path: Path | None = None,
     rerun_motion: bool = True,
+    use_sharded_motion: bool = False,
 ) -> dict[str, Any]:
     """Replay every source, plan and rest decision; optionally rerender 75,520 frames."""
     manifest_path = Path(manifest_path).resolve()
@@ -235,6 +236,45 @@ def replay_repair_bank(
     ):
         raise ValueError("repair crash telemetry contract failed")
 
+    sharded_motion_exact = False
+    if use_sharded_motion:
+        if "motion_replay" not in bank["artifacts"]:
+            raise ValueError("repair bank lacks process-sharded replay evidence")
+        replay_stress_path = resolve_artifact_record(
+            bank_root,
+            bank["artifacts"]["motion_replay"],
+            label="repair process-sharded motion replay",
+            maximum_bytes=MAX_STRESS_REPORT_BYTES,
+        )
+        replay_stress = load_stress_report(replay_stress_path, verify_shards=True)
+        if canonical_json_bytes(replay_stress) != canonical_json_bytes(stress):
+            raise ValueError("repair process-sharded replay is not byte-exact")
+        replay_telemetry_path = resolve_artifact_record(
+            bank_root,
+            bank["artifacts"]["motion_replay_telemetry"],
+            label="repair process-sharded replay telemetry",
+            maximum_bytes=MAX_BANK_BYTES,
+        )
+        replay_telemetry = load_strict_json(
+            replay_telemetry_path,
+            maximum_bytes=MAX_BANK_BYTES,
+            label="repair process-sharded replay telemetry",
+        )
+        if (
+            replay_telemetry.get("format")
+            != "nullvector-neural-rig-repair-stress-telemetry-v1"
+            or replay_telemetry.get("cpu_only_environment") is not True
+            or replay_telemetry.get("failed_shards") != []
+            or bank["motion_result"].get("replay_stress_sha256")
+            != replay_stress["stress_sha256"]
+            or bank["gates"].get(
+                "independent_process_sharded_motion_replay_exact"
+            )
+            is not True
+        ):
+            raise ValueError("repair process-sharded replay evidence failed")
+        sharded_motion_exact = True
+
     shard_samples: dict[int, Mapping[str, Any]] = {}
     for shard_record in stress["shards"]:
         shard_path = resolve_artifact_record(
@@ -272,8 +312,13 @@ def replay_repair_bank(
                 )
             result["motion_audit_exact"] = True
 
-    mode = "exact_motion" if rerun_motion else "metadata_only"
-    status = "passed" if rerun_motion else "inspected"
+    if sharded_motion_exact:
+        for result in identity_results:
+            result["motion_audit_exact"] = True
+
+    motion_exact = rerun_motion or sharded_motion_exact
+    mode = "exact_motion" if motion_exact else "metadata_only"
+    status = "passed" if motion_exact else "inspected"
     report_root = (
         Path(report_path).resolve().parent if report_path is not None else bank_root
     )
@@ -292,7 +337,7 @@ def replay_repair_bank(
         "format": REPLAY_FORMAT,
         "status": status,
         "mode": mode,
-        "neural_output": rerun_motion,
+        "neural_output": motion_exact,
         "bank_manifest": bank_record,
         "bank_sha256": bank["bank_sha256"],
         "source": {
@@ -310,7 +355,7 @@ def replay_repair_bank(
             "rest_cell_count": EXPECTED_SAMPLE_COUNT * 48 * 48,
             "clip_count": EXPECTED_CLIP_COUNT,
             "frame_count": EXPECTED_FRAME_COUNT,
-            "artifact_count_compared": 261,
+            "artifact_count_compared": 279 if sharded_motion_exact else 261,
         },
         "identity_results": identity_results,
         "gates": {
@@ -330,8 +375,8 @@ def replay_repair_bank(
             "all_16_stress_shards_exact": True,
             "all_8320_stored_clip_audits_exact": True,
             "all_75520_stored_frame_records_exact": True,
-            "all_8320_clip_audits_exactly_rerendered": rerun_motion,
-            "all_gates_true": rerun_motion,
+            "all_8320_clip_audits_exactly_rerendered": motion_exact,
+            "all_gates_true": motion_exact,
         },
     }
     report_base["replay_sha256"] = sha256_bytes(canonical_json_bytes(report_base))

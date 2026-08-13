@@ -75,7 +75,7 @@
         "rest_cell_count": { "const": 184320 },
         "clip_count": { "const": 8320 },
         "frame_count": { "const": 75520 },
-        "artifact_count_compared": { "const": 261 }
+        "artifact_count_compared": { "enum": [261, 279] }
       }
     },
     "identity": {

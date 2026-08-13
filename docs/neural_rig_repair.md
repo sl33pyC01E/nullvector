@@ -63,7 +63,11 @@ The projection is deterministic and source-derived.
 2. Each of the eight drivers receives at least 12 existing physical pixels.
 3. Direct semantic owners are assigned to their natural drivers; flexible
    detail and ornament pixels use a deterministic nearest-segment Voronoi rule.
-4. All 15 anchors use an existing non-aura pixel owned by their driver.
+4. All 15 anchors use an existing non-aura pixel owned by their driver. Each
+   support is grown, where physical coverage permits, into a deterministic
+   four-pixel connected cluster within a two-pixel radius. This prevents a
+   lone logical pixel from disappearing under diagonal inverse-nearest
+   rasterization without changing any semantic tuple.
 5. Aura tuples are attached to the nearest physical driver for motion but are
    never accepted as anchor support or a physical topology component.
 6. Detached physical components remain byte-for-byte intact and receive a
@@ -95,8 +99,10 @@ The clip envelope is bounded and deterministic:
   integer pixel centres);
 - looping clips must have byte-identical first and last frame records.
 
-The stress run is split into 16 process-isolated modulo shards, normally with a
-maximum of two workers. CUDA is disabled with `CUDA_VISIBLE_DEVICES=-1`; BLAS
+The stress run and the independent exact replay are each split into 16
+process-isolated modulo shards, normally with a maximum of two workers. The
+two canonical stress reports must be byte-identical before a bank is sealed.
+CUDA is disabled with `CUDA_VISIBLE_DEVICES=-1`; BLAS
 thread counts are pinned to one. Each shard has a 900-second timeout and up to
 three attempts. Supervisor telemetry records signed and unsigned Windows exit
 codes and explicitly classifies access violations (`0xC0000005`), stack buffer
@@ -119,6 +125,11 @@ rest_audit.json
 plans/
   <sample_id>.repair.json        (80)
 motion_stress/
+  stress_report.json
+  stress_telemetry.json
+  shards/
+    stress_shard_00.json ... stress_shard_15.json
+motion_replay/
   stress_report.json
   stress_telemetry.json
   shards/

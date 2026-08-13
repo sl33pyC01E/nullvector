@@ -93,7 +93,7 @@
       "required": ["operations", "driver_policy", "anchor_policy", "aura_policy", "component_policy", "motion_envelope_policy", "required_owner_fallbacks", "anchors", "physical_components", "logical_links", "rest_margin"],
       "properties": {
         "operations": { "type": "array", "minItems": 3, "maxItems": 7, "uniqueItems": true, "items": { "enum": ["logical_driver_projection_v2", "nonphysical_aura_attachment_v1", "per_clip_motion_envelope_fit_v1", "anchor_support_reselection_v1", "logical_component_link_v1", "guide_anchor_owner_fallback_v1", "aura_margin_deferred_to_clip_fit_v1"] } },
-        "driver_policy": { "const": "robust-minimum-12px-segment-voronoi-v2" }, "anchor_policy": { "const": "nearest-existing-physical-driver-support-v1" },
+        "driver_policy": { "const": "robust-minimum-12px-segment-voronoi-v2" }, "anchor_policy": { "const": "connected-existing-physical-driver-support-v2" },
         "aura_policy": { "const": "nonphysical-nearest-physical-driver-effect-attachment-v1" }, "component_policy": { "const": "preserve-pixels-add-logical-links-only-v1" },
         "motion_envelope_policy": { "const": "clip-wide-facing-preserving-bounded-attenuation-v1" },
         "required_owner_fallbacks": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "enum": ["body", "head", "core"] } },

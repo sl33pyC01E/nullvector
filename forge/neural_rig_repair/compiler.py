@@ -343,6 +343,21 @@ def compile_repair_bank(
         max_attempts=max_attempts,
     )
     load_stress_report(stress_directory / "stress_report.json", verify_shards=True)
+    replay_stress = None
+    replay_directory = destination / "motion_replay"
+    if exact_replay:
+        replay_stress, _replay_telemetry = run_process_sharded_stress(
+            generation_manifest,
+            style_manifest,
+            context["plan_directory"],
+            replay_directory,
+            workers=workers,
+            timeout_seconds=timeout_seconds,
+            max_attempts=max_attempts,
+        )
+        load_stress_report(replay_directory / "stress_report.json", verify_shards=True)
+        if canonical_json_bytes(replay_stress) != canonical_json_bytes(stress):
+            raise ValueError("process-sharded exact motion replay differs from stress authority")
     repair_sha256 = source_hash()
     bank_base: dict[str, Any] = {
         "format": BANK_FORMAT,
@@ -409,6 +424,19 @@ def compile_repair_bank(
             "no_atlas_compilation": True,
         },
     }
+    if replay_stress is not None:
+        bank_base["artifacts"]["motion_replay"] = artifact_record(
+            replay_directory / "stress_report.json", destination
+        )
+        bank_base["artifacts"]["motion_replay_telemetry"] = artifact_record(
+            replay_directory / "stress_telemetry.json", destination
+        )
+        bank_base["motion_result"]["replay_stress_sha256"] = replay_stress[
+            "stress_sha256"
+        ]
+        bank_base["gates"][
+            "independent_process_sharded_motion_replay_exact"
+        ] = True
     if any(value is not True for value in bank_base["gates"].values()):
         raise ValueError("repair bank gate failed")
     bank_base["bank_sha256"] = sha256_bytes(canonical_json_bytes(bank_base))
@@ -419,18 +447,15 @@ def compile_repair_bank(
     if exact_replay:
         from .replay import replay_repair_bank
 
-        replay = replay_repair_bank(
-            staged_bank_path,
-            rerun_motion=True,
-        )
         if bank_path.exists():
             raise FileExistsError("Repair bank appeared while exact replay was running")
         staged_bank_path.rename(bank_path)
-        replay["bank_manifest"] = artifact_record(bank_path, destination)
-        replay.pop("replay_sha256")
-        replay["replay_sha256"] = sha256_bytes(canonical_json_bytes(replay))
-        validate_schema(replay, "neural_rig_repair_replay.schema.json")
-        write_canonical_json(destination / VERIFICATION_FILENAME, replay)
+        replay_repair_bank(
+            bank_path,
+            report_path=destination / VERIFICATION_FILENAME,
+            rerun_motion=False,
+            use_sharded_motion=True,
+        )
     else:
         if bank_path.exists():
             raise FileExistsError("Repair bank appeared while compilation was running")
