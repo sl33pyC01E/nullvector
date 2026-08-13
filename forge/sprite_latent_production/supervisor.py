@@ -33,6 +33,7 @@ def _environment() -> dict[str, str]:
         "MKL_NUM_THREADS": "2",
         "OPENBLAS_NUM_THREADS": "2",
         "NUMEXPR_NUM_THREADS": "2",
+        "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
     })
     return environment
 

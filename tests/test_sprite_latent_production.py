@@ -20,6 +20,7 @@ from forge.sprite_latent_production import ProductionConfig, production_source_h
 from forge.sprite_latent_production.checkpoint import load_checkpoint, save_checkpoint_new, validate_checkpoint
 from forge.sprite_latent_production.evaluation import evaluate_model
 from forge.sprite_latent_production.loss import deterministic_sprite_codec_loss
+from forge.sprite_latent_production.supervisor import _environment
 
 
 def _tiny_config() -> ProductionConfig:
@@ -83,6 +84,9 @@ def test_production_source_hash_is_complete_and_stable() -> None:
     assert first == second
     assert len(first) == 64
     assert set(first) <= set("0123456789abcdef")
+    environment = _environment()
+    assert environment["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+    assert environment["PYTHONHASHSEED"] == "0"
 
 
 def test_production_checkpoint_roundtrip_and_partial_epoch_contract(tmp_path: Path) -> None:
