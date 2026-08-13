@@ -20,6 +20,7 @@ from ..neural_rig_bridge.adapter import DEFAULT_Z_ORDER, _render_bound_pose_vali
 from ..neural_rig_bridge.model import BindingRejected, DRIVER_INDEX, DRIVER_NAMES
 from ..neural_rig_bridge.motion_program import _clip_fit_matrix
 from .hashing import array_sha256, canonical_json_bytes, sha256_bytes
+from .constants import AURA_OWNER_ID
 from .model import RepairedRigBinding
 
 
@@ -28,6 +29,16 @@ from .model import RepairedRigBinding
 # unbounded search and no substitution of pixels or poses.
 MOTION_STRENGTHS = (1.0, 0.875, 0.75, 0.625, 0.5, 0.375, 0.25, 0.125, 0.0)
 MAX_POSED_ANCHOR_SUPPORT_DISTANCE = 3.0
+
+_DESTINATION_Y, _DESTINATION_X = np.mgrid[0:CANVAS_SIZE, 0:CANVAS_SIZE]
+_DESTINATION_POINTS = np.stack(
+    (
+        _DESTINATION_X.reshape(-1).astype(np.float64),
+        _DESTINATION_Y.reshape(-1).astype(np.float64),
+        np.ones(CANVAS_SIZE * CANVAS_SIZE, dtype=np.float64),
+    )
+)
+_DESTINATION_POINTS.setflags(write=False)
 
 
 def _minimum_pixel_support_distance(
@@ -77,6 +88,52 @@ def _canonical_matrix(values: np.ndarray) -> np.ndarray:
     return result
 
 
+def _project_physical_driver_points(
+    binding: RepairedRigBinding,
+    matrices: Mapping[str, np.ndarray],
+) -> dict[str, np.ndarray]:
+    """Rasterize each logical driver before z-order compositing.
+
+    An articulation root may be intentionally hidden behind a later body layer.
+    Measuring support from the final composite therefore confuses occlusion with
+    a severed rig.  This projection uses the bridge's exact inverse-nearest
+    raster rule, while excluding aura pixels because effects are never physical
+    anchor support.  The finished frame still has to retain a visible pixel for
+    every driver independently.
+    """
+    projected: dict[str, np.ndarray] = {}
+    for driver in DRIVER_NAMES:
+        driver_id = DRIVER_INDEX[driver]
+        inverse = np.linalg.inv(_canonical_matrix(matrices[driver]))
+        source = inverse @ _DESTINATION_POINTS
+        source_x = np.rint(source[0]).astype(np.int64)
+        source_y = np.rint(source[1]).astype(np.int64)
+        inside = (
+            (source_x >= 0)
+            & (source_x < CANVAS_SIZE)
+            & (source_y >= 0)
+            & (source_y < CANVAS_SIZE)
+        )
+        destination_indices = np.flatnonzero(inside)
+        sx = source_x[inside]
+        sy = source_y[inside]
+        physical_support = (
+            (binding.driver_index[sy, sx] == driver_id)
+            & (binding.part_owner[sy, sx] != AURA_OWNER_ID)
+            & (binding.part_owner[sy, sx] != 0)
+        )
+        destination_indices = destination_indices[physical_support]
+        if len(destination_indices) < 1:
+            raise ValueError(f"motion erased physical support for driver {driver}")
+        projected[driver] = np.column_stack(
+            (
+                destination_indices // CANVAS_SIZE,
+                destination_indices % CANVAS_SIZE,
+            )
+        )
+    return projected
+
+
 def _matrix_record(values: np.ndarray) -> list[list[float]]:
     return [[float(value) for value in row] for row in _canonical_matrix(values)]
 
@@ -122,6 +179,7 @@ def _render_candidate(
         frame = _render_bound_pose_validated(
             binding, matrices, z_order=z_order, enforce_margin=True
         )
+        projected_driver_points = _project_physical_driver_points(binding, matrices)
         foreground = int((frame.part_owner != 0).sum())
         minimum_foreground = min(minimum_foreground, foreground)
         maximum_foreground = max(maximum_foreground, foreground)
@@ -142,7 +200,7 @@ def _render_candidate(
                 (float(anchor.support_point[0]), float(anchor.support_point[1]), 1.0),
                 dtype=np.float64,
             )
-            points = driver_points[anchor.driver]
+            points = projected_driver_points[anchor.driver]
             distance = _minimum_pixel_support_distance(points, target[:2])
             maximum_anchor_support_distance = max(
                 maximum_anchor_support_distance, distance

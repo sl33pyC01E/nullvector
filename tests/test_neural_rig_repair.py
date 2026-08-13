@@ -28,6 +28,7 @@ from forge.neural_rig_repair.hashing import canonical_json_bytes, source_hash
 from forge.neural_rig_repair.motion import (
     MAX_POSED_ANCHOR_SUPPORT_DISTANCE,
     _minimum_pixel_support_distance,
+    _project_physical_driver_points,
     compile_motion_clip_audit,
     compile_sample_motion_audit,
 )
@@ -216,6 +217,21 @@ def test_anchor_support_distance_uses_rendered_pixel_footprints():
     assert center_distance > MAX_POSED_ANCHOR_SUPPORT_DISTANCE
     assert footprint_distance == pytest.approx(2.8531744780669968)
     assert footprint_distance < MAX_POSED_ANCHOR_SUPPORT_DISTANCE
+
+
+def test_anchor_support_projection_is_precomposite_and_physical(repair_matrix):
+    _sample, _plan, binding = _by_id(repair_matrix, "0041_f2_s08_r4_v01")
+    matrices = {driver: np.eye(3, dtype=np.float64) for driver in DRIVER_NAMES}
+    projected = _project_physical_driver_points(binding, matrices)
+    for anchor in (*binding.joints.values(), *binding.sockets.values()):
+        distance = _minimum_pixel_support_distance(
+            projected[anchor.driver], np.asarray(anchor.support_point, dtype=np.float64)
+        )
+        assert distance == 0.0
+        support = projected[anchor.driver]
+        assert np.all(
+            binding.part_owner[support[:, 0], support[:, 1]] != 16
+        )
 
 
 def test_diagonal_facing_appendage_root_uses_bounded_raster_support(repair_matrix):
