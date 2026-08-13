@@ -15,3 +15,5 @@ python -m forge.cellular_organism replay outputs/cellular_organism_v1/cellular_o
 ```
 
 The Python `OrganismState` is a deterministic reference, not a gameplay dependency. Native Godot receives a JSON projection and implements the same concepts without Python in the shipped game.
+
+The learned-latent evolution bridge extends the same contract to all 36 selected descendants from the three-generation production fusion bank. See `docs/native_evolved_organisms.md` for lineage-aware compilation and the native `EvolvedOrganismLab.tscn`.

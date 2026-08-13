@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://scripts/cellular_organism_lab.gd" type="Script" id="1_cellular"]
+
+[node name="EvolvedOrganismLab" type="Node2D"]
+script = ExtResource("1_cellular")
+catalog_path = "res://generated/evolved_cellular_organism/v1/catalog.json"
+asset_root = "res://generated/evolved_cellular_organism/v1/"
+expected_species_count = 36
+exact_family_count = 0
+lineage_mode = true
+lab_title = "NULLVECTOR // EVOLVED ORGANISM LAB"
+lab_subtitle = "LEARNED LATENT FUSION + MUTATION // CELLS + ORGANS + FLUIDS + FRACTURE + REPRODUCTION"

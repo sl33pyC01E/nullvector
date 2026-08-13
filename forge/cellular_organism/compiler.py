@@ -286,9 +286,18 @@ def _compile_arrays(sample: Any) -> tuple[dict[str, np.ndarray], list[dict[str, 
 
     eye_counts = (2, 2, 3, 5, 2)
     preferred_eye_candidates = head_candidates[organ_id[head_candidates] <= 2]
-    eye_candidates = preferred_eye_candidates if len(preferred_eye_candidates) >= 1 else head_candidates
+    # A very compact neural owner region can be entirely claimed by the brain.
+    # Falling back to that same region would turn every neural-core cell into
+    # an eye and silently delete an essential organ.  Use unclaimed upper
+    # integument instead; the phenotype remains immutable and the derived
+    # anatomy keeps sensory and neural systems physically distinct.
+    eye_candidates = preferred_eye_candidates
     if not len(eye_candidates):
-        eye_candidates = np.where(organ_id <= 2)[0]
+        unclaimed = np.where(organ_id <= 2)[0]
+        if len(unclaimed):
+            upper_limit = float(np.quantile(position_xy[unclaimed, 1], 0.35))
+            upper = unclaimed[position_xy[unclaimed, 1] <= upper_limit]
+            eye_candidates = upper if len(upper) else unclaimed
     local_eye_indices = _select_spaced(position_xy[eye_candidates], eye_counts[sample.condition.morphology_id], y_bias=0.06)
     eye_indices: list[int] = []
     for eye_number, local in enumerate(local_eye_indices, start=1):

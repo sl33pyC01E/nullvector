@@ -1,7 +1,5 @@
 extends Node2D
 
-const CATALOG_PATH := "res://generated/cellular_organism/v2/catalog.json"
-const ASSET_ROOT := "res://generated/cellular_organism/v2/"
 const CATALOG_FORMAT := "nullvector-cellular-organism-native-catalog-v1"
 const RUNTIME_FORMAT := "nullvector-cellular-organism-runtime-v1"
 const CELL_SCALE := 5.0
@@ -24,6 +22,14 @@ const TEXT := Color("#e9f7ff")
 const MUTED := Color("#718ba5")
 const RULE := Color("#1d3c5e")
 const DEEP := Color("#03070d")
+
+@export_file("*.json") var catalog_path := "res://generated/cellular_organism/v2/catalog.json"
+@export_dir var asset_root := "res://generated/cellular_organism/v2/"
+@export var expected_species_count := 80
+@export var exact_family_count := 16
+@export var lineage_mode := false
+@export var lab_title := "NULLVECTOR // CELLULAR ORGANISM LAB"
+@export var lab_subtitle := "EVERY PIXEL IS A CELL // ORGANS + FLUIDS + FRACTURE + METABOLISM + HEREDITY"
 
 var catalog: Dictionary = {}
 var selected_species := 0
@@ -53,7 +59,7 @@ func _ready() -> void:
 	get_viewport().set_embedding_subwindows(false)
 	rng.seed = 0xC3115EED
 	_build_interface()
-	catalog = _load_json(CATALOG_PATH)
+	catalog = _load_json(catalog_path)
 	_validate_catalog()
 	if startup_errors.is_empty():
 		_spawn_selected(Vector2(790.0, 345.0), 0, 0)
@@ -77,17 +83,21 @@ func _load_json(path: String) -> Dictionary:
 func _validate_catalog() -> void:
 	if catalog.get("format", "") != CATALOG_FORMAT: startup_errors.append("catalog format")
 	if catalog.get("status", "") != "ready": startup_errors.append("catalog status")
-	if int(catalog.get("sample_count", -1)) != 80: startup_errors.append("80-species census")
+	if int(catalog.get("sample_count", -1)) != expected_species_count: startup_errors.append("species census")
 	var families: Dictionary = catalog.get("family_counts", {})
 	for family in ["humanoid", "animalian", "plantlike", "anomaly", "machine"]:
-		if int(families.get(family, -1)) != 16: startup_errors.append("family " + family)
+		var observed := int(families.get(family, -1))
+		if exact_family_count > 0 and observed != exact_family_count: startup_errors.append("family " + family)
+		if exact_family_count <= 0 and observed < 1: startup_errors.append("family " + family)
 	var totals: Dictionary = catalog.get("totals", {})
-	if int(totals.get("physical_cells", 0)) < 30000: startup_errors.append("cell census")
-	if int(totals.get("bonds", 0)) < 100000: startup_errors.append("bond census")
-	if int(totals.get("organs", 0)) < 1000: startup_errors.append("organ census")
-	if catalog.get("species", []).size() != 80: startup_errors.append("species records")
+	var total_cells := int(totals.get("physical_cells", 0))
+	if total_cells < expected_species_count * 24: startup_errors.append("cell census")
+	if int(totals.get("bonds", 0)) < total_cells - expected_species_count: startup_errors.append("bond census")
+	if int(totals.get("organs", 0)) < expected_species_count * 6: startup_errors.append("organ census")
+	if catalog.get("species", []).size() != expected_species_count: startup_errors.append("species records")
 	if startup_errors.is_empty():
-		status_label.text = "80 SPECIES // %s CELLS // %s ORGANS // %s BONDS" % [
+		status_label.text = "%d SPECIES // %s CELLS // %s ORGANS // %s BONDS" % [
+			expected_species_count,
 			_format_int(int(totals.get("physical_cells", 0))),
 			_format_int(int(totals.get("organs", 0))),
 			_format_int(int(totals.get("bonds", 0)))
@@ -131,8 +141,8 @@ func _button(parent: Node, position: Vector2, size: Vector2, value: String, call
 
 func _build_interface() -> void:
 	var canvas := CanvasLayer.new(); add_child(canvas)
-	title_label = _label(canvas, Vector2(24, 14), Vector2(740, 34), "NULLVECTOR // CELLULAR ORGANISM LAB", TEXT, 23)
-	_label(canvas, Vector2(26, 47), Vector2(870, 20), "EVERY PIXEL IS A CELL // ORGANS + FLUIDS + FRACTURE + METABOLISM + HEREDITY", CYAN, 10)
+	title_label = _label(canvas, Vector2(24, 14), Vector2(740, 34), lab_title, TEXT, 23)
+	_label(canvas, Vector2(26, 47), Vector2(1050, 20), lab_subtitle, CYAN, 10)
 	status_label = _label(canvas, Vector2(700, 19), Vector2(550, 34), "LOADING ANATOMY BANK", LIME, 9)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var left := _panel(canvas, Rect2(18, 82, 316, 600))
@@ -166,7 +176,7 @@ func _runtime_entry(index: int) -> Dictionary:
 func _load_species_data(index: int) -> Dictionary:
 	var entry := _runtime_entry(index)
 	var runtime: Dictionary = entry.get("runtime", {})
-	var path := ASSET_ROOT + str(runtime.get("path", ""))
+	var path := asset_root + str(runtime.get("path", ""))
 	if not FileAccess.file_exists(path): return {}
 	if FileAccess.get_file_as_bytes(path).size() != int(runtime.get("bytes", -1)): return {}
 	if FileAccess.get_sha256(path) != str(runtime.get("sha256", "")): return {}
@@ -501,6 +511,9 @@ func _refresh_labels() -> void:
 	if catalog.is_empty() or organisms.is_empty(): return
 	var entry := _runtime_entry(selected_species); var organism := organisms[0]; var data: Dictionary = organism["data"]
 	species_label.text = "%02d // %s\n%s / %s\n%s // %s" % [selected_species + 1, str(entry.get("sample_id", "?")), str(entry.get("family", "?")).to_upper(), str(entry.get("subtype", "?")), str(entry.get("role", "?")).to_upper(), str(data.get("fluid", {}).get("name", "fluid")).to_upper()]
+	if lineage_mode:
+		var lineage: Dictionary = data.get("lineage", {})
+		species_label.text += "\nG%d R%02d // %s + %s\n%s // %s" % [int(lineage.get("generation", 0)), int(lineage.get("rank", -1)), str(lineage.get("parent_ids", ["?", "?"])[0]), str(lineage.get("parent_ids", ["?", "?"])[1]), str(lineage.get("fusion_mode", "?")).to_upper(), str(lineage.get("mutation_mode", "?")).to_upper()]
 	var alive_count := 0; var intact := 0
 	for value in organism["alive"]: if value: alive_count += 1
 	for value in organism["bond_alive"]: if value: intact += 1
@@ -620,6 +633,6 @@ func _run_headless_smoke() -> void:
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)
 		if file != null: file.store_string(JSON.stringify(report, "  ", true) + "\n")
-	if errors.is_empty(): print("CELLULAR_ORGANISM_SMOKE_OK species=80 cells=%d organs=%d bonds=%d population=%d" % [total_cells, total_organs, total_bonds, organisms.size()])
+	if errors.is_empty(): print("CELLULAR_ORGANISM_SMOKE_OK species=%d cells=%d organs=%d bonds=%d population=%d" % [expected_species_count, total_cells, total_organs, total_bonds, organisms.size()])
 	else: push_error("CELLULAR_ORGANISM_SMOKE_FAIL " + ", ".join(errors))
 	get_tree().quit(0 if errors.is_empty() else 1)

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/evolved_cellular_organism_bank.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "sample_count", "generation_counts", "family_counts", "fusion_modes", "mutation_modes", "totals", "simulation", "contact_sheet", "species", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-evolved-cellular-organism-bank-v1"},
+    "status": {"const": "ready"},
+    "quality_tier": {"const": "production-learned-latent-lineage-cellular-v1"},
+    "compiler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "cellular_contract_sha256", "python_runtime_required"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha"},
+        "cellular_contract_sha256": {"$ref": "#/$defs/sha"},
+        "python_runtime_required": {"const": false}
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evolution_manifest", "evolution_manifest_sha256", "evolution_sha256", "production_checkpoint_sha256", "production_ema_sha256"],
+      "properties": {
+        "evolution_manifest": {"type": "string", "minLength": 1, "pattern": "^[^\\\\]+$"},
+        "evolution_manifest_sha256": {"$ref": "#/$defs/sha"},
+        "evolution_sha256": {"$ref": "#/$defs/sha"},
+        "production_checkpoint_sha256": {"$ref": "#/$defs/sha"},
+        "production_ema_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "sample_count": {"const": 36},
+    "generation_counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["1", "2", "3"],
+      "properties": {"1": {"const": 12}, "2": {"const": 12}, "3": {"const": 12}}
+    },
+    "family_counts": {"type": "object", "required": ["humanoid", "animalian", "plantlike", "anomaly", "machine"], "additionalProperties": false, "properties": {"humanoid": {"type": "integer", "minimum": 6}, "animalian": {"type": "integer", "minimum": 6}, "plantlike": {"type": "integer", "minimum": 6}, "anomaly": {"type": "integer", "minimum": 6}, "machine": {"type": "integer", "minimum": 6}}},
+    "fusion_modes": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+    "mutation_modes": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+    "totals": {"$ref": "#/$defs/totals"},
+    "simulation": {"type": "object"},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "species": {"type": "array", "minItems": 36, "maxItems": 36, "items": {"$ref": "#/$defs/species"}},
+    "gates": {"type": "object", "minProperties": 9, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "totals": {"type": "object", "additionalProperties": false, "required": ["physical_cells", "organs", "eyes", "bonds", "phase_tethers"], "properties": {"physical_cells": {"type": "integer", "minimum": 864}, "organs": {"type": "integer", "minimum": 216}, "eyes": {"type": "integer", "minimum": 36}, "bonds": {"type": "integer", "minimum": 828}, "phase_tethers": {"type": "integer", "minimum": 0}}},
+    "species": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "sample_id", "ordinal", "family", "family_id", "subtype", "subtype_id", "role", "role_id", "source_fields_sha256", "source_semantic_artifact_sha256", "anatomy_sha256", "arrays", "fluid", "genome", "lineage", "organs", "palette", "summary", "capabilities"],
+      "properties": {
+        "format": {"const": "nullvector-evolved-cellular-organism-species-v1"},
+        "sample_id": {"type": "string", "minLength": 1},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 35},
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "subtype": {"type": "string"}, "subtype_id": {"type": "integer", "minimum": 0, "maximum": 19},
+        "role": {"type": "string"}, "role_id": {"type": "integer", "minimum": 0, "maximum": 7},
+        "source_fields_sha256": {"$ref": "#/$defs/sha"}, "source_semantic_artifact_sha256": {"$ref": "#/$defs/sha"}, "anatomy_sha256": {"$ref": "#/$defs/sha"},
+        "arrays": {"$ref": "#/$defs/artifact"},
+        "fluid": {"type": "object"}, "genome": {"type": "object"}, "lineage": {"type": "object"}, "organs": {"type": "array", "minItems": 6}, "palette": {"type": "object"}, "summary": {"type": "object"}, "capabilities": {"type": "object"}
+      }
+    }
+  }
+}
