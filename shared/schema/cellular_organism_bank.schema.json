@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_organism_bank.schema.json",
+  "title": "NullVector Cellular Organism Bank",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "contract", "contract_sha256", "source", "sample_count", "family_counts", "totals", "simulation", "contact_sheet", "species", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-organism-bank-v1"},
+    "status": {"const": "ready"},
+    "contract": {"type": "object"},
+    "contract_sha256": {"$ref": "#/$defs/sha"},
+    "source": {"type": "object"},
+    "sample_count": {"const": 80},
+    "family_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["humanoid", "animalian", "plantlike", "anomaly", "machine"],
+      "properties": {
+        "humanoid": {"const": 16}, "animalian": {"const": 16}, "plantlike": {"const": 16}, "anomaly": {"const": 16}, "machine": {"const": 16}
+      }
+    },
+    "totals": {"type": "object"},
+    "simulation": {"type": "object"},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "species": {"type": "array", "minItems": 80, "maxItems": 80, "items": {"type": "object"}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}
+    }
+  }
+}
