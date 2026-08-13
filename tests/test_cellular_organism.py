@@ -99,7 +99,7 @@ def test_published_bank_and_native_projection_are_hash_closed() -> None:
     first = project_runtime(bank_manifest)
     second = project_runtime(bank_manifest)
     assert first == second
-    validation = validate_runtime(ROOT / "game/generated/cellular_organism/v1")
+    validation = validate_runtime(ROOT / "game/generated/cellular_organism/v2")
     assert validation["sample_count"] == 80
     assert validation["cell_count"] == 34178
     assert validation["bond_count"] == 116112

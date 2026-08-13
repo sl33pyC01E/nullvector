@@ -1,7 +1,7 @@
 extends Node2D
 
-const CATALOG_PATH := "res://generated/cellular_organism/v1/catalog.json"
-const ASSET_ROOT := "res://generated/cellular_organism/v1/"
+const CATALOG_PATH := "res://generated/cellular_organism/v2/catalog.json"
+const ASSET_ROOT := "res://generated/cellular_organism/v2/"
 const CATALOG_FORMAT := "nullvector-cellular-organism-native-catalog-v1"
 const RUNTIME_FORMAT := "nullvector-cellular-organism-runtime-v1"
 const CELL_SCALE := 5.0

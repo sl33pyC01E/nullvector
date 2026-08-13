@@ -21,7 +21,7 @@ from .safety import require_disk_floor
 RUNTIME_FORMAT = "nullvector-cellular-organism-runtime-v1"
 CATALOG_FORMAT = "nullvector-cellular-organism-native-catalog-v1"
 DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_organism_v1/cellular_organism_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_organism/v1"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_organism/v2"
 
 
 def _rounded(values: np.ndarray, digits: int = 6) -> list[float]:

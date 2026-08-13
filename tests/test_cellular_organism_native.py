@@ -43,7 +43,7 @@ def test_native_script_exposes_cell_damage_food_fluid_and_reproduction() -> None
 def test_native_runtime_is_not_python_dependent() -> None:
     import json
 
-    catalog = json.loads((ROOT / "game/generated/cellular_organism/v1/catalog.json").read_text(encoding="utf-8"))
+    catalog = json.loads((ROOT / "game/generated/cellular_organism/v2/catalog.json").read_text(encoding="utf-8"))
     assert catalog["runtime_contract"]["python_required"] is False
     assert catalog["sample_count"] == 80
     assert catalog["totals"] == {
