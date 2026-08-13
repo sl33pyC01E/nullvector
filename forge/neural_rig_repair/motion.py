@@ -392,11 +392,20 @@ def compile_motion_clip_audit(
 
 
 def compile_sample_motion_audit(binding: RepairedRigBinding) -> dict[str, Any]:
-    clips = [
-        compile_motion_clip_audit(binding, motion, facing)
-        for motion in MOTION_NAMES
-        for facing in FACING_NAMES
-    ]
+    clips: list[dict[str, Any]] = []
+    for motion in MOTION_NAMES:
+        for facing in FACING_NAMES:
+            try:
+                clips.append(compile_motion_clip_audit(binding, motion, facing))
+            except Exception as error:
+                # Keep the failing identity/clip at the end of a worker
+                # traceback.  The bounded supervisor retains only a stderr
+                # tail, so relying on the enormous inner envelope error can
+                # erase the actionable context.
+                raise ValueError(
+                    f"repair motion audit failed for "
+                    f"{binding.sample_id}/{motion}/{facing}"
+                ) from error
     if len(clips) != 104 or sum(int(clip["frame_count"]) for clip in clips) != 944:
         raise ValueError("repair sample motion registry is not the exact 104/944 matrix")
     strengths: dict[str, int] = {}
