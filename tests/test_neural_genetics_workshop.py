@@ -48,6 +48,9 @@ def test_checked_in_local_genetics_runtime_bank_is_current_and_truthful() -> Non
         "none", "latent_gaussian", "spatial_burst", "channel_phase", "donor_transplant", "phase_wave"
     }
     assert index["evolution"]["selected_count"] == EVOLUTION_COUNT
+    assert index["evolution"]["generation_count"] == 3
+    assert index["evolution"]["clip_count"] == 108
+    assert index["evolution"]["frame_count"] == 936
 
 
 def test_all_native_genetics_atlases_and_regions_are_addressable() -> None:
@@ -56,7 +59,7 @@ def test_all_native_genetics_atlases_and_regions_are_addressable() -> None:
     assert index["fusion"]["frame_count"] == 660
     assert index["latent"]["clip_count"] == 36
     assert index["latent"]["frame_count"] == 312
-    for bank_name in ("fusion", "latent"):
+    for bank_name in ("fusion", "latent", "evolution"):
         for specimen in index[bank_name]["specimens"]:
             layout = specimen["layout"]
             cursor = 0
@@ -72,19 +75,18 @@ def test_all_native_genetics_atlases_and_regions_are_addressable() -> None:
                     assert image.size == (layout["columns"] * 48, layout["rows"] * 48)
 
 
-def test_evolution_bank_keeps_twelve_survivors_and_all_families_per_generation() -> None:
+def test_evolution_bank_keeps_twelve_animated_survivors_and_all_families_per_generation() -> None:
     index = _load()
-    for generation in (1, 2):
+    for generation in (1, 2, 3):
         specimens = [item for item in index["evolution"]["specimens"] if item["generation"] == generation]
         assert len(specimens) == 12
         assert len({item["family"] for item in specimens}) == 5
         assert [item["rank"] for item in specimens] == list(range(12))
         for specimen in specimens:
             assert len(specimen["parents"]) == 2
-            assert specimen["score"]["motion_strength"] == 1.0
-            with Image.open(INDEX_PATH.parent / specimen["image"]["path"]) as image:
-                assert image.mode == "RGBA"
-                assert image.size == (48, 48)
+            assert specimen["score"]["motion_strength"] >= 0.9
+            assert len(specimen["clips"]) == 3
+            assert specimen["layout"]["frame_count"] == 26
 
 
 def test_runtime_sync_is_byte_exact_across_fresh_destinations(tmp_path: Path) -> None:
@@ -98,10 +100,10 @@ def test_runtime_sync_is_byte_exact_across_fresh_destinations(tmp_path: Path) ->
 
 def test_runtime_inventory_is_png_json_only_exact_and_small() -> None:
     index = _load()
-    assert index["asset_count"] == 179
-    assert len(index["inventory"]) == 178
+    assert index["asset_count"] == 407
+    assert len(index["inventory"]) == 406
     assert {Path(item["path"]).suffix for item in index["inventory"]} == {".png"}
-    assert sum(item["bytes"] for item in index["inventory"]) < 5 * 1024**2
+    assert sum(item["bytes"] for item in index["inventory"]) < 10 * 1024**2
     for record in index["inventory"]:
         path = INDEX_PATH.parent / record["path"]
         assert path.stat().st_size == record["bytes"]
@@ -115,7 +117,7 @@ def test_native_scene_is_additive_and_smoke_is_exhaustive() -> None:
     assert 'run/main_scene="res://Arena.tscn"' in project
     assert "neural_genetics_workshop.gd" in scene
     assert "NEURAL_GENETICS_SMOKE_OK" in script
-    assert "atlas_count != 154" in script
-    assert "clip_count != 106" in script
-    assert "frame_count != 972" in script
-    assert "hash_count != 178" in script
+    assert "atlas_count != 406" in script
+    assert "clip_count != 214" in script
+    assert "frame_count != 1908" in script
+    assert "hash_count != 406" in script

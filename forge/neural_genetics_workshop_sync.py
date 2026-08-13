@@ -16,17 +16,17 @@ from PIL import Image
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FUSION_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_pilot_v2"
 DEFAULT_LATENT_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_production_v1_run2"
-DEFAULT_EVOLUTION_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_evolution_v4"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game" / "generated" / "neural_genetics" / "v2"
+DEFAULT_EVOLUTION_SOURCE = PROJECT_ROOT / "outputs" / "neural_fusion_production_evolution_v1_run2"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game" / "generated" / "neural_genetics" / "v3"
 
-FORMAT = "nullvector-neural-genetics-workshop-assets-v2"
+FORMAT = "nullvector-neural-genetics-workshop-assets-v3"
 LAYERS = ("base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite")
 FUSION_FORMAT = "nullvector-neural-fusion-pilot-v1"
 LATENT_FORMAT = "nullvector-production-neural-latent-fusion-v1"
-EVOLUTION_FORMAT = "nullvector-neural-fusion-evolution-v1"
+EVOLUTION_FORMAT = "nullvector-production-neural-latent-evolution-v1"
 FUSION_COUNT = 10
 LATENT_COUNT = 12
-EVOLUTION_COUNT = 24
+EVOLUTION_COUNT = 36
 MIN_FREE_BYTES = 100 * 1024**3
 PLANNED_BYTES = 256 * 1024**2
 
@@ -197,15 +197,26 @@ def _evolution_bank(source_root: Path, runtime_root: Path, manifest: dict[str, A
     records = []
     for source_record in manifest["selected"]:
         specimen_id = str(source_record["specimen_id"])
-        image = _copy_to_root(
-            source_root,
-            runtime_root,
-            f"evolution/g{int(source_record['generation'])}/{int(source_record['rank']):02d}_{specimen_id}.png",
-            source_record["artifacts"]["composite"],
-        )
-        with Image.open(runtime_root / image["path"]) as decoded:
-            if decoded.mode != "RGBA" or decoded.size != (48, 48):
-                raise GeneticsContractError(f"evolution composite mismatch: {specimen_id}")
+        layout = dict(source_record["layout"])
+        clips = [_clip_payload(clip) for clip in source_record["clips"]]
+        frame_count = sum(clip["frame_count"] for clip in clips)
+        if layout != {"cell_size": 48, "columns": 16, "rows": (frame_count + 15) // 16, "frame_count": frame_count}:
+            raise GeneticsContractError(f"evolution layout mismatch: {specimen_id}")
+        cursor = 0
+        for clip in clips:
+            if clip["start_cell"] != cursor:
+                raise GeneticsContractError(f"evolution clip cursor mismatch: {specimen_id}")
+            cursor += clip["frame_count"]
+        layers = {}
+        for layer in LAYERS:
+            layers[layer] = _copy_to_root(
+                source_root, runtime_root,
+                f"evolution/g{int(source_record['generation'])}/{int(source_record['rank']):02d}_{specimen_id}/{layer}.png",
+                source_record["artifacts"][layer],
+            )
+            with Image.open(runtime_root / layers[layer]["path"]) as decoded:
+                if decoded.mode != "RGBA" or decoded.size != (layout["columns"] * 48, layout["rows"] * 48):
+                    raise GeneticsContractError(f"evolution atlas mismatch: {specimen_id}/{layer}")
         records.append(
             {
                 "sample_id": specimen_id,
@@ -217,16 +228,25 @@ def _evolution_bank(source_root: Path, runtime_root: Path, manifest: dict[str, A
                 "parents": list(source_record["parent_ids"]),
                 "lineage_sha256": str(source_record["lineage_sha256"]),
                 "fields_sha256": str(source_record["fields_sha256"]),
+                "binding_sha256": str(source_record["binding_sha256"]),
+                "alpha": float(source_record["alpha"]),
+                "mutation_strength": int(source_record["mutation_strength"]),
                 "score": dict(source_record["score"]),
                 "metrics": dict(source_record["metrics"]),
-                "image": image,
+                "layout": layout,
+                "layers": layers,
+                "clips": clips,
             }
         )
     return {
         "status": "ready",
-        "truth_label": "motion-gated-multi-generation-selection",
-        "generation_count": 2,
+        "truth_label": "production-ema-fsq-three-generation-selection",
+        "generation_count": 3,
         "selected_count": len(records),
+        "specimen_count": len(records),
+        "clip_count": sum(len(record["clips"]) for record in records),
+        "frame_count": sum(record["layout"]["frame_count"] for record in records),
+        "layers": list(LAYERS),
         "selection_policy": dict(manifest["selection_policy"]),
         "specimens": records,
     }
@@ -257,11 +277,11 @@ def sync_genetics_workshop(
         raise RuntimeError("neural genetics runtime sync would breach the 100 GiB disk floor")
     fusion_manifest_path = Path(fusion_source) / "fusion_manifest.json"
     latent_manifest_path = Path(latent_source) / "production_fusion_manifest.json"
-    evolution_manifest_path = Path(evolution_source) / "evolution_manifest.json"
+    evolution_manifest_path = Path(evolution_source) / "production_evolution_manifest.json"
     fusion_manifest = _load_manifest(fusion_manifest_path, expected_format=FUSION_FORMAT, status="ready", hash_key="bank_sha256")
     latent_manifest = _load_manifest(latent_manifest_path, expected_format=LATENT_FORMAT, status="ready", hash_key="bank_sha256")
     evolution_manifest = _load_manifest(evolution_manifest_path, expected_format=EVOLUTION_FORMAT, status="ready", hash_key="evolution_sha256")
-    if fusion_manifest["counts"]["specimen_count"] != FUSION_COUNT or latent_manifest["counts"]["specimens"] != LATENT_COUNT or evolution_manifest["counts"]["selected_count"] != EVOLUTION_COUNT:
+    if fusion_manifest["counts"]["specimen_count"] != FUSION_COUNT or latent_manifest["counts"]["specimens"] != LATENT_COUNT or evolution_manifest["counts"]["selected"] != EVOLUTION_COUNT:
         raise GeneticsContractError("neural genetics source census mismatch")
     destination.mkdir(parents=True, exist_ok=True)
     fusion = _motion_bank(Path(fusion_source), destination, fusion_manifest, latent=False)
@@ -270,7 +290,7 @@ def sync_genetics_workshop(
     inventory = _inventory(destination)
     index = {
         "format": FORMAT,
-        "schema_version": "2.0.0",
+        "schema_version": "3.0.0",
         "status": "ready",
         "engine": "Godot 4.3",
         "pixel_filter": "nearest",
@@ -294,7 +314,8 @@ def sync_genetics_workshop(
             "production_latent_all_mutation_modes_present": latent_manifest["counts"]["mutation_modes"] == 6,
             "evolution_selection_ready": True,
             "all_motion_atlases_exact": True,
-            "all_evolution_images_exact": True,
+            "production_evolution_ready": True,
+            "all_evolution_motion_atlases_exact": True,
             "runtime_png_json_only": True,
             "disk_floor_preserved": True,
         },
@@ -354,10 +375,22 @@ def validate_genetics_workshop(index_path: Path = DEFAULT_DESTINATION / "asset_i
                 cursor += int(clip.get("frame_count", 0))
             if cursor != int(layout.get("frame_count", -1)): errors.append(f"{bank_name} frame census")
     evolution = index.get("evolution", {})
-    if evolution.get("status") != "ready" or int(evolution.get("selected_count", -1)) != EVOLUTION_COUNT: errors.append("evolution census")
-    for generation in (1, 2):
+    if evolution.get("status") != "ready" or int(evolution.get("selected_count", -1)) != EVOLUTION_COUNT or tuple(evolution.get("layers", [])) != LAYERS: errors.append("evolution census")
+    for generation in (1, 2, 3):
         entries = [value for value in evolution.get("specimens", []) if int(value.get("generation", -1)) == generation]
         if len(entries) != 12 or len({value.get("family") for value in entries}) != 5: errors.append(f"evolution generation {generation}")
+    for specimen in evolution.get("specimens", []):
+        layout = specimen.get("layout", {}); cursor = 0
+        for clip in specimen.get("clips", []):
+            if int(clip.get("start_cell", -1)) != cursor: errors.append("evolution clip cursor")
+            cursor += int(clip.get("frame_count", 0))
+        if cursor != int(layout.get("frame_count", -1)): errors.append("evolution frame census")
+        for layer in LAYERS:
+            record = specimen.get("layers", {}).get(layer, {}); path = root / PurePosixPath(str(record.get("path", "")))
+            try:
+                with Image.open(path) as image:
+                    if image.mode != "RGBA" or image.size != (int(layout["columns"]) * 48, int(layout["rows"]) * 48): errors.append("evolution atlas")
+            except (OSError, KeyError, TypeError, ValueError): errors.append("evolution atlas decode")
     expected_bundle = _bundle_id(index.get("fusion", {}), index.get("latent", {}), evolution, inventory)
     if index.get("bundle_id") != expected_bundle: errors.append("bundle id")
     if index.get("generator_sha256") != _sha_file(Path(__file__)): errors.append("generator hash")

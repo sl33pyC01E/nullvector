@@ -1,8 +1,8 @@
 extends Node2D
 
-const INDEX_PATH := "res://generated/neural_genetics/v2/asset_index.json"
-const INDEX_FORMAT := "nullvector-neural-genetics-workshop-assets-v2"
-const ROOT := "res://generated/neural_genetics/v2/"
+const INDEX_PATH := "res://generated/neural_genetics/v3/asset_index.json"
+const INDEX_FORMAT := "nullvector-neural-genetics-workshop-assets-v3"
+const ROOT := "res://generated/neural_genetics/v3/"
 const MODES := ["fusion", "latent", "evolution"]
 const LAYERS := ["base", "outline", "emission_core", "aura", "bloom_r1", "bloom_r2", "composite"]
 const CYAN := Color("#38ecff")
@@ -63,9 +63,9 @@ func _validate_index() -> void:
 		if gate != true: startup_errors.append("failed source gate")
 	if index.get("fusion", {}).get("specimen_count", 0) != 10: startup_errors.append("fusion census")
 	if index.get("latent", {}).get("specimen_count", 0) != 12: startup_errors.append("latent census")
-	if index.get("evolution", {}).get("selected_count", 0) != 24: startup_errors.append("evolution census")
+	if index.get("evolution", {}).get("selected_count", 0) != 36: startup_errors.append("evolution census")
 	if startup_errors.is_empty():
-		status_label.text = "BUNDLE %s // 10 FUSIONS // 12 LATENTS // 24 EVOLVED" % str(index.get("bundle_id", "")).substr(0, 12)
+		status_label.text = "BUNDLE %s // 10 FUSIONS // 12 LATENTS // 36 EVOLVED" % str(index.get("bundle_id", "")).substr(0, 12)
 		status_label.modulate = LIME
 	else:
 		status_label.text = "FAIL-CLOSED // " + ", ".join(startup_errors)
@@ -152,7 +152,7 @@ func _specimen() -> Dictionary:
 
 
 func _clips(specimen: Dictionary) -> Array:
-	return specimen.get("clips", []) if mode_index != 2 else []
+	return specimen.get("clips", [])
 
 
 func _set_mode(value: int) -> void:
@@ -166,20 +166,12 @@ func _step_specimen(delta: int) -> void:
 
 
 func _step_clip(delta: int) -> void:
-	if mode_index == 2:
-		var generation := int(_specimen().get("generation", 1)); var target := 2 if generation == 1 else 1
-		var values := _specimens()
-		for candidate_index in range(values.size()):
-			if int(values[candidate_index].get("generation", 0)) == target:
-				specimen_index = candidate_index; break
-	else:
-		var clips := _clips(_specimen())
-		if not clips.is_empty(): clip_index = posmod(clip_index + delta, clips.size())
+	var clips := _clips(_specimen())
+	if not clips.is_empty(): clip_index = posmod(clip_index + delta, clips.size())
 	frame_index = 0; accumulator = 0.0; _refresh()
 
 
 func _step_layer(delta: int) -> void:
-	if mode_index == 2: return
 	layer_index = posmod(layer_index + delta, LAYERS.size()); _refresh()
 
 
@@ -205,17 +197,6 @@ func _refresh() -> void:
 	truth_label.text = str(index.get(_bank_name(), {}).get("truth_label", "missing truth label")).replace("-", " ").to_upper()
 	specimen_label.text = "%02d / %02d\n%s" % [specimen_index + 1, _specimens().size(), str(specimen.get("sample_id", "missing"))]
 	play_button.text = "SPACE PLAY" if not playing else "SPACE PAUSE"
-	if mode_index == 2:
-		var record: Dictionary = specimen.get("image", {}); sprite_rect.texture = load(_runtime_path(str(record.get("path", ""))))
-		clip_label.text = "GEN %d // RANK %02d" % [int(specimen.get("generation", 0)), int(specimen.get("rank", 0)) + 1]
-		layer_label.text = "COMPOSITE"
-		frame_label.text = "STATIC SURVIVOR"
-		lineage_label.text = "FAMILY  %s\nFUSION  %s\nMUTATION  %s\n\nPARENTS\n%s" % [str(specimen.get("family", "")), str(specimen.get("fusion_mode", "")), str(specimen.get("mutation_mode", "")), "\n".join(specimen.get("parents", []))]
-		var score: Dictionary = specimen.get("score", {}); var score_lines: Array[String] = ["TOTAL FITNESS  %.3f" % float(score.get("score", 0.0)), ""]
-		for name in score.keys():
-			if name != "score": score_lines.append("%-24s %.3f" % [str(name).replace("_", " ").to_upper(), float(score[name])])
-		metrics_label.text = "\n".join(score_lines)
-		return
 	var clips := _clips(specimen); clip_index = posmod(clip_index, clips.size()); var clip: Dictionary = clips[clip_index]
 	var playback_frames := int(clip.get("frame_count", 1)) - (1 if bool(clip.get("loop", false)) else 0); playback_frames = maxi(1, playback_frames); frame_index = clampi(frame_index, 0, playback_frames - 1)
 	var cell := int(clip.get("start_cell", 0)) + frame_index; sprite_rect.texture = _atlas_texture(specimen, LAYERS[layer_index], cell)
@@ -225,8 +206,10 @@ func _refresh() -> void:
 		var parents: Array = specimen.get("parents", []); var parent_lines: Array[String] = []
 		for parent in parents: parent_lines.append("%s // %s" % [str(parent.get("family", "")), str(parent.get("sample_id", ""))])
 		lineage_label.text = "FAMILY  %s\nFUSION  %s\nMUTATION  %s × %d\n\nPARENTS\n%s" % [str(specimen.get("family", "")), str(specimen.get("mode", "")), str(specimen.get("mutation_mode", "")), int(specimen.get("mutation_strength", 0)), "\n".join(parent_lines)]
-	else:
+	elif mode_index == 1:
 		lineage_label.text = "FUSION  %s\nMUTATION  %s x %.2f\nALPHA  %.2f\n\nPARENTS\n%s\n%s\n\nQUALITY\n%s" % [str(specimen.get("mode", "")), str(specimen.get("mutation_mode", "")), float(specimen.get("mutation_strength", 0.0)), float(specimen.get("alpha", 0.0)), str(specimen.get("parents", ["", ""])[0]), str(specimen.get("parents", ["", ""])[1]), str(specimen.get("quality_tier", ""))]
+	else:
+		lineage_label.text = "GENERATION  %d // RANK %02d\nFAMILY  %s\nFUSION  %s\nMUTATION  %s x %d\nALPHA  %.2f\n\nPARENTS\n%s" % [int(specimen.get("generation", 0)), int(specimen.get("rank", 0)) + 1, str(specimen.get("family", "")), str(specimen.get("fusion_mode", "")), str(specimen.get("mutation_mode", "")), int(specimen.get("mutation_strength", 0)), float(specimen.get("alpha", 0.0)), "\n".join(specimen.get("parents", []))]
 	var metrics: Dictionary = specimen.get("metrics", {}); var lines: Array[String] = []
 	for key in metrics.keys():
 		if metrics[key] is float or metrics[key] is int: lines.append("%-24s %s" % [str(key).replace("_", " ").to_upper(), str(metrics[key])])
@@ -234,7 +217,7 @@ func _refresh() -> void:
 
 
 func _process(delta: float) -> void:
-	if not playing or mode_index == 2 or startup_errors.size() > 0: return
+	if not playing or startup_errors.size() > 0: return
 	var specimen := _specimen(); var clips := _clips(specimen); if clips.is_empty(): return
 	var clip: Dictionary = clips[clip_index]; var playback_frames := int(clip.get("frame_count", 1)) - (1 if bool(clip.get("loop", false)) else 0); playback_frames = maxi(1, playback_frames)
 	accumulator += delta
@@ -273,7 +256,7 @@ func _run_smoke_if_requested() -> void:
 		if FileAccess.get_sha256(path) != str(record.get("sha256", "")): errors.append("hash " + path)
 		else: hash_count += 1
 	var atlas_count := 0; var clip_count := 0; var frame_count := 0; var region_count := 0
-	for bank_name in ["fusion", "latent"]:
+	for bank_name in ["fusion", "latent", "evolution"]:
 		for specimen in index.get(bank_name, {}).get("specimens", []):
 			var layout: Dictionary = specimen.get("layout", {}); var columns := int(layout.get("columns", 0)); var rows := int(layout.get("rows", 0))
 			for layer in LAYERS:
@@ -287,19 +270,15 @@ func _run_smoke_if_requested() -> void:
 					var cell := int(clip.get("start_cell", 0)) + frame; region.region = Rect2((cell % columns) * 48, (cell / columns) * 48, 48, 48)
 					if region.region.end.x > columns * 48 or region.region.end.y > rows * 48: errors.append("region bounds")
 					region_count += 1; frame_count += 1
-	var evolution_count := 0
-	for specimen in index.get("evolution", {}).get("specimens", []):
-		var texture = load(_runtime_path(str(specimen.get("image", {}).get("path", "")))) as Texture2D
-		if texture == null or texture.get_width() != 48 or texture.get_height() != 48: errors.append("evolution image")
-		else: evolution_count += 1
-	if atlas_count != 154: errors.append("atlas total")
-	if clip_count != 106 or frame_count != 972 or region_count != 972: errors.append("motion totals")
-	if evolution_count != 24 or hash_count != 178: errors.append("asset totals")
-	var report := {"format": "nullvector-neural-genetics-workshop-godot-smoke-v2", "passed": errors.is_empty(), "errors": errors, "bundle_id": index.get("bundle_id", ""), "coverage": {"fusion_specimens": 10, "latent_specimens": 12, "evolution_specimens": evolution_count, "motion_atlases": atlas_count, "motion_clips": clip_count, "motion_frames": frame_count, "atlas_regions": region_count, "hashes": hash_count}, "engine": Engine.get_version_info().get("string", "")}
+	var evolution_count: int = int(index.get("evolution", {}).get("specimen_count", 0))
+	if atlas_count != 406: errors.append("atlas total")
+	if clip_count != 214 or frame_count != 1908 or region_count != 1908: errors.append("motion totals")
+	if evolution_count != 36 or hash_count != 406: errors.append("asset totals")
+	var report := {"format": "nullvector-neural-genetics-workshop-godot-smoke-v3", "passed": errors.is_empty(), "errors": errors, "bundle_id": index.get("bundle_id", ""), "coverage": {"fusion_specimens": 10, "latent_specimens": 12, "evolution_specimens": evolution_count, "motion_atlases": atlas_count, "motion_clips": clip_count, "motion_frames": frame_count, "atlas_regions": region_count, "hashes": hash_count}, "engine": Engine.get_version_info().get("string", "")}
 	for argument in args:
 		if argument.begins_with("--neural-genetics-report="):
 			var output_path := argument.trim_prefix("--neural-genetics-report="); var file := FileAccess.open(output_path, FileAccess.WRITE)
 			if file != null: file.store_string(JSON.stringify(report, "  ", false) + "\n")
-	if errors.is_empty(): print("NEURAL_GENETICS_SMOKE_OK fusion=10 latent=12 evolution=24 atlases=154 clips=106 frames=972 regions=972 hashes=178")
+	if errors.is_empty(): print("NEURAL_GENETICS_SMOKE_OK fusion=10 latent=12 evolution=36 atlases=406 clips=214 frames=1908 regions=1908 hashes=406")
 	else: push_error("NEURAL_GENETICS_SMOKE_FAILED " + ", ".join(errors))
 	get_tree().quit(0 if errors.is_empty() else 1)

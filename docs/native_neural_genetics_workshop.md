@@ -13,7 +13,8 @@ The runtime bank contains only PNG and JSON:
   mutation operators;
 - 36 production-latent clips / 312 stored frames across seven presentation
   layers;
-- 24 motion-gated evolutionary survivors from two generations;
+- 36 production-latent evolutionary survivors from three generations;
+- 108 evolutionary clips / 936 stored frames, with every survivor animated;
 - exact per-file SHA-256, source-bank hashes, lineage hashes, and a deterministic bundle ID.
 
 The learned latent bank is derived from the independently validated epoch-24
@@ -47,8 +48,10 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
   --neural-genetics-report=C:/Users/forre/Documents/neural-game/outputs/neural_genetics_workshop_godot_report.json
 ```
 
-The smoke hashes all 178 runtime artifacts, loads all 154 layered atlases,
-constructs all 972 48px motion regions, and loads all 24 evolutionary images.
+The smoke hashes all 406 runtime artifacts, loads all 406 layered atlases, and
+constructs all 1,908 48px motion regions. Evolution is no longer a static
+thumbnail tier: every one of the 36 descendants exposes idle, locomotion, and
+attack playback through the same native atlas reader.
 
 Controls:
 
