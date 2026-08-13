@@ -140,6 +140,8 @@ def production_latent_fuse(
         raise ValueError("production latent fusion parent/operator contract failed")
     if not 0.0 <= alpha <= 1.0 or not 0 <= mutation_strength <= 3 or dominant_parent not in {"auto", "a", "b"}:
         raise ValueError("production latent fusion parameter contract failed")
+    if not 0 <= seed < 2**32:
+        raise ValueError("production latent fusion seed must be an unsigned 32-bit integer")
     if not np.array_equal(parent_a.legal_tuples, parent_b.legal_tuples):
         raise ValueError("production latent parents disagree on legal tuple authority")
     authority: ProductionCodecAuthority = load_production_codec(str(Path(manifest_path).resolve()))

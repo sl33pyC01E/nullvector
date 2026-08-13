@@ -82,7 +82,7 @@ def compile_production_pilot(destination: Path = DEFAULT_OUTPUT) -> dict[str, An
         alpha = ALPHAS[index % len(ALPHAS)]
         specimen = binding = None
         for attempt in range(24):
-            seed = 0x505246580000 + index * 0x9E37 + attempt
+            seed = 0x50524658 + index * 0x9E37 + attempt
             try:
                 candidate = production_latent_fuse(parent_a, parent_b, seed=seed, alpha=alpha, fusion_mode=fusion_mode, mutation_mode=mutation_mode, mutation_strength=mutation_strength)
                 candidate_binding = build_fusion_binding(candidate)

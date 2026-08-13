@@ -26,5 +26,5 @@ The pilot compiles twelve varied cross-family/role pairings, all six crossover a
 
 ```powershell
 python -m forge.neural_fusion_production compile
-python -m forge.neural_fusion_production validate outputs/neural_fusion_production_v1/production_fusion_manifest.json
+python -m forge.neural_fusion_production validate outputs/neural_fusion_production_v1_run2/production_fusion_manifest.json
 ```

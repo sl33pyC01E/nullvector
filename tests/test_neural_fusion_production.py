@@ -62,4 +62,5 @@ def test_operator_matrix_preserves_topology_and_tuple_authority(sources, index: 
 def test_production_latent_fusion_rejects_invalid_operator(sources) -> None:
     with pytest.raises(ValueError, match="operator contract"):
         production_latent_fuse(sources[0], sources[16], seed=1, fusion_mode="bogus")
-
+    with pytest.raises(ValueError, match="unsigned 32-bit"):
+        production_latent_fuse(sources[0], sources[16], seed=2**40)
