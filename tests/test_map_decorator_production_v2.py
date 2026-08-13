@@ -11,23 +11,27 @@ from forge.map_decorator_ml.training import EMA
 from forge.map_decorator_production.teacher import build_production_sample
 from forge.map_decorator_production_v2.contract import (
     CALIBRATION_GATES,
+    FactoredLossConfig,
     FactoredModelConfig,
     ForegroundPatchConfig,
     V2_CONTRACT_SHA256,
     V2TrainingConfig,
     v2_contract_manifest,
 )
+from forge.map_decorator_production_v2.checkpoint import inspect_checkpoint, save_checkpoint
 from forge.map_decorator_production_v2.model import (
     FactoredDecoratorV2,
     compose_object_logits,
 )
+from forge.map_decorator_production_v2.decoding import select_factored_legal_argmax
+from forge.map_decorator_ml.legality import TorchLegalMasks, select_legal_argmax
 from forge.map_decorator_production_v2.patches import (
     ForegroundSampleStat,
     foreground_centered_crop,
     plan_foreground_batches,
 )
 from forge.map_decorator_production_v2.quality import evaluate_dual_split_gate
-from forge.map_decorator_production_v2.training import make_optimizer, train_batch_v2
+from forge.map_decorator_production_v2.training import WarmStartEMA, make_optimizer, train_batch_v2
 from forge.maps import MapConfig, generate_map
 
 
@@ -205,9 +209,118 @@ def test_cpu_factored_training_step_has_presence_type_and_count_gradients() -> N
     assert result["loss"]["prop_positive_cells"] > 0
     assert result["loss"]["decal_target_count"] > 0
     assert result["loss"]["prop_target_count"] > 0
+    assert result["full_mask_sample_count"] == 1
+    assert result["corruption_fraction"][0] == 1.0
     assert np.isfinite(result["gradient_norm"])
     for name, layer in model.presence_heads.items():
         assert not torch.equal(before[name], layer.weight)
+
+
+def test_factored_decoder_does_not_erase_positive_presence_when_type_is_uncertain() -> None:
+    model = FactoredDecoratorV2(FactoredModelConfig(base_channels=4, condition_channels=8))
+    batch = 1
+    shape = (32, 32)
+    features = torch.zeros((batch, 53, *shape), dtype=torch.float32)
+    labels = {
+        "variant": torch.zeros((batch, *shape), dtype=torch.long),
+        "decal": torch.zeros((batch, *shape), dtype=torch.long),
+        "prop": torch.zeros((batch, *shape), dtype=torch.long),
+        "emission": torch.zeros((batch, *shape), dtype=torch.long),
+    }
+    masked = {name: torch.ones_like(value, dtype=torch.bool) for name, value in labels.items()}
+    with torch.no_grad():
+        output = model(
+            features,
+            labels,
+            masked,
+            torch.zeros((batch,), dtype=torch.long),
+            torch.zeros((batch, 8), dtype=torch.float32),
+            torch.ones((batch,), dtype=torch.float32),
+        )
+        output.presence_logits["decal"].fill_(0.25)
+        output.presence_logits["prop"].fill_(-0.25)
+        output.type_logits["decal"].zero_()
+        output.type_logits["prop"].zero_()
+        output.categorical.decal = compose_object_logits(
+            output.presence_logits["decal"], output.type_logits["decal"]
+        )
+        output.categorical.prop = compose_object_logits(
+            output.presence_logits["prop"], output.type_logits["prop"]
+        )
+    legal = TorchLegalMasks(
+        variant=torch.ones_like(output.variant, dtype=torch.bool),
+        decal=torch.ones_like(output.decal, dtype=torch.bool),
+        prop=torch.ones_like(output.prop, dtype=torch.bool),
+        emission=torch.ones_like(output.emission, dtype=torch.bool),
+        hard_empty=torch.zeros((batch, *shape), dtype=torch.bool),
+    )
+    legacy = select_legal_argmax(output.as_head_logits(), legal)
+    factored = select_factored_legal_argmax(output, legal)
+    assert not bool((legacy["decal"] != 0).any())
+    expected_decal = round(float(torch.sigmoid(torch.tensor(0.25))) * 32 * 32)
+    expected_prop = round(float(torch.sigmoid(torch.tensor(-0.25))) * 32 * 32)
+    assert int((factored["decal"] != 0).sum()) == expected_decal
+    assert int((factored["prop"] != 0).sum()) == expected_prop
+    assert not bool(((factored["decal"] != 0) & (factored["prop"] != 0)).any())
+
+
+def test_warm_start_ema_removes_random_shadow_bias_and_resumes_exactly() -> None:
+    model = torch.nn.Linear(3, 2, bias=False)
+    with torch.no_grad():
+        model.weight.zero_()
+    ema = WarmStartEMA(model, 0.999)
+    with torch.no_grad():
+        model.weight.fill_(1.0)
+    ema.update(model)
+    assert ema.updates == 1
+    assert ema.effective_decay() == min(0.999, 2.0 / 11.0)
+    assert torch.allclose(ema.shadow["weight"], torch.full_like(ema.shadow["weight"], 9.0 / 11.0))
+
+    saved = ema.state_dict()
+    resumed = WarmStartEMA(model, 0.999)
+    resumed.load_state_dict(saved)
+    assert resumed.updates == ema.updates
+    assert resumed.effective_decay() == ema.effective_decay()
+    assert torch.equal(resumed.shadow["weight"], ema.shadow["weight"])
+    with torch.no_grad():
+        model.weight.fill_(2.0)
+    ema.update(model)
+    resumed.update(model)
+    assert ema.updates == resumed.updates == 2
+    assert torch.equal(resumed.shadow["weight"], ema.shadow["weight"])
+
+
+def test_v2_checkpoint_persists_warm_start_update_count(tmp_path) -> None:
+    model_config = FactoredModelConfig(base_channels=4, condition_channels=8)
+    training = V2TrainingConfig(seed=29)
+    patch = ForegroundPatchConfig(batch_size=2, decal_slots=1, prop_slots=1)
+    model = FactoredDecoratorV2(model_config)
+    optimizer = make_optimizer(model, training)
+    ema = WarmStartEMA(model, training.ema_decay)
+    ema.update(model)
+    checkpoint = tmp_path / "warm-start.pt"
+    save_checkpoint(
+        checkpoint,
+        model,
+        optimizer,
+        ema,
+        training_config=training,
+        loss_config=FactoredLossConfig(),
+        patch_config=patch,
+        schedule={"epochs": 2, "segment_epochs": 2, "train_steps_per_epoch": 1, "validation_batch_size": 1, "test_batch_size": 1},
+        corpus_sha256="1" * 64,
+        corpus_manifest_sha256="2" * 64,
+        index_semantic_sha256="3" * 64,
+        index_manifest_sha256="4" * 64,
+        epoch=1,
+        global_step=1,
+        predecessor_checkpoint_sha256=None,
+        training_generator=torch.Generator().manual_seed(training.seed),
+        metrics={"test": True},
+    )
+    payload = inspect_checkpoint(checkpoint)
+    assert payload["ema_state"]["warmup_policy"] == WarmStartEMA.POLICY
+    assert payload["ema_state"]["updates"] == payload["global_step"] == 1
 
 
 def test_calibration_gate_rejects_empty_collapse_and_density_flooding() -> None:

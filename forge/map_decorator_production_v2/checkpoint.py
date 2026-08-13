@@ -13,7 +13,6 @@ import torch
 from ..config import PROJECT_ROOT
 from ..map_decorator.hashing import json_sha256
 from ..map_decorator_ml.checkpoint import file_sha256
-from ..map_decorator_ml.training import EMA
 from ..safety import require_disk_floor
 from .contract import (
     DISK_FLOOR_GIB,
@@ -25,6 +24,7 @@ from .contract import (
     V2TrainingConfig,
 )
 from .model import FactoredDecoratorV2
+from .training import WarmStartEMA
 
 
 SOURCE_PACKAGES: Final[tuple[str, ...]] = (
@@ -171,7 +171,7 @@ def save_checkpoint(
     path: Path,
     model: FactoredDecoratorV2,
     optimizer: torch.optim.Optimizer,
-    ema: EMA,
+    ema: WarmStartEMA,
     *,
     training_config: V2TrainingConfig,
     loss_config: FactoredLossConfig,
@@ -300,8 +300,12 @@ def inspect_checkpoint(path: Path) -> dict[str, Any]:
         _exact(name, payload[name], value)
     model_state = payload["model_state"]
     ema_state = payload["ema_state"]
-    if not isinstance(model_state, dict) or not isinstance(ema_state, dict) or set(ema_state) != {"decay", "shadow"}:
+    if not isinstance(model_state, dict) or not isinstance(ema_state, dict) or set(ema_state) != {"decay", "updates", "warmup_policy", "shadow"}:
         raise V2CheckpointError("Checkpoint tensor states are malformed.")
+    if ema_state["warmup_policy"] != WarmStartEMA.POLICY:
+        raise V2CheckpointError("Checkpoint EMA warm-start policy drifted.")
+    if type(ema_state["updates"]) is not int or int(ema_state["updates"]) != int(payload["global_step"]):
+        raise V2CheckpointError("Checkpoint EMA update count differs from global_step.")
     _exact("model tensor hash", tensor_state_sha256(model_state), payload["model_tensor_sha256"])
     shadow = ema_state["shadow"]
     if not isinstance(shadow, dict):
@@ -328,7 +332,7 @@ def load_checkpoint(
     path: Path,
     model: FactoredDecoratorV2,
     optimizer: torch.optim.Optimizer,
-    ema: EMA,
+    ema: WarmStartEMA,
     training_generator: torch.Generator,
     *,
     expected: dict[str, object],

@@ -11,10 +11,10 @@ from ..map_decorator_ml.legality import (
     TorchLegalMasks,
     assert_selected_legal,
     mask_head_logits,
-    select_legal_argmax,
 )
 from ..map_decorator_ml.training import class_balanced_weights
 from .contract import FactoredLossConfig
+from .decoding import select_factored_legal_argmax
 from .model import FactoredDecoratorOutput, OBJECT_HEADS
 
 
@@ -209,6 +209,6 @@ def factored_refinement_loss(
     total = weighted / denominator
     if not bool(torch.isfinite(total)):
         raise FloatingPointError("Factored decorator loss became non-finite.")
-    predictions = select_legal_argmax(output.as_head_logits(), legal)
+    predictions = select_factored_legal_argmax(output, legal)
     details["total"] = float(total.detach().item())
     return total, details, predictions

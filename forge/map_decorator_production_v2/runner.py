@@ -17,9 +17,8 @@ from ..map_decorator.hashing import json_sha256
 from ..map_decorator_ml.checkpoint import file_sha256
 from ..map_decorator_ml.contract import HEAD_NAMES
 from ..map_decorator_ml.dataset import collate_teacher_samples
-from ..map_decorator_ml.legality import TorchLegalMasks, select_legal_argmax
+from ..map_decorator_ml.legality import TorchLegalMasks
 from ..map_decorator_ml.metrics import decoration_metrics
-from ..map_decorator_ml.training import EMA
 from ..map_decorator_production.training import CorpusSampleRef, ProductionCorpus
 from ..safety import require_disk_floor
 from .checkpoint import load_checkpoint, save_checkpoint, source_sha256, tensor_state_sha256
@@ -31,11 +30,12 @@ from .contract import (
     V2_CONTRACT_SHA256,
     V2TrainingConfig,
 )
+from .decoding import select_factored_legal_argmax
 from .index import INDEX_MANIFEST_FILE, load_foreground_stats, validate_foreground_index
 from .model import FactoredDecoratorV2
 from .patches import ForegroundSampleStat, foreground_centered_crop, plan_foreground_batches
 from .quality import evaluate_dual_split_gate
-from .training import make_optimizer, train_batch_v2
+from .training import WarmStartEMA, make_optimizer, train_batch_v2
 
 
 RUN_FORMAT_VERSION: Final[str] = "nullvector-map-decorator-v2-training-run/1.0.0"
@@ -180,7 +180,7 @@ def _memory_report(device: torch.device) -> dict[str, object]:
     }
 
 
-def _copy_ema_model(model: FactoredDecoratorV2, ema: EMA) -> FactoredDecoratorV2:
+def _copy_ema_model(model: FactoredDecoratorV2, ema: WarmStartEMA) -> FactoredDecoratorV2:
     target = FactoredDecoratorV2(model.config)
     target.load_state_dict(model.state_dict(), strict=True)
     ema.copy_to(target)
@@ -204,8 +204,8 @@ def _predict(
     level = torch.ones((features.shape[0],), dtype=torch.float32, device=device)
     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         output = model(features, targets, masked, theme, conditions, level)
-        prediction = select_legal_argmax(
-            output.as_head_logits(),
+        prediction = select_factored_legal_argmax(
+            output,
             TorchLegalMasks(hard_empty=hard_empty, **legal_masks),
         )
     return prediction, targets, valid
@@ -269,7 +269,7 @@ def evaluate_full_split(
 def _train_epoch(
     model: FactoredDecoratorV2,
     optimizer: torch.optim.Optimizer,
-    ema: EMA,
+    ema: WarmStartEMA,
     authority: V2CorpusAuthority,
     *,
     epoch: int,
@@ -288,6 +288,7 @@ def _train_epoch(
     losses: list[float] = []
     scores: list[float] = []
     head_loss_sums: dict[str, float] = {}
+    full_mask_samples = 0
     for step, planned in enumerate(plan):
         crops = []
         for slot, item in enumerate(planned):
@@ -319,6 +320,7 @@ def _train_epoch(
             raise FloatingPointError(f"Non-finite loss at epoch={epoch} step={step}.")
         losses.append(loss)
         scores.append(float(result["metrics"]["selection_score"]))
+        full_mask_samples += int(result["full_mask_sample_count"])
         for name, value in result["loss"].items():
             if isinstance(value, (float, int)):
                 head_loss_sums[name] = head_loss_sums.get(name, 0.0) + float(value)
@@ -333,6 +335,8 @@ def _train_epoch(
         "loss_max": max(losses),
         "selection_score_mean": sum(scores) / len(scores),
         "mean_loss_terms": {name: value / len(losses) for name, value in sorted(head_loss_sums.items())},
+        "full_mask_samples": full_mask_samples,
+        "full_mask_policy": "slot-index-mod-2-equals-zero-v1",
     }
 
 
@@ -385,7 +389,7 @@ def calibration_run(
     authority = V2CorpusAuthority.load(corpus_root, index_root)
     model = FactoredDecoratorV2(config.model).to(device)
     optimizer = make_optimizer(model, config.training)
-    ema = EMA(model, config.training.ema_decay)
+    ema = WarmStartEMA(model, config.training.ema_decay)
     generator = torch.Generator(device=device).manual_seed(config.training.seed)
     started = time.perf_counter()
     epoch_report = _train_epoch(
@@ -400,6 +404,14 @@ def calibration_run(
         device=device,
     )
     ema_model = _copy_ema_model(model, ema).to(device)
+    raw_held_out, raw_sentinel, raw_gate = _evaluate(
+        model,
+        authority,
+        epoch=0,
+        stage="calibration",
+        config=config,
+        device=device,
+    )
     held_out, sentinel, gate = _evaluate(
         ema_model,
         authority,
@@ -425,11 +437,21 @@ def calibration_run(
         "held_out": held_out,
         "sentinel": sentinel,
         "quality_gate": gate,
+        "raw_model_diagnostic": {
+            "held_out": raw_held_out,
+            "sentinel": raw_sentinel,
+            "quality_gate": raw_gate,
+        },
         "model_tensor_sha256": tensor_state_sha256(model.state_dict()),
         "ema_tensor_sha256": tensor_state_sha256(ema.shadow),
         "elapsed_seconds": time.perf_counter() - started,
         "steps_per_second": steps / (time.perf_counter() - started),
         "memory": _memory_report(device),
+        "ema_policy": {
+            "name": WarmStartEMA.POLICY,
+            "updates": ema.updates,
+            "effective_decay": ema.effective_decay(),
+        },
     }
     _atomic_json(output, report)
     return report
@@ -456,7 +478,7 @@ def train_segment(
     authority = V2CorpusAuthority.load(corpus_root, index_root)
     model = FactoredDecoratorV2(config.model).to(device)
     optimizer = make_optimizer(model, config.training)
-    ema = EMA(model, config.training.ema_decay)
+    ema = WarmStartEMA(model, config.training.ema_decay)
     generator = torch.Generator(device=device).manual_seed(config.training.seed)
     predecessor_sha: str | None = None
     global_step = 0
@@ -558,6 +580,11 @@ def train_segment(
         "sentinel": sentinel,
         "quality_gate": gate,
         "memory": _memory_report(device),
+        "ema_policy": {
+            "name": WarmStartEMA.POLICY,
+            "updates": ema.updates,
+            "effective_decay": ema.effective_decay(),
+        },
         "elapsed_seconds": time.perf_counter() - started,
     }
     _atomic_json(staging / "segment_report.json", report)
