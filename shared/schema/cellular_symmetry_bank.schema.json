@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_symmetry_bank.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "sample_count", "family_counts", "family_pair_counts", "policy", "symmetry_summary", "totals", "simulation", "contact_sheet", "offspring", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-symmetry-bank-v1"},
+    "status": {"const": "ready"},
+    "quality_tier": {"const": "family-aware-soft-organic-bilateral-symmetry-v1"},
+    "compiler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "cellular_contract_sha256", "python_runtime_required"],
+      "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "cellular_contract_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["breeding_manifest", "breeding_manifest_sha256", "breeding_semantic_sha256", "breeding_validation"],
+      "properties": {
+        "breeding_manifest": {"type": "string", "minLength": 1, "pattern": "^[^\\\\]+$"},
+        "breeding_manifest_sha256": {"$ref": "#/$defs/sha"}, "breeding_semantic_sha256": {"$ref": "#/$defs/sha"},
+        "breeding_validation": {"type": "object"}
+      }
+    },
+    "sample_count": {"const": 45},
+    "family_counts": {"type": "object", "minProperties": 5, "maxProperties": 5, "additionalProperties": {"type": "integer", "minimum": 1}},
+    "family_pair_counts": {"type": "object", "minProperties": 15, "maxProperties": 15, "additionalProperties": {"const": 3}},
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "hard_symmetry_required", "source_cell_deletion_allowed", "family_priors", "chassis_owners", "paired_appendage_owners"],
+      "properties": {
+        "name": {"const": "family-aware-soft-bilateral-additive-v1"}, "hard_symmetry_required": {"const": false},
+        "source_cell_deletion_allowed": {"const": false}, "family_priors": {"type": "object"},
+        "chassis_owners": {"type": "array", "minItems": 1, "uniqueItems": true}, "paired_appendage_owners": {"type": "array", "minItems": 4, "uniqueItems": true}
+      }
+    },
+    "symmetry_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mean_weighted_before", "mean_weighted_after", "mean_improvement", "improved_samples", "unchanged_samples"],
+      "properties": {
+        "mean_weighted_before": {"type": "number", "minimum": 0, "maximum": 1},
+        "mean_weighted_after": {"type": "number", "minimum": 0, "maximum": 1},
+        "mean_improvement": {"type": "number", "exclusiveMinimum": 0},
+        "improved_samples": {"type": "integer", "minimum": 40, "maximum": 45},
+        "unchanged_samples": {"type": "integer", "minimum": 0, "maximum": 5}
+      }
+    },
+    "totals": {
+      "type": "object", "additionalProperties": false,
+      "required": ["physical_cells", "organs", "eyes", "bonds", "symmetry_cells_added", "connectivity_cells_added"],
+      "properties": {
+        "physical_cells": {"type": "integer", "minimum": 1080}, "organs": {"type": "integer", "minimum": 270},
+        "eyes": {"type": "integer", "minimum": 45}, "bonds": {"type": "integer", "minimum": 1035},
+        "symmetry_cells_added": {"type": "integer", "minimum": 1}, "connectivity_cells_added": {"type": "integer", "minimum": 0}
+      }
+    },
+    "simulation": {"type": "object"}, "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "offspring": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/offspring"}},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "minLength": 1, "pattern": "^[^\\\\]+$"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "symmetry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy", "axis_x", "family_prior", "before", "after", "weighted_improvement", "original_cells", "symmetry_cells_added", "connectivity_cells_added", "growth_fraction", "chassis_cells_added", "paired_appendage_cells_added", "other_appendage_cells_added", "source_cells_deleted"],
+      "properties": {
+        "policy": {"const": "family-aware-soft-bilateral-additive-v1"}, "axis_x": {"type": "number", "minimum": 0, "maximum": 47},
+        "family_prior": {"type": "object"}, "before": {"type": "object"}, "after": {"type": "object"},
+        "weighted_improvement": {"type": "number", "minimum": 0}, "original_cells": {"type": "integer", "minimum": 24},
+        "symmetry_cells_added": {"type": "integer", "minimum": 0}, "connectivity_cells_added": {"type": "integer", "minimum": 0},
+        "growth_fraction": {"type": "number", "minimum": 0, "maximum": 0.25},
+        "chassis_cells_added": {"type": "integer", "minimum": 0}, "paired_appendage_cells_added": {"type": "integer", "minimum": 0},
+        "other_appendage_cells_added": {"type": "integer", "minimum": 0}, "source_cells_deleted": {"const": 0}
+      }
+    },
+    "offspring": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "sample_id", "ordinal", "family", "family_id", "subtype", "subtype_id", "role", "role_id", "family_pair", "parents", "lineage", "breeding", "palette", "fluid", "capabilities", "source_offspring_fields_sha256", "source_anatomy_sha256", "symmetry", "refined_fields_sha256", "aligned_fields_sha256", "fields", "anatomy_sha256", "arrays", "organs", "summary", "genome"],
+      "properties": {
+        "format": {"const": "nullvector-cellular-symmetry-offspring-v1"}, "sample_id": {"type": "string"},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 44}, "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "subtype": {"type": "string"}, "subtype_id": {"type": "integer"},
+        "role": {"type": "string"}, "role_id": {"type": "integer"}, "family_pair": {"type": "array"}, "parents": {"type": "array"},
+        "lineage": {"type": "object"}, "breeding": {"type": "object"}, "palette": {"type": "object"}, "fluid": {"type": "object"}, "capabilities": {"type": "object"},
+        "source_offspring_fields_sha256": {"$ref": "#/$defs/sha"}, "source_anatomy_sha256": {"$ref": "#/$defs/sha"},
+        "symmetry": {"$ref": "#/$defs/symmetry"}, "refined_fields_sha256": {"$ref": "#/$defs/sha"}, "aligned_fields_sha256": {"$ref": "#/$defs/sha"},
+        "fields": {"$ref": "#/$defs/artifact"}, "anatomy_sha256": {"$ref": "#/$defs/sha"}, "arrays": {"$ref": "#/$defs/artifact"},
+        "organs": {"type": "array", "minItems": 6}, "summary": {"type": "object"}, "genome": {"type": "object"}
+      }
+    }
+  }
+}

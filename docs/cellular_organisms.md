@@ -1,6 +1,6 @@
 # Cellular organisms
 
-This subsystem compiles every accepted 48×48 neural categorical sprite into a living, destructible anatomy. One non-aura visible source pixel becomes one physical cell. The source part, material, and emission fields remain immutable authority; the compiler adds tissue, organ, fluid, genome, metabolism, and breakable-bond layers.
+This subsystem compiles every accepted 48x48 neural categorical sprite into a living, destructible anatomy. One non-aura visible source pixel becomes one physical cell. The source part, material, and emission fields remain immutable authority; the compiler adds tissue, organ, fluid, genome, metabolism, and breakable-bond layers.
 
 Every species receives circulatory, neural, digestive, reproductive, sensory, and integument systems. Family-shaped appendages become named organs. Eyes and a mouth are explicit flagged cells. Blood, hemolymph, sap, phase ichor, or coolant occupies a closed conductive network and leaks after cell or bond failure.
 
@@ -17,3 +17,5 @@ python -m forge.cellular_organism replay outputs/cellular_organism_v1/cellular_o
 The Python `OrganismState` is a deterministic reference, not a gameplay dependency. Native Godot receives a JSON projection and implements the same concepts without Python in the shipped game.
 
 The learned-latent evolution bridge extends the same contract to all 36 selected descendants from the three-generation production fusion bank. See `docs/native_evolved_organisms.md` for lineage-aware compilation and the native `EvolvedOrganismLab.tscn`.
+
+The structural breeding forge crosses two evolved anatomies at pixel resolution, applies bounded structural mutation, repairs raster topology, and then decodes a completely new organ/fluid/bond graph. See `docs/structural_cellular_breeding.md` and `CellularBreedingLab.tscn`.

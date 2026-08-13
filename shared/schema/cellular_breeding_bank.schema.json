@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_breeding_bank.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "sample_count", "family_counts", "family_pair_counts", "crossover_modes", "mutation_modes", "totals", "simulation", "contact_sheet", "offspring", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-breeding-bank-v1"},
+    "status": {"const": "ready"},
+    "quality_tier": {"const": "deterministic-two-parent-structural-cellular-breeding-v1"},
+    "compiler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "cellular_contract_sha256", "python_runtime_required"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha"},
+        "cellular_contract_sha256": {"$ref": "#/$defs/sha"},
+        "python_runtime_required": {"const": false}
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["parent_manifest", "parent_manifest_sha256", "parent_semantic_sha256", "parent_validation"],
+      "properties": {
+        "parent_manifest": {"type": "string", "minLength": 1, "pattern": "^[^\\\\]+$"},
+        "parent_manifest_sha256": {"$ref": "#/$defs/sha"},
+        "parent_semantic_sha256": {"$ref": "#/$defs/sha"},
+        "parent_validation": {"type": "object"}
+      }
+    },
+    "sample_count": {"const": 45},
+    "family_counts": {"$ref": "#/$defs/familyCounts"},
+    "family_pair_counts": {
+      "type": "object", "minProperties": 15, "maxProperties": 15,
+      "additionalProperties": {"const": 3}
+    },
+    "crossover_modes": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+    "mutation_modes": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string"}},
+    "totals": {
+      "type": "object", "additionalProperties": false,
+      "required": ["physical_cells", "organs", "eyes", "bonds", "mutation_pixels", "repair_pixels"],
+      "properties": {
+        "physical_cells": {"type": "integer", "minimum": 1080},
+        "organs": {"type": "integer", "minimum": 270},
+        "eyes": {"type": "integer", "minimum": 45},
+        "bonds": {"type": "integer", "minimum": 1035},
+        "mutation_pixels": {"type": "integer", "minimum": 1},
+        "repair_pixels": {"type": "integer", "minimum": 0}
+      }
+    },
+    "simulation": {"type": "object"},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "offspring": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/offspring"}},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "pattern": "^[^\\\\]+$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "familyCounts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["humanoid", "animalian", "plantlike", "anomaly", "machine"],
+      "properties": {
+        "humanoid": {"type": "integer", "minimum": 6},
+        "animalian": {"type": "integer", "minimum": 6},
+        "plantlike": {"type": "integer", "minimum": 6},
+        "anomaly": {"type": "integer", "minimum": 6},
+        "machine": {"type": "integer", "minimum": 6}
+      }
+    },
+    "parent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sample_id", "family", "family_id", "anatomy_sha256", "source_fields_sha256"],
+      "properties": {
+        "sample_id": {"type": "string", "minLength": 1},
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "anatomy_sha256": {"$ref": "#/$defs/sha"},
+        "source_fields_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "lineage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["generation", "rank", "parent_ids", "parent_anatomy_sha256", "fusion_mode", "mutation_mode", "mutation_strength", "seed", "alpha", "offspring_fields_sha256"],
+      "properties": {
+        "generation": {"type": "integer", "minimum": 2},
+        "rank": {"type": "integer", "minimum": 0, "maximum": 44},
+        "parent_ids": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string", "minLength": 1}},
+        "parent_anatomy_sha256": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/sha"}},
+        "fusion_mode": {"type": "string", "minLength": 1},
+        "mutation_mode": {"type": "string", "minLength": 1},
+        "mutation_strength": {"type": "integer", "minimum": 0},
+        "seed": {"type": "integer", "minimum": 0},
+        "alpha": {"type": "number", "minimum": 0, "maximum": 1},
+        "offspring_fields_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "breeding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crossover_mode", "mutation_mode", "seed", "primary_cells", "donor_cells", "blended_or_repair_cells", "primary_fraction", "donor_fraction", "mutation_pixels", "repair_pixels", "raster_connected"],
+      "properties": {
+        "crossover_mode": {"type": "string"}, "mutation_mode": {"type": "string"},
+        "seed": {"type": "integer", "minimum": 0},
+        "primary_cells": {"type": "integer", "minimum": 8}, "donor_cells": {"type": "integer", "minimum": 8},
+        "blended_or_repair_cells": {"type": "integer", "minimum": 0},
+        "primary_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "donor_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "mutation_pixels": {"type": "integer", "minimum": 0}, "repair_pixels": {"type": "integer", "minimum": 0},
+        "raster_connected": {"const": true}
+      }
+    },
+    "offspring": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "sample_id", "ordinal", "family", "family_id", "subtype", "subtype_id", "role", "role_id", "family_pair", "parents", "lineage", "breeding", "offspring_fields_sha256", "aligned_fields_sha256", "fields", "anatomy_sha256", "arrays", "organs", "summary", "fluid", "genome", "palette", "capabilities"],
+      "properties": {
+        "format": {"const": "nullvector-cellular-breeding-offspring-v1"},
+        "sample_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 44},
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "subtype": {"type": "string"}, "subtype_id": {"type": "integer", "minimum": 0, "maximum": 19},
+        "role": {"type": "string"}, "role_id": {"type": "integer", "minimum": 0, "maximum": 7},
+        "family_pair": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]}},
+        "parents": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/parent"}},
+        "lineage": {"$ref": "#/$defs/lineage"},
+        "breeding": {"$ref": "#/$defs/breeding"},
+        "offspring_fields_sha256": {"$ref": "#/$defs/sha"}, "aligned_fields_sha256": {"$ref": "#/$defs/sha"},
+        "fields": {"$ref": "#/$defs/artifact"}, "anatomy_sha256": {"$ref": "#/$defs/sha"}, "arrays": {"$ref": "#/$defs/artifact"},
+        "organs": {"type": "array", "minItems": 6}, "summary": {"type": "object"}, "fluid": {"type": "object"},
+        "genome": {"type": "object"}, "palette": {"type": "object"}, "capabilities": {"type": "object"}
+      }
+    }
+  }
+}

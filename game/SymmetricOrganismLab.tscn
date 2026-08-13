@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://scripts/cellular_organism_lab.gd" type="Script" id="1_cellular"]
+
+[node name="SymmetricOrganismLab" type="Node2D"]
+script = ExtResource("1_cellular")
+catalog_path = "res://generated/cellular_symmetry/v1/catalog.json"
+asset_root = "res://generated/cellular_symmetry/v1/"
+expected_species_count = 45
+exact_family_count = 0
+lineage_mode = true
+lab_title = "NULLVECTOR // SOFT-SYMMETRY ORGANISM LAB"
+lab_subtitle = "ORGANIC BILATERAL PRIOR // CHASSIS + PAIRED APPENDAGES // SOURCE CELLS PRESERVED"
