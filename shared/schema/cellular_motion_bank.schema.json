@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_motion_bank.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "identity_count", "family_count", "motion_count", "facing_count", "clip_count", "frame_count", "drivers", "facings", "motions", "programs", "identities", "contact_sheet", "runtime_contract", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-neuromuscular-motion-bank-v1"}, "status": {"const": "ready"},
+    "quality_tier": {"const": "deterministic-organ-driver-deformable-cell-motion-v1"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["organism_manifest", "organism_manifest_sha256", "organism_semantic_sha256", "organism_validation"], "properties": {"organism_manifest": {"type": "string", "pattern": "^[^\\\\]+$"}, "organism_manifest_sha256": {"$ref": "#/$defs/sha"}, "organism_semantic_sha256": {"$ref": "#/$defs/sha"}, "organism_validation": {"type": "object"}}},
+    "identity_count": {"const": 45}, "family_count": {"const": 5}, "motion_count": {"const": 13}, "facing_count": {"const": 8}, "clip_count": {"const": 520}, "frame_count": {"const": 4720},
+    "drivers": {"type": "array", "minItems": 14, "maxItems": 14, "uniqueItems": true, "items": {"type": "string"}},
+    "facings": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": {"type": "string"}},
+    "motions": {"type": "array", "minItems": 13, "maxItems": 13, "uniqueItems": true, "items": {"type": "string"}},
+    "programs": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/program"}},
+    "identities": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/identity"}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "runtime_contract": {"type": "object", "additionalProperties": false, "required": ["organ_level_targets", "cell_identity_preserved", "spring_physics_remains_authoritative", "motion_force_is_bounded", "no_sprite_frame_swapping", "python_runtime_required"], "properties": {"organ_level_targets": {"const": true}, "cell_identity_preserved": {"const": true}, "spring_physics_remains_authoritative": {"const": true}, "motion_force_is_bounded": {"const": true}, "no_sprite_frame_swapping": {"const": true}, "python_runtime_required": {"const": false}}},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"const": true}}, "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "pattern": "^[^\\\\]+$"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "frame": {"type": "object", "additionalProperties": false, "required": ["frame", "phase", "drivers"], "properties": {"frame": {"type": "integer", "minimum": 0, "maximum": 12}, "phase": {"type": "number", "minimum": 0, "maximum": 1}, "drivers": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"type": "number", "minimum": -2, "maximum": 2}}}},
+    "facing": {"type": "object", "additionalProperties": false, "required": ["facing", "facing_index", "rotation_degrees", "frames"], "properties": {"facing": {"type": "string"}, "facing_index": {"type": "integer", "minimum": 0, "maximum": 7}, "rotation_degrees": {"type": "integer", "minimum": 0, "maximum": 315, "multipleOf": 45}, "frames": {"type": "array", "minItems": 7, "maxItems": 13, "items": {"$ref": "#/$defs/frame"}}}},
+    "event": {"type": "object", "additionalProperties": false, "required": ["frame", "name"], "properties": {"frame": {"type": "integer", "minimum": 0, "maximum": 12}, "name": {"type": "string", "minLength": 1}}},
+    "clip": {"type": "object", "additionalProperties": false, "required": ["motion", "frame_count", "fps", "loop", "events", "facings"], "properties": {"motion": {"type": "string"}, "frame_count": {"type": "integer", "minimum": 7, "maximum": 13}, "fps": {"type": "integer", "minimum": 6, "maximum": 16}, "loop": {"type": "boolean"}, "events": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/event"}}, "facings": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"$ref": "#/$defs/facing"}}}},
+    "program": {"type": "object", "additionalProperties": false, "required": ["family", "family_id", "gains", "clips"], "properties": {"family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "gains": {"type": "object"}, "clips": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/clip"}}}},
+    "channels": {"type": "object", "additionalProperties": false, "required": ["chassis", "neural", "sensory", "left_appendage", "right_appendage", "left_locomotor", "right_locomotor", "auxiliary", "weapon", "emitter", "mouth"], "properties": {"chassis": {"$ref": "#/$defs/idList"}, "neural": {"$ref": "#/$defs/idList"}, "sensory": {"$ref": "#/$defs/idList"}, "left_appendage": {"$ref": "#/$defs/idList"}, "right_appendage": {"$ref": "#/$defs/idList"}, "left_locomotor": {"$ref": "#/$defs/idList"}, "right_locomotor": {"$ref": "#/$defs/idList"}, "auxiliary": {"$ref": "#/$defs/idList"}, "weapon": {"$ref": "#/$defs/idList"}, "emitter": {"$ref": "#/$defs/idList"}, "mouth": {"$ref": "#/$defs/idList"}}},
+    "idList": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["sample_id", "ordinal", "family", "family_id", "source_anatomy_sha256", "source_fields_sha256", "physical_cell_count", "organ_count", "channels", "family_program_id"], "properties": {"sample_id": {"type": "string"}, "ordinal": {"type": "integer", "minimum": 0, "maximum": 44}, "family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "source_anatomy_sha256": {"$ref": "#/$defs/sha"}, "source_fields_sha256": {"$ref": "#/$defs/sha"}, "physical_cell_count": {"type": "integer", "minimum": 24}, "organ_count": {"type": "integer", "minimum": 6}, "channels": {"$ref": "#/$defs/channels"}, "family_program_id": {"type": "integer", "minimum": 0, "maximum": 4}}}
+  }
+}

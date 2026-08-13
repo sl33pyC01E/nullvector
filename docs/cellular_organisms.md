@@ -19,3 +19,7 @@ The Python `OrganismState` is a deterministic reference, not a gameplay dependen
 The learned-latent evolution bridge extends the same contract to all 36 selected descendants from the three-generation production fusion bank. See `docs/native_evolved_organisms.md` for lineage-aware compilation and the native `EvolvedOrganismLab.tscn`.
 
 The structural breeding forge crosses two evolved anatomies at pixel resolution, applies bounded structural mutation, repairs raster topology, and then decodes a completely new organ/fluid/bond graph. See `docs/structural_cellular_breeding.md` and `CellularBreedingLab.tscn`.
+
+The neuromuscular motion forge drives those cell bodies through semantic organ
+channels and live spring forces. See `docs/cellular_neuromuscular_motion.md`
+and `CellularMotionLab.tscn`.
