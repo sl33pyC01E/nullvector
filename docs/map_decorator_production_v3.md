@@ -44,6 +44,16 @@ Focused tests cover:
   optimizer, EMA, generator, and CPU RNG provenance;
 - exact interrupted-versus-uninterrupted training equivalence plus rejection of fully rehashed
   sidecar and tensor tampering.
+- a CUDA-cold real-corpus pilot that resolves the immutable 3,096-map corpus and recovered
+  foreground index, trains on deterministic foreground-centered crops, evaluates bounded
+  validation and test samples through both raw and EMA models, enforces exact per-head legality,
+  and publishes a fully reloadable source/corpus/index-bound checkpoint;
+- semantic exact replay of that pilot independent of checkpoint-container byte encoding.
+
+`hard_empty` is an object/effect exclusion, not a terrain-variation exclusion. The pilot
+therefore requires decal, prop, and emission to remain zero there while checking `variant`
+against its authoritative class legality mask. This distinction is explicit because silently
+zeroing variant would erase valid terrain detail.
 
 Run the focused suite without touching CUDA:
 
@@ -58,10 +68,30 @@ Create and validate an additive smoke artifact:
 ```powershell
 $env:CUDA_VISIBLE_DEVICES='-1'
 python -m forge.map_decorator_production_v3 smoke `
-  --output outputs/map_decorator_production_v3/cpu_smoke_a
+  --output outputs/map_decorator_production_v3/cpu_smoke_g
 python -m forge.map_decorator_production_v3 validate `
-  outputs/map_decorator_production_v3/cpu_smoke_a/smoke_report.json
+  outputs/map_decorator_production_v3/cpu_smoke_g/smoke_report.json `
+  --exact-replay
 ```
+
+Run the bounded real-corpus CPU pilot without touching CUDA:
+
+```powershell
+$env:CUDA_VISIBLE_DEVICES='-1'
+python -m forge.map_decorator_production_v3 pilot `
+  --corpus outputs/map_decorator_corpus_v1 `
+  --index outputs/map_decorator_production_v2/foreground_index_v2 `
+  --output outputs/map_decorator_production_v3/real_corpus_cpu_pilot `
+  --steps 4 --eval-samples 4
+python -m forge.map_decorator_production_v3 validate-pilot `
+  outputs/map_decorator_production_v3/real_corpus_cpu_pilot/pilot_report.json `
+  --corpus outputs/map_decorator_corpus_v1 `
+  --index outputs/map_decorator_production_v2/foreground_index_v2 `
+  --exact-replay
+```
+
+The pilot is an integration and safety proof, not a visual-quality claim. Four CPU updates are
+deliberately insufficient to accept or reject the sparse locator's eventual map quality.
 
 ## Next authorized boundary
 

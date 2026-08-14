@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -37,9 +38,18 @@ from forge.map_decorator_production_v3.decoding import (
     select_sparse_locator_argmax,
 )
 from forge.map_decorator_production_v3.model import SparseLocatorDecoratorV3, SparseLocatorOutput
+from forge.map_decorator_production_v3.pilot import (
+    RealCorpusPilotConfig,
+    _semantic_payload,
+    run_real_corpus_pilot,
+    validate_real_corpus_pilot,
+)
 from forge.map_decorator_production_v3.smoke import run_cpu_smoke, validate_cpu_smoke
 from forge.map_decorator_production_v3.training import make_optimizer_v3, train_batch_v3
 from forge.maps import MapConfig, generate_map
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _teacher_sample(seed: int = 0x330033, *, size: int = 48) -> TeacherSample:
@@ -423,3 +433,50 @@ def test_v3_checkpoint_rejects_fully_rehashed_sidecar_and_tensor_tamper(tmp_path
     sidecar_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with pytest.raises(V3CheckpointError, match="model tensor SHA"):
         inspect_checkpoint(checkpoint)
+
+
+def test_real_corpus_cpu_pilot_replays_and_rejects_rehashed_metric_tamper(tmp_path) -> None:
+    corpus = ROOT / "outputs/map_decorator_corpus_v1"
+    index = ROOT / "outputs/map_decorator_production_v2/foreground_index_v2"
+    if not corpus.is_dir() or not index.is_dir():
+        pytest.skip("The immutable production corpus/index are not checked out.")
+    assert torch.cuda.is_initialized() is False
+    output = tmp_path / "real-corpus-pilot"
+    report = run_real_corpus_pilot(
+        corpus,
+        index,
+        output,
+        config=RealCorpusPilotConfig(steps=1, eval_samples_per_split=1),
+    )
+    validated = validate_real_corpus_pilot(
+        output / "pilot_report.json",
+        corpus_root=corpus,
+        index_root=index,
+        exact_replay=True,
+    )
+    assert validated["semantic_sha256"] == report["semantic_sha256"]
+    assert validated["gates"] == {
+        "checkpoint_reload_exact": True,
+        "cpu_only": True,
+        "ema_hard_safety": True,
+        "finite_training": True,
+        "foreground_index_bound": True,
+        "not_a_quality_claim": True,
+        "raw_hard_safety": True,
+        "real_corpus_bound": True,
+    }
+    assert torch.cuda.is_initialized() is False
+
+    tampered = json.loads((output / "pilot_report.json").read_text(encoding="utf-8"))
+    tampered["raw_evaluation"]["validation"]["hard_legality"] = 0.0
+    tampered["semantic_sha256"] = json_sha256(_semantic_payload(tampered))
+    tampered.pop("report_sha256")
+    tampered["report_sha256"] = json_sha256(tampered)
+    tampered_path = output / "tampered_report.json"
+    tampered_path.write_text(json.dumps(tampered, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="evaluation evidence failed"):
+        validate_real_corpus_pilot(
+            tampered_path,
+            corpus_root=corpus,
+            index_root=index,
+        )
