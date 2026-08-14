@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_homeostasis_report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "compiler", "authority", "contract", "system_vocab", "identity_count", "core_failure_case_count", "dynamic_scenario_count", "core_failure_matrix", "family_scenarios", "gates", "report_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-homeostasis-audit-v1"},
+    "status": {"const": "ready"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "authority": {"type": "object", "additionalProperties": false, "required": ["physiology_manifest", "physiology_manifest_sha256", "physiology_semantic_sha256", "physiology_validation"], "properties": {"physiology_manifest": {"type": "string"}, "physiology_manifest_sha256": {"$ref": "#/$defs/sha"}, "physiology_semantic_sha256": {"$ref": "#/$defs/sha"}, "physiology_validation": {"type": "object"}}},
+    "contract": {"type": "object", "additionalProperties": {"const": true}, "minProperties": 7},
+    "system_vocab": {"const": ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]},
+    "identity_count": {"const": 45},
+    "core_failure_case_count": {"const": 360},
+    "dynamic_scenario_count": {"const": 20},
+    "core_failure_matrix": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/coreRecord"}},
+    "family_scenarios": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/familyScenario"}},
+    "gates": {"type": "object", "minProperties": 9, "additionalProperties": {"const": true}},
+    "report_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capacity": {"type": "number", "minimum": 0, "maximum": 1},
+    "failure": {"type": "object", "additionalProperties": false, "required": ["own_capacity", "circulation", "consciousness", "locomotion", "baseline_own_capacity"], "properties": {"own_capacity": {"$ref": "#/$defs/capacity"}, "circulation": {"$ref": "#/$defs/capacity"}, "consciousness": {"$ref": "#/$defs/capacity"}, "locomotion": {"$ref": "#/$defs/capacity"}, "baseline_own_capacity": {"$ref": "#/$defs/capacity"}}},
+    "failures": {"type": "object", "additionalProperties": false, "required": ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"], "properties": {"circulation": {"$ref": "#/$defs/failure"}, "respiration": {"$ref": "#/$defs/failure"}, "digestion": {"$ref": "#/$defs/failure"}, "neural": {"$ref": "#/$defs/failure"}, "sensory": {"$ref": "#/$defs/failure"}, "locomotion": {"$ref": "#/$defs/failure"}, "reproduction": {"$ref": "#/$defs/failure"}, "immune": {"$ref": "#/$defs/failure"}}},
+    "coreRecord": {"type": "object", "additionalProperties": false, "required": ["sample_id", "family", "family_id", "failures"], "properties": {"sample_id": {"type": "string"}, "family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "failures": {"$ref": "#/$defs/failures"}}},
+    "status": {"type": "object", "required": ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune", "consciousness", "oxygen_support", "energy_support", "oxygen", "energy", "nutrients", "hydration", "waste", "shock", "alive_fraction", "incapacitated", "dead"], "properties": {"incapacitated": {"type": "boolean"}, "dead": {"type": "boolean"}}, "additionalProperties": {"type": "number"}},
+    "timeline": {"type": "object", "required": ["time", "incapacitated", "dead"], "properties": {"time": {"type": "number", "minimum": 0}, "incapacitated": {"type": "boolean"}, "dead": {"type": "boolean"}}, "additionalProperties": {"type": "number"}},
+    "case": {"type": "object", "additionalProperties": false, "required": ["lesion", "initial", "timeline", "final", "time_to_incapacitation", "time_to_death"], "properties": {"lesion": {"type": "string"}, "initial": {"$ref": "#/$defs/status"}, "timeline": {"type": "array", "items": {"$ref": "#/$defs/timeline"}}, "final": {"$ref": "#/$defs/status"}, "time_to_incapacitation": {"type": ["number", "null"], "minimum": 0}, "time_to_death": {"type": ["number", "null"], "minimum": 0}}},
+    "cases": {"type": "object", "additionalProperties": false, "required": ["heart", "respiratory", "digestive", "brain"], "properties": {"heart": {"$ref": "#/$defs/case"}, "respiratory": {"$ref": "#/$defs/case"}, "digestive": {"$ref": "#/$defs/case"}, "brain": {"$ref": "#/$defs/case"}}},
+    "familyScenario": {"type": "object", "additionalProperties": false, "required": ["sample_id", "family", "family_id", "cases"], "properties": {"sample_id": {"type": "string"}, "family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "cases": {"$ref": "#/$defs/cases"}}}
+  }
+}
