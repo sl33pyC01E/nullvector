@@ -140,6 +140,13 @@ become runtime map packs.
 
 ## Native Godot Workshop
 
+`game/ForgeHub.tscn` is the additive native front door to the forge. Its neon,
+filterable catalog launches fourteen current game and research scenes, hashes
+thirteen runtime catalogs, and locks any card whose scene, format, status,
+census, or Python-free runtime contract has drifted. `OPEN` changes the current
+scene; `DETACH` preserves the hub while opening a lab in a second native
+instance. See `docs/native_forge_hub.md`.
+
 `game/NeuralWorkshop.tscn` is an additive native inspection scene. It currently
 loads a ready runtime bundle with:
 
@@ -235,6 +242,21 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
   --neural-workshop-report=C:/Users/forre/Documents/neural-game/outputs/neural_workshop_godot_ready_report.json
 ```
 
+Launch and audit the complete native lab index:
+
+```powershell
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --path C:\Users\forre\Documents\neural-game\game `
+  res://ForgeHub.tscn
+
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --headless `
+  --path C:\Users\forre\Documents\neural-game\game `
+  res://ForgeHub.tscn -- `
+  --forge-hub-smoke `
+  --forge-hub-report=C:/Users/forre/Documents/neural-game/outputs/forge_hub_smoke_report.json
+```
+
 Launch the native game with:
 
 ```powershell
@@ -256,3 +278,4 @@ Escape pauses. Workshop controls are documented in
 - `docs/neural_map_decoration.md`
 - `docs/neural_map_topology_model.md`
 - `docs/native_neural_workshop.md`
+- `docs/native_forge_hub.md`
