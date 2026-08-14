@@ -132,6 +132,15 @@ The compiler contact sheet is
 family representative at the principal event pose for every motion. The native
 lab is the authority for continuous in-between spring deformation.
 
+The native smoke now closes the gap between authored curves and actual cell
+motion. It instantiates every one of the 45 physical identities and drives five
+observed cases per body: chassis breathing, appendage wiggle, left locomotor,
+right locomotor, and attack appendage/weapon motion. All 225 cases must produce
+finite nonzero velocity in the intended living cell channels through the real
+attachment-root, neural, perfusion, energy, and spring-force path. This catches
+the failure mode where a clean driver graph exists but a particular anatomy's
+appendages remain visually frozen.
+
 Semantic collapse is audited separately so a clip cannot pass merely because
 its frame count and numeric bounds are valid:
 

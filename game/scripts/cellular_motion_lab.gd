@@ -551,6 +551,65 @@ func _diagnostic_full_identity_failure_matrix() -> Dictionary:
 	}
 
 
+func _diagnostic_peak_frame(clip: Dictionary, driver_names: Array[String]) -> int:
+	var facings: Array = clip.get("facings", [])
+	if facings.is_empty(): return 0
+	var frames: Array = facings[0].get("frames", []); var best_index := 0; var best_score := -1.0
+	for frame_index in range(frames.size()):
+		var values: Array = frames[frame_index].get("drivers", []); var score := 0.0
+		for driver_name in driver_names:
+			var driver_index := EXPECTED_DRIVERS.find(driver_name)
+			if driver_index >= 0 and driver_index < values.size(): score += absf(float(values[driver_index]))
+		if score > best_score: best_score = score; best_index = frame_index
+	return best_index
+
+
+func _diagnostic_channel_velocity(organism: Dictionary, channel_names: Array[String]) -> float:
+	var channels: Dictionary = organism.get("motion_channel_by_organ", {}); var total := 0.0
+	for index in range(organism["velocity"].size()):
+		var channel := str(channels.get(str(int(organism["organ_id"][index])), "chassis"))
+		if organism["alive"][index] and channel in channel_names: total += organism["velocity"][index].length()
+	return total
+
+
+func _diagnostic_actuation_case(organism: Dictionary, motion_name: String, driver_names: Array[String], observed_channels: Array[String]) -> Dictionary:
+	var motion_index := EXPECTED_MOTIONS.find(motion_name); var clip := _clip_for(int(organism["data"].get("family_id", 0)), motion_index)
+	if clip.is_empty(): return {"passed": false, "motion": motion_name, "velocity": 0.0, "peak_frame": -1}
+	var peak_frame := _diagnostic_peak_frame(clip, driver_names); var fps := maxf(1.0, float(clip.get("fps", 1)))
+	for index in range(organism["velocity"].size()): organism["velocity"][index] = Vector2.ZERO
+	organism["motion_autonomous"] = true; organism["motion_index"] = motion_index; organism["motion_facing_index"] = 0; organism["motion_epoch"] = 0.0; organism["motion_last_event_frame"] = -1
+	simulation_time = (float(peak_frame) + 0.01) / fps
+	_apply_motion_force(organism, 1.0 / 60.0)
+	var velocity := _diagnostic_channel_velocity(organism, observed_channels)
+	return {"passed": is_finite(velocity) and velocity > 0.001, "motion": motion_name, "velocity": velocity, "peak_frame": peak_frame}
+
+
+func _diagnostic_full_identity_actuation_matrix() -> Dictionary:
+	# Exercise the actual GDScript target-force path on every physical identity,
+	# not only the five family driver programs. Each case observes the cells that
+	# should visibly move for that authored motion.
+	var previous_time := simulation_time; var identity_count := 0; var case_count := 0; var family_counts: Dictionary = {}; var minima := {"breathe": INF, "wiggle": INF, "locomotor_left": INF, "locomotor_right": INF, "attack": INF}; var failures: Array = []
+	for species_index in range(catalog.get("species", []).size()):
+		var data := _load_species_data(species_index)
+		if data.is_empty(): continue
+		var organism := _create_organism(data, Vector2.ZERO, 0, 0)
+		if organism.is_empty(): continue
+		_prepare_physiology(organism, 0.0)
+		var breathe := _diagnostic_actuation_case(organism, "idle_breathe", ["body_bob", "body_squash"], ["chassis"])
+		var wiggle := _diagnostic_actuation_case(organism, "idle_wiggle", ["appendage_left", "appendage_right", "auxiliary"], ["left_appendage", "right_appendage", "auxiliary"])
+		var locomotor_left := _diagnostic_actuation_case(organism, "locomote", ["locomotor_left"], ["left_locomotor"])
+		var locomotor_right := _diagnostic_actuation_case(organism, "locomote", ["locomotor_right"], ["right_locomotor"])
+		var attack := _diagnostic_actuation_case(organism, "attack", ["appendage_left", "appendage_right", "weapon_recoil"], ["left_appendage", "right_appendage", "weapon"])
+		var cases := {"breathe": breathe, "wiggle": wiggle, "locomotor_left": locomotor_left, "locomotor_right": locomotor_right, "attack": attack}; var identity_valid := true
+		for case_name in cases:
+			case_count += 1; minima[case_name] = minf(float(minima[case_name]), float(cases[case_name].get("velocity", 0.0)))
+			if not bool(cases[case_name].get("passed", false)): identity_valid = false; failures.append({"sample_id": data.get("sample_id", "?"), "case": case_name, "result": cases[case_name]})
+		if identity_valid:
+			identity_count += 1; var family := str(data.get("family", "unknown")); family_counts[family] = int(family_counts.get(family, 0)) + 1
+	simulation_time = previous_time
+	return {"passed": identity_count == 45 and case_count == 225 and failures.is_empty() and family_counts.size() == 5, "identity_count": identity_count, "case_count": case_count, "family_counts": family_counts, "minimum_channel_velocity": minima, "failures": failures}
+
+
 func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	organism["physiology_clock"] = float(organism.get("physiology_clock", 0.0)) - delta
 	if float(organism["physiology_clock"]) <= 0.0:
@@ -910,7 +969,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var homeostasis_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var full_identity_actuation_matrix: Dictionary = {}; var homeostasis_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -963,6 +1022,8 @@ func _run_motion_smoke() -> void:
 		if not bool(homeostasis_matrix.get("passed", false)): errors.append("reserve-aware homeostasis matrix")
 		full_identity_failure_matrix = _diagnostic_full_identity_failure_matrix()
 		if not bool(full_identity_failure_matrix.get("passed", false)): errors.append("full identity physiology failure matrix")
+		full_identity_actuation_matrix = _diagnostic_full_identity_actuation_matrix()
+		if not bool(full_identity_actuation_matrix.get("passed", false)): errors.append("full identity native actuation matrix")
 		selected_motion = EXPECTED_MOTIONS.find("locomote"); selected_facing = 2; motion_epoch = 0.0; simulation_time = 0.25
 		_apply_motion_force(organisms[0], 1.0 / 60.0)
 		for velocity in organisms[0]["velocity"]: actuation_velocity += velocity.length()
@@ -1005,6 +1066,7 @@ func _run_motion_smoke() -> void:
 		"trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified,
 		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
 		"full_identity_failure_matrix": full_identity_failure_matrix,
+		"full_identity_actuation_matrix": full_identity_actuation_matrix,
 		"homeostasis_matrix": homeostasis_matrix, "reserve_aware_homeostasis_verified": bool(homeostasis_matrix.get("passed", false)),
 		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "local_perfusion_verified": local_perfusion_verified, "progressive_chain_verified": progressive_chain_verified,
 		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,
