@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/morphology_subtype_grammar.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "grammar_version", "compiler", "family_vocab", "variant_vocab", "sample_count", "subtype_count", "identities_per_subtype", "preset_contract", "records", "classification", "aggregate", "contact_sheet", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-morphology-subtype-grammar-bank-v1"},
+    "status": {"const": "ready"},
+    "grammar_version": {"const": "soft-bilateral-chassis-subtype-grammar-v1"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "dependency_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "dependency_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "family_vocab": {"const": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+    "variant_vocab": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "string"}}},
+    "sample_count": {"const": 160}, "subtype_count": {"const": 20}, "identities_per_subtype": {"const": 8},
+    "preset_contract": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "object"}}},
+    "records": {"type": "array", "minItems": 160, "maxItems": 160, "items": {"$ref": "#/$defs/record"}},
+    "classification": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/classification"}},
+    "aggregate": {"type": "object", "additionalProperties": false, "required": ["unique_semantic_count", "minimum_unique_semantics_per_subtype", "mean_horizontal_symmetry_by_family"], "properties": {"unique_semantic_count": {"const": 160}, "minimum_unique_semantics_per_subtype": {"type": "integer", "minimum": 6}, "mean_horizontal_symmetry_by_family": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "number", "minimum": 0, "maximum": 1}}}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "gates": {"type": "object", "minProperties": 8, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"const": "subtype_contact_sheet.png"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "metrics": {"type": "object", "additionalProperties": false, "required": ["bbox", "solid_pixels", "horizontal_symmetry", "vertical_symmetry"], "properties": {"bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "integer"}}, "solid_pixels": {"type": "integer", "minimum": 1}, "horizontal_symmetry": {"type": "number", "minimum": 0, "maximum": 1}, "vertical_symmetry": {"type": "number", "minimum": 0, "maximum": 1}}},
+    "record": {"type": "object", "additionalProperties": false, "required": ["family", "family_id", "variant", "subtype_id", "subtype", "identity", "seed", "role_id", "genome", "semantic_sha256", "training_arrays_sha256", "metrics"], "properties": {"family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "variant": {"type": "integer", "minimum": 0, "maximum": 3}, "subtype_id": {"type": "integer", "minimum": 0, "maximum": 19}, "subtype": {"type": "string"}, "identity": {"type": "integer", "minimum": 0, "maximum": 7}, "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}, "role_id": {"type": "integer", "minimum": 0, "maximum": 7}, "genome": {"type": "object"}, "semantic_sha256": {"$ref": "#/$defs/sha"}, "training_arrays_sha256": {"$ref": "#/$defs/sha"}, "metrics": {"$ref": "#/$defs/metrics"}}},
+    "classRow": {"type": "object", "additionalProperties": false, "required": ["id", "name", "count", "correct", "recall"], "properties": {"id": {"type": "integer", "minimum": 0, "maximum": 3}, "name": {"type": "string"}, "count": {"const": 8}, "correct": {"type": "integer", "minimum": 0, "maximum": 8}, "recall": {"type": "number", "minimum": 0, "maximum": 1}}},
+    "confusion": {"type": "object", "additionalProperties": false, "required": ["true_id", "predicted_id", "count"], "properties": {"true_id": {"type": "integer", "minimum": 0, "maximum": 3}, "predicted_id": {"type": "integer", "minimum": 0, "maximum": 3}, "count": {"type": "integer", "minimum": 1}}},
+    "classification": {"type": "object", "additionalProperties": false, "required": ["family", "family_id", "accuracy", "retained_feature_count", "per_class", "confusion"], "properties": {"family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "accuracy": {"type": "number", "minimum": 0, "maximum": 1}, "retained_feature_count": {"type": "integer", "minimum": 1}, "per_class": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/classRow"}}, "confusion": {"type": "array", "items": {"$ref": "#/$defs/confusion"}}}}
+  }
+}
