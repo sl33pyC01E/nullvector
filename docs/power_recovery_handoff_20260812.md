@@ -1,5 +1,26 @@
 # Power-recovery handoff — 2026-08-12
 
+## Closure update — 2026-08-14
+
+The old `neural_rig_repair_v2_recovery_20260812` tree below remains preserved
+as stale, unsealed evidence and must not be resumed against the current source.
+Its fail-closed source check correctly rejects the old `c702843c...` shards.
+The later authoritative bank is already sealed at
+`outputs/neural_rig_repair_v2_sharded_replay_20260813` against current repair
+source `11d4faccc9d9a5d66e35cf2199dc8d415ceb250c2e0d0cb63a99ab827672a54e`.
+
+A fresh CPU-only replay on 2026-08-14 independently recompiled all 80 plans,
+rerendered 8,320 motion/facing clips and 75,520 semantic frames, and passed all
+exact comparisons. The report is
+`work/neural_rig_repair_replay_current_20260814.json`; its canonical replay
+SHA-256 is `1444d2f5bbf99166e3968469db506b5f2be658981fed17c747f3898688d3e4f9`
+and its file SHA-256 is
+`9883c5c28e9c5e85313809327e992b2b5b6d553fc36d0855c0493715110b5b85`.
+The focused repair suite passed 17 tests with 3 expected sealed-bank skips, the
+14 non-exhaustive bridge adversarial tests passed, and the repair-style suite
+passed 2/2. The existing all-80 style bank remains current and source-bound:
+80 identities, 560 layer atlases, 8,320 clips, and 75,520 frames.
+
 This is the frozen handoff after the unexpected Windows shutdown at 17:03.
 Nothing listed as staged is a publishable bank. No neural-game Python, Godot,
 FFmpeg, or CUDA training process was left running.
@@ -134,4 +155,3 @@ python -m forge.sprite_latent validate outputs/sprite_latent/smoke_v2/smoke_mani
 
 After independent visual review, add adversarial tests and a segmented,
 fresh-process CUDA trainer before any production run.
-
