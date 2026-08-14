@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/morphology_subtype_motion.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "compiler", "family_vocab", "motion_vocab", "facing_vocab", "subtype_count", "north_clip_count", "directional_locomotion_clip_count", "identities", "directional_locomotion", "aggregate", "contact_sheet", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-morphology-subtype-motion-audit-v1"}, "status": {"const": "ready"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "dependency_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "dependency_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "family_vocab": {"const": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+    "motion_vocab": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"type": "string"}},
+    "facing_vocab": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"type": "string"}},
+    "subtype_count": {"const": 20}, "north_clip_count": {"const": 260}, "directional_locomotion_clip_count": {"const": 160},
+    "identities": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/identity"}},
+    "directional_locomotion": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/directional"}},
+    "aggregate": {"type": "object", "additionalProperties": false, "required": ["minimum_distinct_peak_pose_count", "minimum_directional_signature_count", "total_stored_frame_count"], "properties": {"minimum_distinct_peak_pose_count": {"type": "integer", "minimum": 11}, "minimum_directional_signature_count": {"type": "integer", "minimum": 6}, "total_stored_frame_count": {"type": "integer", "minimum": 2000}}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"}, "gates": {"type": "object", "minProperties": 8, "additionalProperties": {"const": true}}, "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"const": "subtype_motion_contact_sheet.png"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "layerCounts": {"type": "object", "minProperties": 12, "additionalProperties": {"type": "integer", "minimum": 1}},
+    "clip": {"type": "object", "additionalProperties": false, "required": ["motion", "facing", "frame_count", "fps", "loop", "clip_sha256", "unique_semantic_frames", "max_changed_pixel_fraction", "layer_unique_frames", "event_count", "event_names"], "properties": {"motion": {"type": "string"}, "facing": {"type": "string"}, "frame_count": {"type": "integer", "minimum": 3}, "fps": {"type": "integer", "minimum": 1}, "loop": {"type": "boolean"}, "clip_sha256": {"$ref": "#/$defs/sha"}, "unique_semantic_frames": {"type": "integer", "minimum": 2}, "max_changed_pixel_fraction": {"type": "number", "exclusiveMinimum": 0}, "layer_unique_frames": {"$ref": "#/$defs/layerCounts"}, "event_count": {"type": "integer", "minimum": 1}, "event_names": {"type": "array", "minItems": 1, "items": {"type": "string"}}}},
+    "motionGates": {"type": "object", "minProperties": 6, "additionalProperties": {"const": true}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["family", "family_id", "variant", "subtype_id", "subtype", "seed", "specimen_semantic_sha256", "motion_count", "distinct_peak_pose_count", "clips", "motion_gates"], "properties": {"family": {"type": "string"}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "variant": {"type": "integer", "minimum": 0, "maximum": 3}, "subtype_id": {"type": "integer", "minimum": 0, "maximum": 19}, "subtype": {"type": "string"}, "seed": {"type": "integer", "minimum": 0}, "specimen_semantic_sha256": {"$ref": "#/$defs/sha"}, "motion_count": {"const": 13}, "distinct_peak_pose_count": {"type": "integer", "minimum": 11}, "clips": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/clip"}}, "motion_gates": {"$ref": "#/$defs/motionGates"}}},
+    "directionRow": {"type": "object", "additionalProperties": false, "required": ["facing", "clip_sha256", "quarter_frame_sha256"], "properties": {"facing": {"type": "string"}, "clip_sha256": {"$ref": "#/$defs/sha"}, "quarter_frame_sha256": {"$ref": "#/$defs/sha"}}},
+    "directional": {"type": "object", "additionalProperties": false, "required": ["subtype_id", "directions", "unique_directional_signatures"], "properties": {"subtype_id": {"type": "integer", "minimum": 0, "maximum": 19}, "directions": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"$ref": "#/$defs/directionRow"}}, "unique_directional_signatures": {"type": "integer", "minimum": 6, "maximum": 8}}}
+  }
+}
