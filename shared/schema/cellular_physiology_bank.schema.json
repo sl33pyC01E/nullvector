@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_physiology_bank.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "array_format", "system_vocab", "role_vocab", "identity_count", "system_count", "total_system_memberships", "overlapping_cell_count", "identities", "contact_sheet", "runtime_contract", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-connected-cellular-physiology-bank-v1"},
+    "status": {"const": "ready"},
+    "quality_tier": {"const": "overlapping-connected-damage-responsive-organ-systems-v1"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["organism_manifest", "organism_manifest_sha256", "organism_semantic_sha256", "organism_validation"], "properties": {"organism_manifest": {"type": "string", "pattern": "^[^\\\\]+$"}, "organism_manifest_sha256": {"$ref": "#/$defs/sha"}, "organism_semantic_sha256": {"$ref": "#/$defs/sha"}, "organism_validation": {"type": "object"}}},
+    "array_format": {"const": "nullvector-connected-cellular-physiology-arrays-v1"},
+    "system_vocab": {"const": ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]},
+    "role_vocab": {"const": ["none", "core", "conduit", "exchange_or_effector"]},
+    "identity_count": {"const": 45}, "system_count": {"const": 8},
+    "total_system_memberships": {"type": "integer", "minimum": 1080},
+    "overlapping_cell_count": {"type": "integer", "minimum": 45},
+    "identities": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/identity"}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "runtime_contract": {"type": "object", "additionalProperties": false, "required": ["overlapping_system_membership", "capacity_depends_on_live_cells", "capacity_depends_on_bond_connectivity", "core_loss_is_catastrophic", "dependency_cascade_is_explicit", "respiratory_exchange_is_family_specific", "python_runtime_required"], "properties": {"overlapping_system_membership": {"const": true}, "capacity_depends_on_live_cells": {"const": true}, "capacity_depends_on_bond_connectivity": {"const": true}, "core_loss_is_catastrophic": {"const": true}, "dependency_cascade_is_explicit": {"const": true}, "respiratory_exchange_is_family_specific": {"const": true}, "python_runtime_required": {"const": false}}},
+    "gates": {"type": "object", "minProperties": 7, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "pattern": "^[^\\\\]+$"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "system": {"type": "object", "additionalProperties": false, "required": ["id", "name", "dependencies", "core_count", "conduit_count", "effector_count", "member_count", "baseline_weight"], "properties": {"id": {"type": "integer", "minimum": 0, "maximum": 7}, "name": {"type": "string"}, "dependencies": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "core_count": {"type": "integer", "minimum": 1}, "conduit_count": {"type": "integer", "minimum": 0}, "effector_count": {"type": "integer", "minimum": 0}, "member_count": {"type": "integer", "minimum": 1}, "baseline_weight": {"type": "number", "exclusiveMinimum": 0}}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["sample_id", "ordinal", "family", "family_id", "source_anatomy_sha256", "physical_cell_count", "systems", "arrays_semantic_sha256", "arrays"], "properties": {"sample_id": {"type": "string"}, "ordinal": {"type": "integer", "minimum": 0, "maximum": 44}, "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "source_anatomy_sha256": {"$ref": "#/$defs/sha"}, "physical_cell_count": {"type": "integer", "minimum": 24}, "systems": {"type": "array", "minItems": 8, "maxItems": 8, "items": {"$ref": "#/$defs/system"}}, "arrays_semantic_sha256": {"$ref": "#/$defs/sha"}, "arrays": {"$ref": "#/$defs/artifact"}}}
+  }
+}

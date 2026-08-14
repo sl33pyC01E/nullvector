@@ -25,8 +25,8 @@ locomotion; plantlike bodies emphasize auxiliary tendrils and grow slowly;
 machines move with a rigid chassis and stronger propulsion; anomalies have the
 largest irregular body/auxiliary motion; humanoids balance arms and legs.
 
-The native `CellularMotionLab.tscn` loads the symmetry-refined physical bodies
-and the motion catalog independently. Every simulation step computes a target
+The native `CellularMotionLab.tscn` loads the symmetry-refined physical bodies,
+the motion catalog, and the connected physiology catalog independently. Every simulation step computes a target
 for each living cell from its rest position and semantic organ channel, then
 adds a bounded impulse before the ordinary spring, fracture, fluid, metabolism
 and collision step. Appendages now swing from their body-side attachment cells

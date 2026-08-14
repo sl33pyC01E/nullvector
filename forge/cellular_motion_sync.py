@@ -16,9 +16,9 @@ from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-cellular-neuromuscular-native-catalog-v2"
+FORMAT = "nullvector-cellular-neuromuscular-native-catalog-v4"
 DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_motion/v2"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_motion/v4"
 
 
 def _source_registry() -> dict[str, str]:
@@ -34,7 +34,7 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
     source_manifest = Path(source_manifest).resolve(); validation = validate_bank(source_manifest)
     source = json.loads(source_manifest.read_text(encoding="utf-8")); registry = _source_registry()
     catalog: dict[str, object] = {
-        "format": FORMAT, "status": "ready", "bundle_version": 2,
+        "format": FORMAT, "status": "ready", "bundle_version": 4,
         "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"],
         "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)),
         "identity_count": source["identity_count"], "family_count": source["family_count"], "motion_count": source["motion_count"],

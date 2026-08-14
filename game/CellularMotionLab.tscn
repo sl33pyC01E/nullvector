@@ -11,4 +11,6 @@ exact_family_count = 0
 lineage_mode = true
 lab_title = "NULLVECTOR // NEUROMUSCULAR CELL MOTION LAB"
 lab_subtitle = "LIVE ORGAN DRIVERS // SPRING PHYSICS // 13 MOTIONS x 8 FACINGS // 45 ORGANISMS"
-motion_catalog_path = "res://generated/cellular_motion/v2/motion_catalog.json"
+motion_catalog_path = "res://generated/cellular_motion/v4/motion_catalog.json"
+physiology_catalog_path = "res://generated/cellular_physiology/v3/catalog.json"
+physiology_asset_root = "res://generated/cellular_physiology/v3/"
