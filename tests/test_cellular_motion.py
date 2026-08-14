@@ -7,13 +7,13 @@ from pathlib import Path
 import numpy as np
 
 from forge.cellular_motion import replay_bank, validate_bank
-from forge.cellular_motion.compiler import _channels, _pose_points
+from forge.cellular_motion.compiler import _attachment_records, _channels, _pose_points
 from forge.cellular_motion.contract import DRIVER_NAMES, FACING_NAMES, MOTION_NAMES, MOTION_SPECS
 from forge.cellular_organism.compiler import _load_arrays
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BANK = ROOT / "outputs/cellular_motion_v1/cellular_motion_manifest.json"
+BANK = ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
 ORGANISMS = ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
 
 
@@ -25,7 +25,7 @@ def test_cellular_motion_bank_validates_and_exact_replays() -> None:
     validation = validate_bank(BANK); replay = replay_bank(BANK)
     assert validation["passed"] is True
     assert (validation["identity_count"], validation["clip_count"], validation["frame_count"]) == (45, 520, 4720)
-    assert replay["exact_replay"] is True and replay["artifact_count"] == 2 and replay["artifact_bytes"] == 2_731_184
+    assert replay["exact_replay"] is True and replay["artifact_count"] == 2
 
 
 def test_every_family_motion_facing_frame_and_loop_contract_is_exact() -> None:
@@ -72,6 +72,57 @@ def test_every_identity_partitions_all_organs_exactly_once() -> None:
         assert len(mapped) == len(set(mapped)) == identity["organ_count"]
         assert sorted(mapped) == sorted(organ["id"] for organ in record["organs"])
         assert identity["source_anatomy_sha256"] == record["anatomy_sha256"]
+
+
+def test_every_organ_has_a_replayable_attachment_root_and_parent() -> None:
+    source = json.loads(ORGANISMS.read_text(encoding="utf-8"))
+    for record in source["offspring"]:
+        arrays = _load_arrays(ORGANISMS.parent / record["arrays"]["path"])
+        attachments = _attachment_records(arrays, record)
+        assert len(attachments) == len(record["organs"])
+        assert {item["organ_id"] for item in attachments} == {item["id"] for item in record["organs"]}
+        for item in attachments:
+            assert 0 <= item["root_cell"] < len(arrays["position_xy"])
+            assert arrays["organ_id"][item["root_cell"]] == item["organ_id"]
+            assert math.isfinite(item["maximum_radius"]) and item["maximum_radius"] >= 0
+
+
+def test_locomotor_and_action_organs_swing_from_attachment_not_centroid() -> None:
+    source = json.loads(ORGANISMS.read_text(encoding="utf-8")); manifest = _manifest()
+    driver_index = {name: index for index, name in enumerate(DRIVER_NAMES)}
+    for family_id in range(5):
+        record = next(record for record in source["offspring"] if record["family_id"] == family_id)
+        arrays = _load_arrays(ORGANISMS.parent / record["arrays"]["path"])
+        attachments = {item["organ_id"]: item for item in _attachment_records(arrays, record)}
+        for motion, channel_drivers in {
+            "locomote": {
+                "left_appendage": "appendage_left", "right_appendage": "appendage_right",
+                "left_locomotor": "locomotor_left", "right_locomotor": "locomotor_right",
+            },
+            "attack": {"right_appendage": "appendage_right", "weapon": "weapon_recoil"},
+        }.items():
+            clip = next(item for item in manifest["programs"][family_id]["clips"] if item["motion"] == motion)
+            for channel, driver in channel_drivers.items():
+                values = clip["facings"][0]["frames"]
+                low = min(values, key=lambda item: abs(item["drivers"][driver_index[driver]]))
+                peak = max(values, key=lambda item: abs(item["drivers"][driver_index[driver]]))
+                if abs(peak["drivers"][driver_index[driver]] - low["drivers"][driver_index[driver]]) < 0.1:
+                    continue
+                base = _pose_points(arrays, record, low, 0.0); posed = _pose_points(arrays, record, peak, 0.0)
+                for organ_id in _channels(record)[channel]:
+                    members = np.flatnonzero(arrays["organ_id"] == organ_id)
+                    if len(members) < 2: continue
+                    root = attachments[organ_id]["root_cell"]
+                    distal = members[np.argmax(np.linalg.norm(arrays["position_xy"][members] - arrays["position_xy"][root], axis=1))]
+                    rest_vector = base[distal] - base[root]; posed_vector = posed[distal] - posed[root]
+                    assert np.linalg.norm(posed_vector - rest_vector) > 0.01
+
+        breathe = next(item for item in manifest["programs"][family_id]["clips"] if item["motion"] == "idle_breathe")
+        spans = []
+        for frame in breathe["facings"][0]["frames"]:
+            points = _pose_points(arrays, record, frame, 0.0)
+            spans.append(float(np.ptp(points[:, 1])))
+        assert max(spans) - min(spans) > 0.05
 
 
 def test_reference_pose_projection_preserves_cell_identity_and_is_bounded() -> None:

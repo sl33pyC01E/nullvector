@@ -1,11 +1,11 @@
 extends "res://scripts/cellular_organism_lab.gd"
 
-const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v1"
+const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v2"
 const EXPECTED_MOTIONS := ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"]
 const EXPECTED_FACINGS := ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
 const EXPECTED_DRIVERS := ["body_bob", "body_sway", "body_squash", "head_tilt", "appendage_left", "appendage_right", "locomotor_left", "locomotor_right", "auxiliary", "weapon_recoil", "sensory_focus", "emission_pulse", "propulsion", "pain_spasm"]
 
-@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v1/motion_catalog.json"
+@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v2/motion_catalog.json"
 
 var motion_catalog: Dictionary = {}
 var motion_identities: Dictionary = {}
@@ -69,20 +69,32 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	for position in organism["position"]: rest_center += position
 	rest_center /= maxi(1, organism["position"].size())
 	for position in organism["position"]: rest_local.append(position - rest_center)
-	var organ_sums: Dictionary = {}; var organ_counts: Dictionary = {}
-	for index in range(rest_local.size()):
-		var key := str(int(organism["organ_id"][index])); organ_sums[key] = organ_sums.get(key, Vector2.ZERO) + rest_local[index]; organ_counts[key] = int(organ_counts.get(key, 0)) + 1
-	var organ_pivots: Dictionary = {}
-	for key in organ_sums: organ_pivots[key] = organ_sums[key] / max(1, int(organ_counts[key]))
 	var identity: Dictionary = motion_identities.get(str(data.get("sample_id", "")), {})
 	var channel_by_organ: Dictionary = {}
 	for channel in identity.get("channels", {}):
 		for organ_id in identity.get("channels", {}).get(channel, []): channel_by_organ[str(int(organ_id))] = str(channel)
+	var attachment_by_organ: Dictionary = {}
+	for attachment in identity.get("attachments", []):
+		var root_cell := int(attachment.get("root_cell", -1)); var organ_key := str(int(attachment.get("organ_id", -1)))
+		if root_cell < 0 or root_cell >= rest_local.size(): continue
+		attachment_by_organ[organ_key] = {"root_cell": root_cell, "pivot": rest_local[root_cell], "parent_organ_id": int(attachment.get("parent_organ_id", 0)), "maximum_radius": float(attachment.get("maximum_radius", 0.0))}
+	var channel_initial_cells: Dictionary = {}
+	for index in range(organism["organ_id"].size()):
+		var channel := str(channel_by_organ.get(str(int(organism["organ_id"][index])), "chassis"))
+		channel_initial_cells[channel] = int(channel_initial_cells.get(channel, 0)) + 1
+	var motion_neighbors: Array = []
+	for index in range(organism["position"].size()): motion_neighbors.append([])
+	for bond_index in range(organism["bond_ab"].size()):
+		var pair: Array = organism["bond_ab"][bond_index]; var a := int(pair[0]); var b := int(pair[1])
+		motion_neighbors[a].append([b, bond_index]); motion_neighbors[b].append([a, bond_index])
 	organism["motion_rest_local"] = rest_local
-	organism["motion_organ_pivots"] = organ_pivots
+	organism["motion_attachment_by_organ"] = attachment_by_organ
 	organism["motion_channel_by_organ"] = channel_by_organ
+	organism["motion_channel_initial_cells"] = channel_initial_cells
+	organism["motion_neighbors"] = motion_neighbors
 	organism["motion_emission_pulse"] = 0.0
 	organism["motion_energy_spent"] = 0.0
+	organism["motion_neural_integrity"] = 1.0
 	return organism
 
 
@@ -124,36 +136,65 @@ func _channel_driver(channel: String, drivers: Dictionary) -> float:
 	return 0.0
 
 
-func _neural_system_alive(organism: Dictionary) -> bool:
-	var channels: Dictionary = organism.get("motion_channel_by_organ", {})
+func _neural_reachable_cells(organism: Dictionary) -> Dictionary:
+	var channels: Dictionary = organism.get("motion_channel_by_organ", {}); var reachable: Dictionary = {}; var queue: Array[int] = []
 	for index in range(organism["alive"].size()):
-		if organism["alive"][index] and str(channels.get(str(int(organism["organ_id"][index])), "")) == "neural": return true
-	return false
+		if organism["alive"][index] and str(channels.get(str(int(organism["organ_id"][index])), "")) == "neural":
+			reachable[str(index)] = true; queue.append(index)
+	var cursor := 0
+	while cursor < queue.size():
+		var current := queue[cursor]; cursor += 1
+		for edge in organism.get("motion_neighbors", [])[current]:
+			var neighbor := int(edge[0]); var bond_index := int(edge[1])
+			if organism["bond_alive"][bond_index] and organism["alive"][neighbor] and not reachable.has(str(neighbor)):
+				reachable[str(neighbor)] = true; queue.append(neighbor)
+	return reachable
+
+
+func _channel_integrities(organism: Dictionary, reachable: Dictionary) -> Dictionary:
+	var initial: Dictionary = organism.get("motion_channel_initial_cells", {}); var functioning: Dictionary = {}; var channels: Dictionary = organism.get("motion_channel_by_organ", {})
+	for index in range(organism["alive"].size()):
+		if organism["alive"][index] and reachable.has(str(index)):
+			var channel := str(channels.get(str(int(organism["organ_id"][index])), "chassis")); functioning[channel] = int(functioning.get(channel, 0)) + 1
+	var result: Dictionary = {}
+	for channel in initial:
+		var count := int(initial[channel]); result[channel] = clampf(float(functioning.get(channel, 0)) / maxf(1.0, float(count)), 0.0, 1.0)
+	return result
 
 
 func _apply_motion_force(organism: Dictionary, delta: float) -> void:
-	if not _neural_system_alive(organism): return
+	var reachable := _neural_reachable_cells(organism)
+	var channel_integrity := _channel_integrities(organism, reachable)
+	var neural_integrity := float(channel_integrity.get("neural", 0.0)); organism["motion_neural_integrity"] = neural_integrity
+	if neural_integrity <= 0.08: return
 	var state := _current_frame(organism)
 	if state.is_empty(): return
 	var drivers := _driver_map(state["frame"]); var center := _organism_center(organism)
 	var facing_angle := deg_to_rad(float(state["facing"].get("rotation_degrees", 0.0)))
 	var facing_vector := Vector2(0, -1).rotated(facing_angle)
 	var health_fraction := _sum_float(organism["health"]) / maxf(0.001, _sum_float(organism["max_health"]))
-	var strength: float = clampf(health_fraction, 0.08, 1.0) * 2.8
-	var rest_local: Array = organism["motion_rest_local"]; var pivots: Dictionary = organism["motion_organ_pivots"]; var channels: Dictionary = organism["motion_channel_by_organ"]
+	var neural_gain := smoothstep(0.08, 0.72, neural_integrity)
+	var strength: float = clampf(health_fraction, 0.08, 1.0) * 3.05 * neural_gain
+	var rest_local: Array = organism["motion_rest_local"]; var attachments: Dictionary = organism["motion_attachment_by_organ"]; var channels: Dictionary = organism["motion_channel_by_organ"]
 	var squash := float(drivers.get("body_squash", 0.0)); var work := 0.0
 	for index in range(organism["position"].size()):
-		if not organism["alive"][index]: continue
+		if not organism["alive"][index] or not reachable.has(str(index)): continue
 		var local: Vector2 = rest_local[index]
 		local.x *= 1.0 + squash * 0.10; local.y *= 1.0 - squash * 0.08
 		local += Vector2(float(drivers.get("body_sway", 0.0)) * 6.5, float(drivers.get("body_bob", 0.0)) * 8.0)
 		var organ_key := str(int(organism["organ_id"][index])); var channel := str(channels.get(organ_key, "chassis")); var amount := _channel_driver(channel, drivers)
-		if absf(amount) > 0.00001:
-			var pivot: Vector2 = pivots.get(organ_key, Vector2.ZERO); local = pivot + (local - pivot).rotated(amount * deg_to_rad(24.0))
+		var channel_gain := float(channel_integrity.get(channel, 1.0))
+		if absf(amount) > 0.00001 and channel != "chassis" and attachments.has(organ_key):
+			var attachment: Dictionary = attachments[organ_key]; var root_cell := int(attachment.get("root_cell", -1))
+			if root_cell < 0 or not organism["alive"][root_cell] or not reachable.has(str(root_cell)): continue
+			var pivot: Vector2 = attachment.get("pivot", Vector2.ZERO); local = pivot + (local - pivot).rotated(amount * channel_gain * deg_to_rad(30.0))
+		if neural_integrity < 0.72:
+			var tremor := sin(simulation_time * (10.0 + float(index % 7)) + float(index) * 1.618) * (1.0 - neural_integrity)
+			local += Vector2(tremor, -tremor * 0.65) * 2.4
 		local = local.rotated(facing_angle)
 		var target := center + local; var error: Vector2 = target - organism["position"][index]
 		if error.length() > 36.0: error = error.normalized() * 36.0
-		var impulse: Vector2 = error * strength * delta + facing_vector * float(drivers.get("propulsion", 0.0)) * 18.0 * delta
+		var impulse: Vector2 = error * strength * delta + facing_vector * float(drivers.get("propulsion", 0.0)) * 18.0 * delta * neural_gain
 		organism["velocity"][index] += impulse; work += impulse.length()
 	organism["motion_emission_pulse"] = float(drivers.get("emission_pulse", 0.0))
 	organism["motion_energy_spent"] = float(organism["motion_energy_spent"]) + work * 0.000015

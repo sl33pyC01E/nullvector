@@ -133,10 +133,81 @@ def _channels(record: Mapping[str, Any]) -> dict[str, list[int]]:
     return {key: sorted(set(values)) for key, values in result.items()}
 
 
-def _identity_records(source: Mapping[str, Any]) -> list[dict[str, object]]:
+def _channel_by_organ(record: Mapping[str, Any]) -> dict[int, str]:
+    return {
+        int(organ_id): channel
+        for channel, organ_ids in _channels(record).items()
+        for organ_id in organ_ids
+    }
+
+
+def _attachment_records(
+    arrays: Mapping[str, np.ndarray], record: Mapping[str, Any]
+) -> list[dict[str, object]]:
+    """Find a stable body-side hinge for every semantic organ.
+
+    V1 rotated an organ around its centroid, which made paired limbs spin in
+    place and allowed their attachment pixels to drift.  V2 chooses the
+    organ-side endpoint of a cross-organ bond, preferring a chassis parent.
+    The result is a real hinge that is replayable from the immutable cell graph.
+    """
+    positions = arrays["position_xy"].astype(np.float64)
+    organ_by_cell = arrays["organ_id"].astype(np.int64)
+    bond_ab = arrays["bond_ab"].astype(np.int64)
+    channels = _channel_by_organ(record)
+    center = positions.mean(axis=0)
+    cross_by_organ: dict[int, list[tuple[int, int, int]]] = {
+        int(organ["id"]): [] for organ in record["organs"]
+    }
+    for a_raw, b_raw in bond_ab:
+        a, b = int(a_raw), int(b_raw)
+        organ_a, organ_b = int(organ_by_cell[a]), int(organ_by_cell[b])
+        if organ_a == organ_b:
+            continue
+        cross_by_organ.setdefault(organ_a, []).append((a, b, organ_b))
+        cross_by_organ.setdefault(organ_b, []).append((b, a, organ_a))
+
+    result: list[dict[str, object]] = []
+    for organ in sorted(record["organs"], key=lambda item: int(item["id"])):
+        organ_id = int(organ["id"])
+        members = np.flatnonzero(organ_by_cell == organ_id)
+        if not len(members):
+            raise ValueError(f"Motion attachment organ {organ_id} has no cells")
+        candidates = cross_by_organ.get(organ_id, [])
+        chassis = [item for item in candidates if channels.get(item[2]) == "chassis"]
+        eligible = chassis or candidates
+        if eligible:
+            root_cell, _, parent_organ_id = min(
+                eligible,
+                key=lambda item: (
+                    float(np.square(positions[item[0]] - center).sum()),
+                    item[0], item[2], item[1],
+                ),
+            )
+        else:
+            root_cell = int(
+                members[np.argmin(np.square(positions[members] - center).sum(axis=1))]
+            )
+            parent_organ_id = 0
+        radius = float(np.linalg.norm(positions[members] - positions[root_cell], axis=1).max())
+        result.append(
+            {
+                "organ_id": organ_id,
+                "channel": channels[organ_id],
+                "root_cell": int(root_cell),
+                "parent_organ_id": int(parent_organ_id),
+                "maximum_radius": _round(radius),
+            }
+        )
+    return result
+
+
+def _identity_records(source_root: Path, source: Mapping[str, Any]) -> list[dict[str, object]]:
     records = []
     for record in source["offspring"]:
         channels = _channels(record)
+        arrays = _load_arrays(source_root.joinpath(*PurePosixPath(record["arrays"]["path"]).parts))
+        attachments = _attachment_records(arrays, record)
         mapped = sorted({organ_id for values in channels.values() for organ_id in values})
         expected = sorted(int(organ["id"]) for organ in record["organs"])
         if mapped != expected:
@@ -145,7 +216,8 @@ def _identity_records(source: Mapping[str, Any]) -> list[dict[str, object]]:
             "sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"],
             "source_anatomy_sha256": record["anatomy_sha256"], "source_fields_sha256": record["refined_fields_sha256"],
             "physical_cell_count": record["summary"]["physical_cell_count"], "organ_count": record["summary"]["organ_count"],
-            "channels": channels, "family_program_id": int(record["family_id"]),
+            "channels": channels, "attachments": attachments,
+            "family_program_id": int(record["family_id"]),
         })
     return records
 
@@ -162,12 +234,22 @@ def _pose_points(arrays: Mapping[str, np.ndarray], record: Mapping[str, Any], fr
         "left_locomotor": float(drivers["locomotor_left"]), "right_locomotor": float(drivers["locomotor_right"]),
         "auxiliary": float(drivers["auxiliary"]), "weapon": float(drivers["weapon_recoil"]), "emitter": float(drivers["auxiliary"]) * 0.5,
     }
+    attachment_by_organ = {
+        int(item["organ_id"]): item for item in _attachment_records(arrays, record)
+    }
     for channel, amount in transforms.items():
-        ids = channels[channel]
-        if not ids or abs(amount) < 1e-8: continue
-        mask = np.isin(organ_by_cell, ids); pivot = local[mask].mean(axis=0); angle = amount * math.radians(24.0)
-        cosine, sine = math.cos(angle), math.sin(angle); relative = local[mask] - pivot
-        local[mask] = relative @ np.asarray([[cosine, sine], [-sine, cosine]]) + pivot
+        if abs(amount) < 1e-8:
+            continue
+        for organ_id in channels[channel]:
+            mask = organ_by_cell == organ_id
+            if not bool(mask.any()):
+                continue
+            attachment = attachment_by_organ[int(organ_id)]
+            pivot = local[int(attachment["root_cell"])]
+            angle = amount * math.radians(30.0)
+            cosine, sine = math.cos(angle), math.sin(angle)
+            relative = local[mask] - pivot
+            local[mask] = relative @ np.asarray([[cosine, sine], [-sine, cosine]]) + pivot
     facing_angle = math.radians(rotation_degrees); cosine, sine = math.cos(facing_angle), math.sin(facing_angle)
     local = local @ np.asarray([[cosine, sine], [-sine, cosine]])
     local[:, 0] += float(drivers["propulsion"]) * math.sin(facing_angle) * 1.2
@@ -198,20 +280,20 @@ def _preview(source_root: Path, source: Mapping[str, Any], programs: list[Mappin
 
 def _build_files(source_manifest_path: Path) -> tuple[dict[str, bytes], dict[str, object]]:
     source_manifest_path = Path(source_manifest_path).resolve(); source_validation = validate_symmetry_bank(source_manifest_path)
-    source = json.loads(source_manifest_path.read_text(encoding="utf-8")); programs = _programs(); identities = _identity_records(source)
+    source = json.loads(source_manifest_path.read_text(encoding="utf-8")); programs = _programs(); identities = _identity_records(source_manifest_path.parent, source)
     preview = _preview(source_manifest_path.parent, source, programs); files = {"cellular_motion_contact_sheet.png": preview}
     clip_count = sum(len(program["clips"]) * 8 for program in programs)
     frame_count = sum(sum(clip["frame_count"] * 8 for clip in program["clips"]) for program in programs)
     manifest = {
-        "format": FORMAT, "status": "ready", "quality_tier": "deterministic-organ-driver-deformable-cell-motion-v1",
+        "format": FORMAT, "status": "ready", "quality_tier": "attachment-root-neuromuscular-cell-motion-v2",
         "compiler": {"source_sha256": source_sha256(), "python_runtime_required": False},
         "source": {"organism_manifest": source_manifest_path.relative_to(PROJECT_ROOT).as_posix(), "organism_manifest_sha256": sha256_file(source_manifest_path), "organism_semantic_sha256": source["semantic_sha256"], "organism_validation": source_validation},
         "identity_count": len(identities), "family_count": 5, "motion_count": 13, "facing_count": 8,
         "clip_count": clip_count, "frame_count": frame_count, "drivers": list(DRIVER_NAMES), "facings": list(FACING_NAMES), "motions": list(MOTION_NAMES),
         "programs": programs, "identities": identities,
         "contact_sheet": artifact_record_from_bytes("cellular_motion_contact_sheet.png", preview),
-        "runtime_contract": {"organ_level_targets": True, "cell_identity_preserved": True, "spring_physics_remains_authoritative": True, "motion_force_is_bounded": True, "no_sprite_frame_swapping": True, "python_runtime_required": False},
-        "gates": {"all_45_identities_mapped": len(identities) == 45, "all_5_families_programmed": len(programs) == 5, "all_13_motions_each_family": all(len(program["clips"]) == 13 for program in programs), "all_8_facings_each_motion": all(len(clip["facings"]) == 8 for program in programs for clip in program["clips"]), "all_loop_endpoints_exact": all(not clip["loop"] or all(facing["frames"][0]["drivers"] == facing["frames"][-1]["drivers"] for facing in clip["facings"]) for program in programs for clip in program["clips"]), "all_organs_partitioned_once": True, "all_drivers_bounded": True, "event_markers_present": all(clip["events"] for program in programs for clip in program["clips"]), "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
+        "runtime_contract": {"organ_level_targets": True, "attachment_root_hierarchy": True, "severed_organs_are_not_actuated": True, "progressive_neural_impairment": True, "cell_identity_preserved": True, "spring_physics_remains_authoritative": True, "motion_force_is_bounded": True, "no_sprite_frame_swapping": True, "python_runtime_required": False},
+        "gates": {"all_45_identities_mapped": len(identities) == 45, "all_5_families_programmed": len(programs) == 5, "all_13_motions_each_family": all(len(program["clips"]) == 13 for program in programs), "all_8_facings_each_motion": all(len(clip["facings"]) == 8 for program in programs for clip in program["clips"]), "all_loop_endpoints_exact": all(not clip["loop"] or all(facing["frames"][0]["drivers"] == facing["frames"][-1]["drivers"] for facing in clip["facings"]) for program in programs for clip in program["clips"]), "all_organs_partitioned_once": True, "all_organs_have_attachment_roots": all(len(identity["attachments"]) == identity["organ_count"] for identity in identities), "all_drivers_bounded": True, "event_markers_present": all(clip["events"] for program in programs for clip in program["clips"]), "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
     }
     manifest["semantic_sha256"] = json_sha256(manifest); files["cellular_motion_manifest.json"] = canonical_json_bytes(manifest)
     return files, manifest
@@ -235,9 +317,19 @@ def validate_bank(manifest_path: Path) -> dict[str, object]:
     if not source_path.is_relative_to(PROJECT_ROOT) or sha256_file(source_path) != manifest["source"]["organism_manifest_sha256"]: raise ValueError("Cellular motion source provenance differs")
     validate_symmetry_bank(source_path); source = json.loads(source_path.read_text(encoding="utf-8"))
     if source["semantic_sha256"] != manifest["source"]["organism_semantic_sha256"]: raise ValueError("Cellular motion source semantic provenance differs")
-    expected_programs = _programs(); expected_identities = _identity_records(source)
+    expected_programs = _programs(); expected_identities = _identity_records(source_path.parent, source)
     if manifest["programs"] != expected_programs or manifest["identities"] != expected_identities: raise ValueError("Cellular motion deterministic program replay differs")
     if manifest["clip_count"] != 520 or manifest["frame_count"] != 4720: raise ValueError("Cellular motion clip/frame census differs")
+    for identity in manifest["identities"]:
+        attachments = identity["attachments"]
+        if len(attachments) != identity["organ_count"]:
+            raise ValueError("Cellular motion attachment census differs")
+        if sorted(item["organ_id"] for item in attachments) != sorted(
+            organ_id for organ_ids in identity["channels"].values() for organ_id in organ_ids
+        ):
+            raise ValueError("Cellular motion attachment organ partition differs")
+        if any(item["root_cell"] >= identity["physical_cell_count"] for item in attachments):
+            raise ValueError("Cellular motion attachment root is outside the body")
     for program in manifest["programs"]:
         for clip in program["clips"]:
             expected_frames, expected_fps, expected_loop = MOTION_SPECS[clip["motion"]]

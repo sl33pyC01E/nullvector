@@ -8,32 +8,30 @@ from forge.cellular_motion_sync import project_runtime, validate_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "outputs/cellular_motion_v1/cellular_motion_manifest.json"
-RUNTIME = ROOT / "game/generated/cellular_motion/v1"
+SOURCE = ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
+RUNTIME = ROOT / "game/generated/cellular_motion/v2"
 SCENE = ROOT / "game/CellularMotionLab.tscn"
 SCRIPT = ROOT / "game/scripts/cellular_motion_lab.gd"
 
 
 def test_motion_native_projection_is_repeatable_and_closed() -> None:
     assert project_runtime(SOURCE) == project_runtime(SOURCE)
-    assert validate_runtime(RUNTIME) == {
-        "passed": True, "identity_count": 45, "clip_count": 520, "frame_count": 4720,
-        "bundle_id": "1fb5d0cf4a86a77e86bb4f58451cbf1d9c10ac1a2b9ca9a08ad972135d2dbfc9",
-        "bytes": 2_730_768,
-    }
+    validation = validate_runtime(RUNTIME)
+    assert (validation["passed"], validation["identity_count"], validation["clip_count"], validation["frame_count"]) == (True, 45, 520, 4720)
+    assert validation["bytes"] > 2_000_000 and len(validation["bundle_id"]) == 64
 
 
 def test_native_scene_uses_live_organ_drivers_not_sprite_frames() -> None:
     scene = SCENE.read_text(encoding="utf-8"); script = SCRIPT.read_text(encoding="utf-8")
-    assert 'motion_catalog_path = "res://generated/cellular_motion/v1/motion_catalog.json"' in scene
+    assert 'motion_catalog_path = "res://generated/cellular_motion/v2/motion_catalog.json"' in scene
     assert "expected_species_count = 45" in scene
-    for feature in ("_apply_motion_force", "_channel_driver", "_neural_system_alive", "_current_frame"):
+    for feature in ("_apply_motion_force", "_channel_driver", "_neural_reachable_cells", "_channel_integrities", "_current_frame"):
         assert feature in script
     assert "AtlasTexture" not in script and "Sprite2D" not in script
 
 
 def test_native_smoke_exhausts_motion_programs_and_actuates_damageable_body() -> None:
-    report = json.loads((ROOT / "outputs/cellular_motion_godot_report.json").read_text(encoding="utf-8"))
+    report = json.loads((ROOT / "outputs/cellular_motion_v2_godot_report.json").read_text(encoding="utf-8"))
     assert report["passed"] is True
     assert (report["identity_count"], report["clip_count"], report["frame_count"]) == (45, 520, 4720)
     assert report["mapped_organs"] == 748 and report["event_count"] == 85

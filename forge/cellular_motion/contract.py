@@ -8,9 +8,9 @@ from ..cellular_symmetry.contract import source_sha256 as symmetry_source_sha256
 from ..config import PROJECT_ROOT
 
 
-FORMAT: Final[str] = "nullvector-cellular-neuromuscular-motion-bank-v1"
+FORMAT: Final[str] = "nullvector-cellular-neuromuscular-motion-bank-v2"
 DEFAULT_SOURCE: Final[Path] = PROJECT_ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_motion_v1"
+DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_motion_v2"
 SCHEMA_PATH: Final[Path] = PROJECT_ROOT / "shared/schema/cellular_motion_bank.schema.json"
 
 FACING_NAMES: Final[tuple[str, ...]] = ("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")
