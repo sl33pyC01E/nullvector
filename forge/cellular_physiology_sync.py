@@ -18,10 +18,10 @@ from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-connected-cellular-physiology-runtime-v1"
-CATALOG_FORMAT = "nullvector-connected-cellular-physiology-native-catalog-v3"
-DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_physiology_v1/cellular_physiology_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v3"
+FORMAT = "nullvector-connected-cellular-physiology-runtime-v2"
+CATALOG_FORMAT = "nullvector-connected-cellular-physiology-native-catalog-v4"
+DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_physiology_v2/cellular_physiology_manifest.json"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v4_2"
 
 
 def _source_registry() -> dict[str, str]:
@@ -47,7 +47,17 @@ def project_runtime(source_manifest: Path = DEFAULT_SOURCE) -> dict[str, bytes]:
         relative = f"identities/{record['sample_id']}.json"; payload = canonical_json_bytes(runtime); files[relative] = payload
         identities.append({"sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"], "runtime": {"path": relative, "bytes": len(payload), "sha256": sha256_bytes(payload)}})
     registry = _source_registry(); contact = (source_manifest.parent / source["contact_sheet"]["path"]).read_bytes(); files["cellular_physiology_contact_sheet.png"] = contact
-    catalog: dict[str, object] = {"format": CATALOG_FORMAT, "status": "ready", "bundle_version": 3, "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"], "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)), "identity_count": 45, "system_count": 8, "systems": list(SYSTEM_NAMES), "identities": identities, "contact_sheet": {"path": "cellular_physiology_contact_sheet.png", "bytes": len(contact), "sha256": sha256_bytes(contact)}, "validation": validation, "runtime_contract": source["runtime_contract"]}
+    catalog: dict[str, object] = {
+        "format": CATALOG_FORMAT, "status": "ready", "bundle_version": 4,
+        "source_manifest_sha256": sha256_file(source_manifest),
+        "source_semantic_sha256": source["semantic_sha256"],
+        "sync_source_manifest": registry,
+        "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)),
+        "identity_count": 45, "system_count": 8, "systems": list(SYSTEM_NAMES),
+        "identities": identities,
+        "contact_sheet": {"path": "cellular_physiology_contact_sheet.png", "bytes": len(contact), "sha256": sha256_bytes(contact)},
+        "validation": validation, "runtime_contract": source["runtime_contract"],
+    }
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog)); files["catalog.json"] = canonical_json_bytes(catalog)
     return files
 
@@ -82,7 +92,7 @@ def validate_runtime(destination: Path = DEFAULT_DESTINATION) -> dict[str, objec
     expected = project_runtime(DEFAULT_SOURCE)
     for relative, payload in expected.items():
         if not (destination / relative).is_file() or (destination / relative).read_bytes() != payload: raise ValueError(f"Physiology native exact replay differs: {relative}")
-    actual = {path.relative_to(destination).as_posix() for path in destination.rglob("*") if path.is_file()}
+    actual = {path.relative_to(destination).as_posix() for path in destination.rglob("*") if path.is_file() and path.suffix.lower() != ".import"}
     if actual != set(expected): raise ValueError("Physiology native output closure differs")
     return {"passed": True, "identity_count": 45, "system_count": 8, "cell_count": total_cells, "bundle_id": catalog["bundle_id"], "bytes": sum(map(len, expected.values()))}
 

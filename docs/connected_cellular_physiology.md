@@ -26,14 +26,21 @@ capacities. Brain loss removes deliberate motion and sensing without pretending
 that the gut or heart vanished. Gut loss stops nutrient conversion. Respiratory
 loss depletes oxygen and causes secondary neural injury.
 
+Physiology v2 makes those paths literal. A system may traverse only cells
+declared as its core, conduit, or effector; arbitrary healthy chassis cells can
+no longer bridge a cut vessel or motor tract. The reference simulator also
+computes a widest-path signal for every member and a per-cell delivery field.
+Local healing therefore needs immune, circulation, and digestion delivery at
+the wound rather than merely three healthy global counters.
+
 Build, validate, and replay without CUDA:
 
 ```powershell
 python -m forge.cellular_physiology build
 python -m forge.cellular_physiology validate `
-  outputs/cellular_physiology_v1/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v2/cellular_physiology_manifest.json
 python -m forge.cellular_physiology replay `
-  outputs/cellular_physiology_v1/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v2/cellular_physiology_manifest.json
 ```
 
 The deterministic `PhysiologyState` is the reference capacity/damage model.
@@ -41,8 +48,8 @@ The native projection is built with:
 
 ```powershell
 python -m forge.cellular_physiology_sync `
-  --destination game/generated/cellular_physiology/v3 `
-  --report outputs/cellular_physiology_v3_sync_report.json
+  --destination game/generated/cellular_physiology/v4_2 `
+  --report outputs/cellular_physiology_sync_v4_2.json
 ```
 
 `CellularMotionLab.tscn` consumes that projection alongside the attachment-root
@@ -51,6 +58,10 @@ oxygen capacity. Digestion and tissue regeneration are scaled by connected gut,
 circulation, and repair capacity; respiratory failure depletes oxygen and
 injures neural tissue; low circulation causes systemic damage; neural and
 locomotor capacity scale intentional spring forces; reproduction requires a
-functional reproductive system. The headless native smoke destroys the brain
+functional reproductive system. Locomotor force is gated again at each cell by
+its living motor-system route, so severing one tract can make one appendage go
+limp without freezing an intact limb. The headless native smoke destroys the brain
 core of a diagnostic offspring and proves that neural/locomotor capacity reaches
-zero while circulation remains functional. Python is not required at runtime.
+zero while circulation remains functional. It also proves member-restricted
+routing and progressive root-to-tip appendage coordinates. Python is not
+required at runtime.

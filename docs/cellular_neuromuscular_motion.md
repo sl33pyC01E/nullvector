@@ -96,6 +96,13 @@ arrow keys select facing. `Q/E` changes species, `V` changes anatomy view,
 `F` feeds, `R` reproduces, `Space` blasts, left-drag tears cells, right-click
 places food, `B` toggles bonds, `G` toggles gravity and `P` pauses.
 
+The native lab now applies each authored driver over a continuous attachment
+root-to-tip coordinate. Breathing and idle squash remain coherent at the
+chassis, while locomotion, attacks, casting, recoil, and emotes bend distal
+appendage cells progressively instead of rotating each organ as a rigid card.
+Local motor-tract reachability gates those forces, so anatomical cuts are
+visible in the motion itself.
+
 The compiler contact sheet is
 `outputs/cellular_motion_v2/cellular_motion_contact_sheet.png`. It shows one
 family representative at the principal event pose for every motion. The native

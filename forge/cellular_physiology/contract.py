@@ -7,10 +7,10 @@ from typing import Final
 from ..config import PROJECT_ROOT
 
 
-FORMAT: Final[str] = "nullvector-connected-cellular-physiology-bank-v1"
-ARRAY_FORMAT: Final[str] = "nullvector-connected-cellular-physiology-arrays-v1"
+FORMAT: Final[str] = "nullvector-connected-cellular-physiology-bank-v2"
+ARRAY_FORMAT: Final[str] = "nullvector-connected-cellular-physiology-arrays-v2"
 DEFAULT_SOURCE: Final[Path] = PROJECT_ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_physiology_v1"
+DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_physiology_v2"
 SCHEMA_PATH: Final[Path] = PROJECT_ROOT / "shared/schema/cellular_physiology_bank.schema.json"
 
 SYSTEM_NAMES: Final[tuple[str, ...]] = (
@@ -40,7 +40,7 @@ SOURCE_FILES: Final[tuple[str, ...]] = (
 
 
 def source_sha256() -> str:
-    digest = hashlib.sha256(b"nullvector-connected-cellular-physiology-source-v1\0")
+    digest = hashlib.sha256(b"nullvector-connected-cellular-physiology-source-v2\0")
     for relative in SOURCE_FILES:
         path = PROJECT_ROOT / relative
         if not path.is_file():

@@ -161,7 +161,12 @@ def compile_systems(
         immune_seed = set(sorted(vascular or surface, key=lambda index: (float(np.square(positions[index] - center).sum()), index))[:max(2, min(6, count // 100 + 2))])
 
     definitions: dict[str, tuple[set[int], set[int], set[int]]] = {}
-    definitions["circulation"] = (heart, vascular | heart, set())
+    # Vascular tissue is often generated as several semantically meaningful
+    # islands.  Make the circulation graph explicit by laying a cellular
+    # conduit from every island back to the heart instead of relying on the
+    # surrounding chassis as an invisible shortcut.
+    circulation_paths = _path_union(adjacency, vascular | heart, heart)
+    definitions["circulation"] = (heart, vascular | heart | circulation_paths, set())
     respiration_paths = _path_union(adjacency, respiration, heart)
     definitions["respiration"] = (respiration, respiration | respiration_paths, respiration)
     digestion_paths = _path_union(adjacency, gut, heart)
@@ -209,7 +214,7 @@ def compile_systems(
 
 def _overlay_sha(arrays: Mapping[str, np.ndarray]) -> str:
     import hashlib
-    digest = hashlib.sha256(b"nullvector-connected-physiology-arrays-v1\0")
+    digest = hashlib.sha256(b"nullvector-connected-physiology-arrays-v2\0")
     for name in sorted(arrays):
         value = np.ascontiguousarray(arrays[name])
         digest.update(name.encode() + b"\0" + str(value.dtype).encode() + b"\0")
@@ -252,14 +257,14 @@ def _build_files(source_manifest: Path) -> tuple[dict[str, bytes], dict[str, obj
         })
     contact_payload = _contact_sheet(source_manifest.parent, source); files["cellular_physiology_contact_sheet.png"] = contact_payload
     manifest: dict[str, object] = {
-        "format": FORMAT, "status": "ready", "quality_tier": "overlapping-connected-damage-responsive-organ-systems-v1",
+        "format": FORMAT, "status": "ready", "quality_tier": "member-routed-local-delivery-organ-systems-v2",
         "compiler": {"source_sha256": source_sha256(), "python_runtime_required": False},
         "source": {"organism_manifest": source_manifest.relative_to(PROJECT_ROOT).as_posix(), "organism_manifest_sha256": sha256_file(source_manifest), "organism_semantic_sha256": source["semantic_sha256"], "organism_validation": validation},
         "array_format": ARRAY_FORMAT, "system_vocab": list(SYSTEM_NAMES), "role_vocab": list(ROLE_NAMES),
         "identity_count": len(identities), "system_count": len(SYSTEM_NAMES), "total_system_memberships": total_memberships, "overlapping_cell_count": overlapping_cells,
         "identities": identities, "contact_sheet": artifact_record_from_bytes("cellular_physiology_contact_sheet.png", contact_payload),
-        "runtime_contract": {"overlapping_system_membership": True, "capacity_depends_on_live_cells": True, "capacity_depends_on_bond_connectivity": True, "core_loss_is_catastrophic": True, "dependency_cascade_is_explicit": True, "respiratory_exchange_is_family_specific": True, "python_runtime_required": False},
-        "gates": {"all_45_identities_compiled": len(identities) == 45, "all_8_systems_every_identity": all(len(item["systems"]) == 8 for item in identities), "all_systems_have_core": all(system["core_count"] > 0 for item in identities for system in item["systems"]), "all_systems_have_members": all(system["member_count"] >= system["core_count"] for item in identities for system in item["systems"]), "all_identities_have_overlapping_membership": identities_with_overlap == 45, "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
+        "runtime_contract": {"overlapping_system_membership": True, "capacity_depends_on_live_cells": True, "capacity_depends_on_bond_connectivity": True, "core_loss_is_catastrophic": True, "dependency_cascade_is_explicit": True, "respiratory_exchange_is_family_specific": True, "system_paths_restricted_to_declared_members": True, "per_cell_delivery_fields": True, "python_runtime_required": False},
+        "gates": {"all_45_identities_compiled": len(identities) == 45, "all_8_systems_every_identity": all(len(item["systems"]) == 8 for item in identities), "all_systems_have_core": all(system["core_count"] > 0 for item in identities for system in item["systems"]), "all_systems_have_members": all(system["member_count"] >= system["core_count"] for item in identities for system in item["systems"]), "all_identities_have_overlapping_membership": identities_with_overlap == 45, "member_restricted_network_routing": True, "local_delivery_controls_repair": True, "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
     }
     manifest["semantic_sha256"] = json_sha256(manifest); files["cellular_physiology_manifest.json"] = canonical_json_bytes(manifest)
     return files, manifest

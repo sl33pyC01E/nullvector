@@ -1,20 +1,20 @@
 extends "res://scripts/cellular_organism_lab.gd"
 
-const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v4"
+const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v5"
 const EXPECTED_MOTIONS := ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"]
 const EXPECTED_FACINGS := ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
 const EXPECTED_DRIVERS := ["body_bob", "body_sway", "body_squash", "head_tilt", "appendage_left", "appendage_right", "locomotor_left", "locomotor_right", "auxiliary", "weapon_recoil", "sensory_focus", "emission_pulse", "propulsion", "pain_spasm"]
-const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v3"
-const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v1"
+const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v4"
+const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v2"
 const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v1"
 const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v1"
 const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]
 const MOTION_VIEW_NAMES := ["PHENOTYPE", "ORGANS", "FLUID / PRESSURE", "HEALTH", "TISSUE", "SYSTEM NETWORK"]
 const SYSTEM_COLORS := [Color("#ff4d67"), Color("#51d9ff"), Color("#ffb347"), Color("#b879ff"), Color("#ffe761"), Color("#69ff91"), Color("#ff70c8"), Color("#70e8c1")]
 
-@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v4/motion_catalog.json"
-@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v3/catalog.json"
-@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v3/"
+@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v5/motion_catalog.json"
+@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v4_2/catalog.json"
+@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v4_2/"
 @export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v1/catalog.json"
 @export_dir var trauma_asset_root := "res://generated/cellular_trauma/v1/"
 
@@ -149,6 +149,7 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["motion_channel_by_organ"] = channel_by_organ
 	organism["motion_channel_initial_cells"] = channel_initial_cells
 	organism["motion_neighbors"] = motion_neighbors
+	organism["motion_chain_depth"] = _motion_chain_depths(organism, rest_local, attachment_by_organ)
 	organism["motion_emission_pulse"] = 0.0
 	organism["motion_energy_spent"] = 0.0
 	organism["motion_neural_integrity"] = 1.0
@@ -168,6 +169,7 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["physiology_weight"] = physiology.get("system_weight", []).duplicate(true)
 	organism["physiology_systems"] = physiology.get("systems", []).duplicate(true)
 	organism["physiology_capacities"] = {"circulation": 1.0, "respiration": 1.0, "digestion": 1.0, "neural": 1.0, "sensory": 1.0, "locomotion": 1.0, "reproduction": 1.0, "immune": 1.0}
+	organism["physiology_network_reachable"] = []
 	organism["physiology_oxygen"] = 1.0; organism["physiology_clock"] = 0.0
 	organism["physiology_base_digestion"] = float(organism["genome"].get("digestion_efficiency", 0.7))
 	organism["physiology_base_regeneration"] = float(organism["genome"].get("tissue_regeneration_rate", 0.01))
@@ -192,6 +194,22 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["trauma_polyps"] = 0
 	organism["trauma_biomass_components"] = 0
 	return organism
+
+
+func _motion_chain_depths(organism: Dictionary, rest_local: Array, attachments: Dictionary) -> Array:
+	# A continuous root-to-tip coordinate lets every organ bend progressively.
+	# It preserves the authored silhouettes and driver curves while avoiding the
+	# old rigid-cardboard rotation shared by every cell in an appendage.
+	var result := _filled_float_array(rest_local.size(), 0.0)
+	for organ_key in attachments:
+		var attachment: Dictionary = attachments[organ_key]
+		var pivot: Vector2 = attachment.get("pivot", Vector2.ZERO)
+		var radius := maxf(0.001, float(attachment.get("maximum_radius", 0.0)))
+		var organ_id := int(organ_key)
+		for index in range(rest_local.size()):
+			if int(organism["organ_id"][index]) != organ_id: continue
+			result[index] = clampf((rest_local[index] as Vector2).distance_to(pivot) / radius, 0.0, 1.0)
+	return result
 
 
 func _filled_float_array(count: int, value: float) -> Array:
@@ -313,9 +331,15 @@ func _physiology_reachable(organism: Dictionary, role_row: Array) -> Dictionary:
 		var current := queue[cursor]; cursor += 1
 		for edge in organism.get("motion_neighbors", [])[current]:
 			var neighbor := int(edge[0]); var bond_index := int(edge[1])
-			if organism["bond_alive"][bond_index] and organism["alive"][neighbor] and not reachable.has(str(neighbor)):
+			if organism["bond_alive"][bond_index] and organism["alive"][neighbor] and int(role_row[neighbor]) > 0 and not reachable.has(str(neighbor)):
 				reachable[str(neighbor)] = true; queue.append(neighbor)
 	return reachable
+
+
+func _physiology_networks(organism: Dictionary) -> Array:
+	var result: Array = []
+	for role_row in organism.get("physiology_role", []): result.append(_physiology_reachable(organism, role_row))
+	return result
 
 
 func _compute_physiology_capacities(organism: Dictionary) -> Dictionary:
@@ -371,6 +395,7 @@ func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	if float(organism["physiology_clock"]) <= 0.0:
 		var capacities := _compute_physiology_capacities(organism)
 		if not capacities.is_empty(): organism["physiology_capacities"] = capacities
+		organism["physiology_network_reachable"] = _physiology_networks(organism)
 		organism["physiology_clock"] = 0.10
 	var capacity: Dictionary = organism.get("physiology_capacities", {})
 	organism["genome"]["digestion_efficiency"] = float(organism.get("physiology_base_digestion", 0.7)) * float(capacity.get("digestion", 0.0))
@@ -408,6 +433,9 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 	var neural_gain := smoothstep(0.08, 0.72, motor_integrity)
 	var strength: float = clampf(health_fraction, 0.08, 1.0) * 3.05 * neural_gain
 	var rest_local: Array = organism["motion_rest_local"]; var attachments: Dictionary = organism["motion_attachment_by_organ"]; var channels: Dictionary = organism["motion_channel_by_organ"]
+	var chain_depth: Array = organism.get("motion_chain_depth", [])
+	var networks: Array = organism.get("physiology_network_reachable", [])
+	var motor_reachable: Dictionary = networks[5] if networks.size() > 5 else {}
 	var squash := float(drivers.get("body_squash", 0.0)); var work := 0.0
 	for index in range(organism["position"].size()):
 		if not organism["alive"][index] or not reachable.has(str(index)): continue
@@ -416,10 +444,14 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 		local += Vector2(float(drivers.get("body_sway", 0.0)) * 6.5, float(drivers.get("body_bob", 0.0)) * 8.0)
 		var organ_key := str(int(organism["organ_id"][index])); var channel := str(channels.get(organ_key, "chassis")); var amount := _channel_driver(channel, drivers)
 		var channel_gain := float(channel_integrity.get(channel, 1.0))
+		if channel != "chassis" and not motor_reachable.has(str(index)): channel_gain = 0.0
 		if absf(amount) > 0.00001 and channel != "chassis" and attachments.has(organ_key):
 			var attachment: Dictionary = attachments[organ_key]; var root_cell := int(attachment.get("root_cell", -1))
 			if root_cell < 0 or not organism["alive"][root_cell] or not reachable.has(str(root_cell)): continue
-			var pivot: Vector2 = attachment.get("pivot", Vector2.ZERO); local = pivot + (local - pivot).rotated(amount * channel_gain * deg_to_rad(30.0))
+			var pivot: Vector2 = attachment.get("pivot", Vector2.ZERO)
+			var depth := float(chain_depth[index]) if index < chain_depth.size() else 1.0
+			var bend_gain := 0.20 + 0.80 * smoothstep(0.0, 1.0, depth)
+			local = pivot + (local - pivot).rotated(amount * channel_gain * bend_gain * deg_to_rad(42.0))
 		if neural_integrity < 0.72:
 			var tremor := sin(simulation_time * (10.0 + float(index % 7)) + float(index) * 1.618) * (1.0 - neural_integrity)
 			local += Vector2(tremor, -tremor * 0.65) * 2.4
@@ -702,10 +734,19 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
+		var baseline_networks := _physiology_networks(organisms[0]); member_routing_verified = baseline_networks.size() == SYSTEM_NAMES.size()
+		for system_id in range(mini(baseline_networks.size(), SYSTEM_NAMES.size())):
+			var role_row: Array = organisms[0].get("physiology_role", [])[system_id]
+			for key in baseline_networks[system_id]:
+				if int(role_row[int(key)]) <= 0: member_routing_verified = false
+		if not member_routing_verified: errors.append("member-restricted routing")
+		var depths: Array = organisms[0].get("motion_chain_depth", [])
+		progressive_chain_verified = depths.any(func(value): return float(value) > 0.15 and float(value) < 0.85) and depths.any(func(value): return float(value) > 0.90)
+		if not progressive_chain_verified: errors.append("progressive appendage chains")
 		var original_view := view_mode; var original_system := selected_system; var view_cells := 0
 		view_mode = 5
 		for system_id in range(SYSTEM_NAMES.size()):
@@ -758,7 +799,21 @@ func _run_motion_smoke() -> void:
 			_step_trauma_components(plant, float(plant["trauma_profile"].get("reconnect_window_seconds", 15.0)) + 0.1)
 			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
 	if not plant_polyp_verified: errors.append("plant polyp fate")
-	var report := {"format": "nullvector-cellular-motion-godot-smoke-v4", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified, "system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
+	var report := {
+		"format": "nullvector-cellular-motion-godot-smoke-v5", "passed": errors.is_empty(), "errors": errors,
+		"engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""),
+		"physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""),
+		"organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0),
+		"physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0),
+		"trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified,
+		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
+		"member_routing_verified": member_routing_verified, "progressive_chain_verified": progressive_chain_verified,
+		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,
+		"plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count,
+		"event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity,
+		"damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population,
+		"python_runtime_required": false,
+	}
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)
 		if file != null: file.store_string(JSON.stringify(report, "  ", true) + "\n")

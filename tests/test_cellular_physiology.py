@@ -13,7 +13,7 @@ from forge.cellular_physiology.contract import SYSTEM_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-BANK = ROOT / "outputs/cellular_physiology_v1/cellular_physiology_manifest.json"
+BANK = ROOT / "outputs/cellular_physiology_v2/cellular_physiology_manifest.json"
 
 
 def _representative(family_id: int = 0):
@@ -84,6 +84,36 @@ def test_severing_motor_effectors_from_brain_reduces_locomotion_capacity() -> No
     assert boundary
     state.break_bonds(boundary)
     assert state.capacities()["locomotion"] < 0.8
+
+
+def test_network_delivery_is_member_restricted_and_local() -> None:
+    _, arrays, overlay, _ = _representative(0)
+    system_id = SYSTEM_NAMES.index("locomotion")
+    members = overlay["system_weight"][system_id] > 0
+    baseline = PhysiologyState(arrays, overlay)
+    assert np.all(baseline.network_delivery()["locomotion"][members] > 0.999)
+
+    # Find a motor-network bridge. Cutting it must strand system members even
+    # though the general physical body still offers an alternate attachment.
+    selected = None
+    for bond_index, (a_raw, b_raw) in enumerate(baseline.bond_ab):
+        a, b = int(a_raw), int(b_raw)
+        if not members[a] or not members[b]:
+            continue
+        candidate = PhysiologyState(arrays, overlay)
+        candidate.break_bonds([bond_index])
+        signal = candidate.network_delivery()["locomotion"]
+        lost = np.flatnonzero(members & (signal <= 0))
+        if len(lost) and candidate._reachable_from(np.asarray([a]))[int(lost[0])]:
+            selected = candidate, lost
+            break
+    assert selected is not None
+    candidate, lost = selected
+    fields = candidate.delivery_fields()
+    assert set(fields) == set(SYSTEM_NAMES)
+    assert all(value.shape == (len(arrays["position_xy"]),) and value.dtype == np.float32 for value in fields.values())
+    assert float(fields["locomotion"][int(lost[0])]) < 0.95
+    assert candidate.capacities()["locomotion"] < 1.0
 
 
 def test_published_physiology_bank_is_hash_closed_and_exactly_replayable() -> None:
