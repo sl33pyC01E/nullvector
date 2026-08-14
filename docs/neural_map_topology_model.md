@@ -353,6 +353,22 @@ frozen terrain, hazard, elevation, walkability, code-use, and loss-improvement
 gates. Exact metric replay passed after a fresh checkpoint reload.
 
 This milestone remains representation-only. No masked latent prior has been
-trained, no neural proposal has been promoted to a topology-v2 pack, and no
-Godot integration exists. See `docs/map_topology_neural_production.md` for the
-complete artifact identities, command, gates, and claim boundary.
+trained for production, no neural proposal has been promoted to a topology-v2
+pack, and no Godot integration exists. See
+`docs/map_topology_neural_production.md` for the complete artifact identities,
+command, gates, and claim boundary.
+
+## Masked-prior CPU foundation
+
+Stage B now has an isolated, exact-replayed CPU foundation in
+`forge.map_topology_neural_prior`. It freezes the accepted codec and exercises
+random, rectangle, half-plane, and corridor masking plus deterministic parallel
+token reveal over six theme-balanced 8x8 latent grids. Its immutable
+`outputs/map_topology_neural_prior/smoke_v1` bank contains six unique raw latent
+proposals and reproduces model, EMA, masking history, conditions, uncertainty,
+and every sampling-step hash exactly.
+
+The two-step model is intentionally not a quality result: fixed-mask accuracy
+is 0.009434 raw / 0.004717 EMA. It exists to freeze safety and replay contracts
+before building the full latent corpus or starting segmented CUDA training. See
+`docs/map_topology_neural_prior.md`.

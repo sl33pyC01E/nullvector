@@ -146,6 +146,12 @@ frozen reconstruction gate passing. It is still not a generator. Its future raw
 latent proposals must pass through the deterministic topology compiler and an
 explicit edit ledger before they can become runtime map packs.
 
+The next masked-latent stage now has an exact-replayed CPU foundation. It freezes
+the accepted codec, supports structured inpainting masks and parallel token
+reveal, and publishes six theme-balanced raw latent proposals under an explicit
+non-map claim boundary. Its two training steps are a pipeline proof only; no
+generative-quality or runtime claim is made.
+
 ## Native Godot Workshop
 
 `game/ForgeHub.tscn` is the additive native front door to the forge. Its neon,
