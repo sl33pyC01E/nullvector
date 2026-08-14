@@ -110,6 +110,38 @@ func _resource_affinity(organism: Dictionary, node: Dictionary) -> float:
 	return float(matrix[clampi(family, 0, 4)][clampi(resource_family, 0, 4)])
 
 
+func _ecology_functional_capacity(organism: Dictionary) -> Dictionary:
+	return organism.get("physiology_functional_capacities", organism.get("physiology_capacities", {}))
+
+
+func _ecology_intake_capacity(organism: Dictionary) -> float:
+	# The same visible mouth/root/emitter cells still make contact with a node,
+	# but an intact conversion organ must assimilate it. Family physiology gives
+	# that organ a different interpretation rather than bypassing damage.
+	var family := int(organism["data"].get("family_id", 0)); var capacity := _ecology_functional_capacity(organism)
+	var digestion := float(capacity.get("digestion", 0.0)); var circulation := float(capacity.get("circulation", 0.0)); var respiration := float(capacity.get("respiration", 0.0)); var consciousness := float(capacity.get("consciousness", capacity.get("neural", 0.0)))
+	if family in [0, 1]: return clampf(digestion * pow(consciousness, 0.25), 0.0, 1.0)
+	if family == 2: return clampf(digestion * pow(respiration, 0.22) * pow(circulation, 0.22), 0.0, 1.0)
+	if family == 3: return clampf(digestion * pow(circulation, 0.18), 0.0, 1.0)
+	return clampf(digestion * pow(circulation, 0.30), 0.0, 1.0)
+
+
+func _ecology_sensory_effector_integrity(organism: Dictionary) -> float:
+	var roles: Array = organism.get("physiology_role", []); var weights: Array = organism.get("physiology_weight", [])
+	if roles.size() <= 4 or weights.size() <= 4: return 0.0
+	var total := 0.0; var living := 0.0
+	for index in range(roles[4].size()):
+		if int(roles[4][index]) != 3: continue
+		var weight := float(weights[4][index]); total += weight
+		if organism["alive"][index]: living += weight * _physiology_cell_viability(organism, index, 4)
+	return clampf(living / maxf(0.0001, total), 0.0, 1.0)
+
+
+func _ecology_sensory_range(organism: Dictionary) -> float:
+	var capacity := _ecology_functional_capacity(organism); var sensory := float(capacity.get("sensory", 0.0)) * _ecology_sensory_effector_integrity(organism); var consciousness := float(capacity.get("consciousness", capacity.get("neural", 0.0)))
+	return 8.0 + 712.0 * pow(clampf(sensory * consciousness, 0.0, 1.0), 0.72)
+
+
 func _is_resource_cell(organism: Dictionary, index: int) -> bool:
 	var family := int(organism["data"].get("family_id", 0)); var flags := int(organism["flags"][index]); var tissue := int(organism["tissue"][index])
 	if family in [0, 1]: return (flags & FLAG_MOUTH) != 0
@@ -123,14 +155,15 @@ func _step_food(delta: float) -> void:
 		food["pulse"] = fmod(float(food.get("pulse", 0.0)) + delta * 3.0, TAU)
 		if food.has("ecology_id"): food["amount"] = minf(float(food.get("capacity", 20.0)), float(food["amount"]) + float(food.get("regrowth", 0.1)) * delta)
 	for organism in organisms:
-		var family := int(organism["data"].get("family_id", 0)); organism["ecology_resource_intake"] = float(organism.get("ecology_resource_intake", 0.0))
+		var family := int(organism["data"].get("family_id", 0)); var intake_capacity := _ecology_intake_capacity(organism); organism["ecology_resource_intake"] = float(organism.get("ecology_resource_intake", 0.0))
+		if intake_capacity <= 0.01: continue
 		for cell_index in range(organism["position"].size()):
 			if not organism["alive"][cell_index] or not _is_resource_cell(organism, cell_index): continue
 			for food in foods:
 				if float(food.get("amount", 0.0)) <= 0.0 or organism["position"][cell_index].distance_to(food["position"]) >= 13.0: continue
 				var affinity := _resource_affinity(organism, food)
 				if affinity < 0.10: continue
-				var bite := minf(float(food["amount"]), (2.5 + 5.5 * affinity) * delta); food["amount"] = float(food["amount"]) - bite; organism["food_consumed"] = float(organism["food_consumed"]) + bite; organism["ecology_resource_intake"] = float(organism["ecology_resource_intake"]) + bite
+				var bite := minf(float(food["amount"]), (2.5 + 5.5 * affinity) * intake_capacity * delta); food["amount"] = float(food["amount"]) - bite; organism["food_consumed"] = float(organism["food_consumed"]) + bite; organism["ecology_resource_intake"] = float(organism["ecology_resource_intake"]) + bite
 				if family in [0, 1]: organism["nutrient"][cell_index] = float(organism["nutrient"][cell_index]) + bite * affinity
 				elif family == 2:
 					organism["nutrient"][cell_index] = float(organism["nutrient"][cell_index]) + bite * 0.35; organism["energy"][cell_index] = float(organism["energy"][cell_index]) + bite * 2.8 * affinity
@@ -148,7 +181,7 @@ func _step_food(delta: float) -> void:
 
 func _step_ecology_motility(organism: Dictionary, delta: float) -> void:
 	var family := int(organism["data"].get("family_id", 0)); if family == 2: return
-	var capacity: Dictionary = organism.get("physiology_capacities", {}); var motor := float(capacity.get("locomotion", 0.0)) * float(capacity.get("neural", 0.0))
+	var capacity := _ecology_functional_capacity(organism); var motor := float(capacity.get("locomotion", 0.0)) * float(capacity.get("consciousness", capacity.get("neural", 0.0)))
 	if motor <= 0.08: return
 	var center := _organism_center(organism); var target := _best_ecology_resource(organism)
 	if target.is_empty(): return
@@ -160,10 +193,12 @@ func _step_ecology_motility(organism: Dictionary, delta: float) -> void:
 
 
 func _best_ecology_resource(organism: Dictionary) -> Dictionary:
-	var center := _organism_center(organism); var target: Dictionary = {}; var best := -1e20
+	var center := _organism_center(organism); var target: Dictionary = {}; var best := -1e20; var sensory_range := _ecology_sensory_range(organism)
 	for food in foods:
 		if float(food.get("amount", 0.0)) <= 0.01: continue
-		var affinity := _resource_affinity(organism, food); var distance := center.distance_to(food["position"]); var score := affinity * minf(1.0, float(food["amount"]) / maxf(1.0, float(food.get("capacity", 20.0)))) - distance / 720.0
+		var affinity := _resource_affinity(organism, food); var distance := center.distance_to(food["position"])
+		if distance > sensory_range: continue
+		var score := affinity * minf(1.0, float(food["amount"]) / maxf(1.0, float(food.get("capacity", 20.0)))) - distance / 720.0
 		if score > best: best = score; target = food
 	return target
 
@@ -179,14 +214,52 @@ func _organism_mean_energy(organism: Dictionary) -> float:
 	return total / maxf(1.0, float(alive_count))
 
 
+func _ecology_system_lesion(organism: Dictionary, system_id: int, preserve_core: bool = false) -> Dictionary:
+	var diagnostic: Dictionary = organism.duplicate(true); var roles: Array = diagnostic.get("physiology_role", [])[system_id]
+	for index in range(roles.size()):
+		var role := int(roles[index]); var remove := role > 1 if preserve_core else role == 1
+		if remove: diagnostic["alive"][index] = false; diagnostic["health"][index] = 0.0
+	for bond_index in range(diagnostic["bond_ab"].size()):
+		var pair: Array = diagnostic["bond_ab"][bond_index]
+		if not diagnostic["alive"][int(pair[0])] or not diagnostic["alive"][int(pair[1])]: diagnostic["bond_alive"][bond_index] = false
+	diagnostic["physiology_capacities"] = _compute_physiology_capacities(diagnostic)
+	diagnostic["physiology_functional_capacities"] = _compute_homeostasis_capacities(diagnostic)
+	diagnostic["homeostasis_incapacitated"] = float(diagnostic["physiology_functional_capacities"].get("consciousness", 0.0)) < 0.14
+	diagnostic["ecology_health_snapshot"] = _organism_health_fraction(diagnostic)
+	return diagnostic
+
+
+func _diagnostic_ecology_organ_behavior(organism: Dictionary) -> Dictionary:
+	var heart := _ecology_system_lesion(organism, 0); var lung := _ecology_system_lesion(organism, 1); var gut := _ecology_system_lesion(organism, 2); var brain := _ecology_system_lesion(organism, 3); var senses := _ecology_system_lesion(organism, 4, true)
+	var cases := {"heart": heart, "lung": lung, "gut": gut, "brain": brain, "senses": senses}; var motions: Dictionary = {}; var behaviors: Dictionary = {}
+	for name in cases:
+		_step_ecology_behavior(cases[name], 1.0 / 30.0)
+		motions[name] = str(EXPECTED_MOTIONS[int(cases[name].get("motion_index", 0))])
+		behaviors[name] = str(cases[name].get("motion_behavior", ""))
+	var lung_capacity := _ecology_functional_capacity(lung); var brain_capacity := _ecology_functional_capacity(brain); var gut_capacity := _ecology_functional_capacity(gut)
+	var passed := (
+		str(motions.get("heart", "")) == "sleep"
+		and str(motions.get("brain", "")) == "sleep"
+		and str(motions.get("lung", "")) == "fear"
+		and str(motions.get("gut", "")) == "fear"
+		and str(motions.get("senses", "")) == "confused"
+		and float(lung_capacity.get("consciousness", 0.0)) > 0.5
+		and float(brain_capacity.get("consciousness", 1.0)) == 0.0
+		and float(gut_capacity.get("digestion", 1.0)) == 0.0
+		and _ecology_intake_capacity(gut) == 0.0
+		and _ecology_sensory_range(senses) <= 8.01
+	)
+	return {"passed": passed, "motions": motions, "behaviors": behaviors, "lung_initial_consciousness": lung_capacity.get("consciousness", 0.0), "brain_consciousness": brain_capacity.get("consciousness", 1.0), "gut_intake_capacity": _ecology_intake_capacity(gut), "sensory_range": _ecology_sensory_range(senses)}
+
+
 func _step_ecology_behavior(organism: Dictionary, delta: float) -> void:
-	var capacity: Dictionary = organism.get("physiology_capacities", {})
+	var capacity := _ecology_functional_capacity(organism)
 	var family := int(organism["data"].get("family_id", 0)); var center := _organism_center(organism)
 	var health := _organism_health_fraction(organism); var previous_health := float(organism.get("ecology_health_snapshot", health))
 	var intake := float(organism.get("ecology_resource_intake", 0.0)); var previous_intake := float(organism.get("ecology_intake_snapshot", intake))
 	var recently_hurt := previous_health - health > 0.0005; var recently_fed := intake - previous_intake > 0.0005
-	var neural := float(capacity.get("neural", 0.0)); var circulation := float(capacity.get("circulation", 0.0)); var respiration := float(capacity.get("respiration", 0.0))
-	var digestion := float(capacity.get("digestion", 0.0)); var sensory := float(capacity.get("sensory", 0.0)); var locomotion := float(capacity.get("locomotion", 0.0)); var immune := float(capacity.get("immune", 0.0))
+	var neural := float(capacity.get("neural", 0.0)); var consciousness := float(capacity.get("consciousness", neural)); var circulation := float(capacity.get("circulation", 0.0)); var respiration := float(capacity.get("respiration", 0.0)); var oxygen_support := float(capacity.get("oxygen_support", 1.0)); var shock := float(organism.get("homeostasis_shock", 0.0))
+	var digestion := float(capacity.get("digestion", 0.0)); var sensory := float(capacity.get("sensory", 0.0)) * _ecology_sensory_effector_integrity(organism); var locomotion := float(capacity.get("locomotion", 0.0)); var immune := float(capacity.get("immune", 0.0))
 	var target := _best_ecology_resource(organism); var facing := Vector2.UP; var target_distance := INF
 	if not target.is_empty():
 		var target_position: Vector2 = target["position"]
@@ -196,21 +269,24 @@ func _step_ecology_behavior(organism: Dictionary, delta: float) -> void:
 	var energy := _organism_mean_energy(organism); var motion := "idle_breathe"; var behavior := "resting metabolism"; var hold := 0.0
 	var locked: bool = simulation_time < float(organism.get("motion_lock_until", 0.0))
 	var action_ready: bool = simulation_time >= float(organism.get("ecology_next_action_time", 0.0))
-	var catastrophic: bool = circulation < 0.10 or neural < 0.10 or organism["alive"].count(true) < maxi(2, int(organism["alive"].size() * 0.24))
+	var catastrophic: bool = float(organism.get("homeostasis_neural_failure_time", 0.0)) > 8.0 or float(organism.get("homeostasis_perfusion_failure_time", 0.0)) > 6.0 or organism["alive"].count(true) < maxi(2, int(organism["alive"].size() * 0.24))
+	var incapacitated: bool = consciousness < 0.14 or bool(organism.get("homeostasis_incapacitated", false))
 	if catastrophic:
-		motion = "death"; behavior = "organ cascade // brain or heart offline"; hold = 0.75
+		motion = "death"; behavior = "terminal organ cascade"; hold = 0.75
+	elif incapacitated:
+		motion = "sleep"; behavior = "incapacitated // neural or oxygen support"; hold = 0.55
 	elif locked:
 		motion = str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))]); behavior = str(organism.get("motion_behavior", "committed action"))
 	elif recently_hurt:
 		motion = "hit"; behavior = "injury reflex // connected nerves"; hold = 0.36
 	elif neural < 0.38 or locomotion < 0.34:
 		motion = "confused"; behavior = "motor network impaired"
-	elif respiration < 0.34:
-		motion = "fear"; behavior = "respiratory distress"
+	elif respiration < 0.34 or oxygen_support < 0.58:
+		motion = "fear"; behavior = "respiratory reserve failing"
 	elif sensory < 0.32:
 		motion = "confused"; behavior = "sensory disconnect"
-	elif digestion < 0.30 and family in [0, 1]:
-		motion = "fear"; behavior = "digestive failure // seeking food"
+	elif digestion < 0.30:
+		motion = "fear"; behavior = "digestive conversion offline"
 	elif immune < 0.26 and health < 0.88:
 		motion = "sleep"; behavior = "wound recovery impaired"
 	elif family == 2:
@@ -245,7 +321,7 @@ func _step_ecology_behavior(organism: Dictionary, delta: float) -> void:
 		motion = "idle_wiggle"; behavior = "sensory scanning"
 	_set_organism_motion(organism, motion, facing, behavior, hold)
 	organism["ecology_health_snapshot"] = health; organism["ecology_intake_snapshot"] = intake
-	organism["ecology_failure_state"] = {"circulation": circulation, "respiration": respiration, "digestion": digestion, "neural": neural, "sensory": sensory, "locomotion": locomotion, "immune": immune}
+	organism["ecology_failure_state"] = {"circulation": circulation, "respiration": respiration, "digestion": digestion, "neural": neural, "consciousness": consciousness, "oxygen_support": oxygen_support, "shock": shock, "sensory": sensory, "locomotion": locomotion, "immune": immune}
 
 
 func _step_organism(organism: Dictionary, delta: float) -> void:
@@ -317,7 +393,7 @@ func _draw() -> void:
 
 
 func _run_ecology_smoke() -> void:
-	var errors: Array[String] = startup_errors.duplicate(); var resource_count := 0; var field_cells := 0; var differentiated_metabolism_verified := false; var motive_impulse := 0.0
+	var errors: Array[String] = startup_errors.duplicate(); var resource_count := 0; var field_cells := 0; var differentiated_metabolism_verified := false; var motive_impulse := 0.0; var organ_behavior_matrix: Dictionary = {}
 	var family_census: Dictionary = {}; var behavior_census: Dictionary = {}; var motion_census: Dictionary = {}; var autonomous_motion_verified := true; var organ_capacity_motion_gate_verified := false; var action_cycle_verified := false
 	for record in ecology_catalog.get("maps", []):
 		resource_count += record.get("resource_nodes", []).size()
@@ -354,17 +430,10 @@ func _run_ecology_smoke() -> void:
 		action_cycle_verified = initial_motion == "attack" and recovery_motion.begins_with("idle_") and replay_motion == "attack" and int(organism.get("motion_transition_count", 0)) >= 3
 	if not action_cycle_verified: errors.append("action recovery cycle")
 	if not organisms.is_empty():
-		var diagnostic: Dictionary = organisms[0].duplicate(true); var neural_roles: Array = diagnostic.get("physiology_role", [])[3]
-		for index in range(neural_roles.size()):
-			if int(neural_roles[index]) == 1: diagnostic["alive"][index] = false; diagnostic["health"][index] = 0.0
-		for bond_index in range(diagnostic["bond_ab"].size()):
-			var pair: Array = diagnostic["bond_ab"][bond_index]
-			if not diagnostic["alive"][int(pair[0])] or not diagnostic["alive"][int(pair[1])]: diagnostic["bond_alive"][bond_index] = false
-		diagnostic["physiology_capacities"] = _compute_physiology_capacities(diagnostic)
-		_step_ecology_behavior(diagnostic, 1.0 / 30.0)
-		organ_capacity_motion_gate_verified = float(diagnostic["physiology_capacities"].get("neural", 1.0)) == 0.0 and str(EXPECTED_MOTIONS[int(diagnostic.get("motion_index", 0))]) == "death"
-		if not organ_capacity_motion_gate_verified: errors.append("organ capacity motion gate")
-	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v5", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "family_census": family_census, "motion_census": motion_census, "behavior_census": behavior_census, "autonomous_motion_verified": autonomous_motion_verified, "action_cycle_verified": action_cycle_verified, "organ_capacity_motion_gate_verified": organ_capacity_motion_gate_verified, "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
+		organ_behavior_matrix = _diagnostic_ecology_organ_behavior(organisms[0])
+		organ_capacity_motion_gate_verified = bool(organ_behavior_matrix.get("passed", false))
+		if not organ_capacity_motion_gate_verified: errors.append("functional organ behavior gate")
+	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v5", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "family_census": family_census, "motion_census": motion_census, "behavior_census": behavior_census, "autonomous_motion_verified": autonomous_motion_verified, "action_cycle_verified": action_cycle_verified, "organ_capacity_motion_gate_verified": organ_capacity_motion_gate_verified, "organ_behavior_matrix": organ_behavior_matrix, "functional_resource_assimilation_verified": float(organ_behavior_matrix.get("gut_intake_capacity", 1.0)) == 0.0, "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
 	var report_path := "res://../outputs/cellular_ecology_godot_report.json"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--cellular-ecology-report="): report_path = argument.trim_prefix("--cellular-ecology-report=")

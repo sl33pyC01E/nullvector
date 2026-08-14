@@ -26,6 +26,8 @@ def test_ecology_scene_uses_current_motion_physiology_and_trauma_bundles() -> No
         "_resource_affinity", "_is_resource_cell", "_step_ecology_motility",
         "_step_ecology_behavior", "_seed_ecology_population",
         "family_suitability_u8", "ecology_motive_impulse",
+        "_ecology_intake_capacity", "_ecology_sensory_effector_integrity",
+        "_diagnostic_ecology_organ_behavior", "physiology_functional_capacities",
     ):
         assert feature in script
 
@@ -37,6 +39,17 @@ def test_godot_ecology_smoke_proves_differentiated_metabolism_and_resource_seeki
     assert report["autonomous_motion_verified"] is True
     assert report["action_cycle_verified"] is True
     assert report["organ_capacity_motion_gate_verified"] is True
+    assert report["functional_resource_assimilation_verified"] is True
+    matrix = report["organ_behavior_matrix"]
+    assert matrix["passed"] is True
+    assert matrix["motions"] == {
+        "heart": "sleep", "lung": "fear", "gut": "fear",
+        "brain": "sleep", "senses": "confused",
+    }
+    assert matrix["lung_initial_consciousness"] > 0.5
+    assert matrix["brain_consciousness"] == 0.0
+    assert matrix["gut_intake_capacity"] == 0.0
+    assert matrix["sensory_range"] <= 8.01
     assert report["organism_count"] == 5 and report["family_census"] == {str(index): 1 for index in range(5)}
     assert len(report["motion_census"]) >= 3 and len(report["behavior_census"]) == 5
     assert report["map_count"] == 6 and report["resource_node_count"] == 120

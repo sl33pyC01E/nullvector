@@ -50,3 +50,16 @@ senses or partial neural/locomotor networks produce confusion, and loss of the
 brain or heart removes intentional actuation and selects the terminal state.
 These are deterministic biological policies driving the existing authored
 motion bank, not a claim of a learned behavior model.
+
+The behavior policy now consumes reserve-aware functional physiology rather
+than the structural graph alone. Losing the brain produces an incapacitated
+sleep state before the delayed terminal cascade; losing respiratory exchange
+selects a distress action while the remaining oxygen reserve still supports
+consciousness; destroying the digestive conversion core makes a nearby
+resource physically unassimilable; and severing sensory effectors collapses
+perception range even if the shared neural core survives. Local locomotor and
+circulatory delivery still scale every cell's authored appendage stroke, so a
+partially damaged leg limps while a disconnected one goes limp. The native
+smoke physically lesions heart, lung, gut, brain, and sensory paths and requires
+five distinct behavior outcomes, including zero gut intake and an eight-pixel
+blind sensory radius.
