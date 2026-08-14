@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/map_topology_neural_prior_generation_case.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "case_id", "source_sha256", "config_sha256", "variant", "theme", "width", "height", "source_ref", "seeds", "conditioning", "sampler", "decoded", "reference", "metrics", "gates", "artifacts", "case_identity_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-neural-map-topology-prior-generation-case/1.0.0"},
+    "case_id": {"type": "string", "pattern": "^[a-z0-9_-]{8,96}$"},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "config_sha256": {"$ref": "#/$defs/sha"},
+    "variant": {"type": "integer", "minimum": 0, "maximum": 7},
+    "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+    "width": {"type": "integer", "minimum": 32, "maximum": 256},
+    "height": {"type": "integer", "minimum": 32, "maximum": 256},
+    "source_ref": {
+      "type": "object", "additionalProperties": false,
+      "required": ["shard_id", "sample_index", "split", "kind", "full_map_identity_sha256", "sample_identity_sha256", "source_raw_sha256"],
+      "properties": {
+        "shard_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sample_index": {"type": "integer", "minimum": 0, "maximum": 63},
+        "split": {"const": "test"},
+        "kind": {"type": "string", "minLength": 1, "maxLength": 64},
+        "full_map_identity_sha256": {"$ref": "#/$defs/sha"},
+        "sample_identity_sha256": {"$ref": "#/$defs/sha"},
+        "source_raw_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "seeds": {
+      "type": "object", "additionalProperties": false, "required": ["sampling", "compiler"],
+      "properties": {"sampling": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}, "compiler": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}}
+    },
+    "conditioning": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "theme_index", "global_conditions", "fully_masked", "target_latent_tokens_accessed"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha"}, "theme_index": {"type": "integer", "minimum": 0, "maximum": 5},
+        "global_conditions": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"type": "number", "minimum": 0, "maximum": 1}},
+        "fully_masked": {"const": true}, "target_latent_tokens_accessed": {"const": false}
+      }
+    },
+    "sampler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "sampling_steps", "temperature", "top_k", "latent_shape", "valid_cells", "unique_tokens", "tokens_sha256", "uncertainty_sha256", "trace_sha256", "trace"],
+      "properties": {
+        "name": {"const": "seeded_top_k_gumbel_parallel_reveal_v1"},
+        "sampling_steps": {"type": "integer", "minimum": 2, "maximum": 32}, "temperature": {"type": "number", "minimum": 0.05, "maximum": 4}, "top_k": {"type": "integer", "minimum": 1, "maximum": 512},
+        "latent_shape": {"type": "array", "prefixItems": [{"const": 1}, {"type": "integer", "minimum": 8, "maximum": 64}, {"type": "integer", "minimum": 8, "maximum": 64}], "items": false},
+        "valid_cells": {"type": "integer", "minimum": 1, "maximum": 4096}, "unique_tokens": {"type": "integer", "minimum": 1, "maximum": 512},
+        "tokens_sha256": {"$ref": "#/$defs/sha"}, "uncertainty_sha256": {"$ref": "#/$defs/sha"}, "trace_sha256": {"$ref": "#/$defs/sha"},
+        "trace": {"type": "array", "minItems": 2, "maxItems": 32, "items": {"type": "object", "additionalProperties": false, "required": ["iteration", "remaining_before", "revealed", "tokens_sha256", "uncertainty_sha256"], "properties": {"iteration": {"type": "integer", "minimum": 0, "maximum": 31}, "remaining_before": {"type": "integer", "minimum": 1, "maximum": 4096}, "revealed": {"type": "integer", "minimum": 1, "maximum": 4096}, "tokens_sha256": {"$ref": "#/$defs/sha"}, "uncertainty_sha256": {"$ref": "#/$defs/sha"}}}}
+      }
+    },
+    "decoded": {"type": "object", "additionalProperties": false, "required": ["raw_topology_sha256", "terrain_histogram", "hazard_histogram", "elevation_histogram"], "properties": {"raw_topology_sha256": {"$ref": "#/$defs/sha"}, "terrain_histogram": {"$ref": "#/$defs/histogram"}, "hazard_histogram": {"$ref": "#/$defs/histogram"}, "elevation_histogram": {"$ref": "#/$defs/histogram"}}},
+    "reference": {"type": "object", "additionalProperties": false, "required": ["raw_topology_sha256", "compiler_repair_fraction", "compiler_cell_preservation_fraction"], "properties": {"raw_topology_sha256": {"$ref": "#/$defs/sha"}, "compiler_repair_fraction": {"type": "number", "minimum": 0, "maximum": 1}, "compiler_cell_preservation_fraction": {"type": "number", "minimum": 0, "maximum": 1}}},
+    "metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["raw_required_reachable", "raw_radius_one_required_reachable", "requested_openness", "raw_openness", "openness_absolute_error", "requested_hazard_budget", "raw_hazard_fraction", "hazard_absolute_error", "compiler_repair_fraction", "compiler_cell_preservation_fraction", "repair_excess_over_reference"],
+      "properties": {
+        "raw_required_reachable": {"type": "boolean"}, "raw_radius_one_required_reachable": {"type": "boolean"},
+        "requested_openness": {"type": "number", "minimum": 0, "maximum": 1}, "raw_openness": {"type": "number", "minimum": 0, "maximum": 1}, "openness_absolute_error": {"type": "number", "minimum": 0, "maximum": 1},
+        "requested_hazard_budget": {"type": "number", "minimum": 0, "maximum": 1}, "raw_hazard_fraction": {"type": "number", "minimum": 0, "maximum": 1}, "hazard_absolute_error": {"type": "number", "minimum": 0, "maximum": 1},
+        "compiler_repair_fraction": {"type": "number", "minimum": 0, "maximum": 1}, "compiler_cell_preservation_fraction": {"type": "number", "minimum": 0, "maximum": 1}, "repair_excess_over_reference": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "gates": {"type": "object", "additionalProperties": false, "required": ["fully_masked", "target_tokens_absent", "raw_immutable", "compiled_valid", "exact_compiler_replay", "exact_neural_replay", "condition_adherence", "token_noncollapse", "repair_within_reference_bound", "quality_accepted"], "properties": {"fully_masked": {"const": true}, "target_tokens_absent": {"const": true}, "raw_immutable": {"const": true}, "compiled_valid": {"const": true}, "exact_compiler_replay": {"const": true}, "exact_neural_replay": {"const": true}, "condition_adherence": {"type": "boolean"}, "token_noncollapse": {"type": "boolean"}, "repair_within_reference_bound": {"type": "boolean"}, "quality_accepted": {"type": "boolean"}}},
+    "artifacts": {"type": "object", "additionalProperties": false, "required": ["latent", "raw_manifest", "compiled_manifest", "preview"], "properties": {"latent": {"$ref": "#/$defs/artifact"}, "raw_manifest": {"$ref": "#/$defs/artifact"}, "compiled_manifest": {"$ref": "#/$defs/artifact"}, "preview": {"$ref": "#/$defs/artifact"}}},
+    "case_identity_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "histogram": {"type": "array", "minItems": 5, "maxItems": 9, "items": {"type": "integer", "minimum": 0, "maximum": 65536}},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "pattern": "^[a-z0-9_./-]+$"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 268435456}, "sha256": {"$ref": "#/$defs/sha"}}}
+  }
+}

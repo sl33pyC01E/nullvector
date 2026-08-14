@@ -90,3 +90,13 @@ topology. The next isolated stage must:
 5. reject promotion if generation collapses or repair cost exceeds calibrated
    procedural-reference bounds.
 
+The isolated implementation of that stage is documented in
+`docs/map_topology_neural_prior_generation.md`. Its bank retains raw proposals,
+compiled repairs, seeded reveal traces, held-out condition provenance, and
+fresh-process exact replay as separate authorities.
+
+The completed 48-case held-out bank proves diverse, exact free generation but
+rejects production promotion: condition adherence is `54.17%`, raw radius-one
+mission connectivity is `16.67%`, and mean repair is `6.93%` versus `2.68%`
+for procedural references. The generation document records the per-theme and
+visual failure analysis that should drive an additive prior-v2 experiment.
