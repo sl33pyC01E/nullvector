@@ -45,3 +45,21 @@ python -m forge.sprite_latent_production validate-manifest checkpoints/sprite_la
 ```
 
 Do not promote a checkpoint merely because training was finite. `production_manifest.json` must have `status: ready` and `gates.full_quality_accepted: true`.
+
+## Accepted run and visual evidence
+
+The additive `checkpoints/sprite_latent_production_v1_1` run completed all 24
+epochs in 12 immutable two-epoch workers. Epoch 24 is the accepted best
+checkpoint. A balanced held-out visual proof can be built and replayed without
+changing the frozen trainer source hash:
+
+```powershell
+python -m forge.sprite_latent_showcase build
+python -m forge.sprite_latent_showcase validate `
+  outputs/sprite_latent_production_showcase_v1/showcase_manifest.json
+```
+
+The showcase contains eight validation specimens per family, original and EMA
+reconstruction PNG pairs, and the exact projected categorical fields. It binds
+the production manifest, checkpoint, EMA state, corpus, split, legal tuple
+table, selection, per-sample metrics, and all artifact bytes.

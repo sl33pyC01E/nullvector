@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/sprite_latent_showcase.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_scope", "compiler", "runtime", "source", "sample_count", "samples_per_family", "family_count", "samples", "aggregate", "artifacts", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-semantic-sprite-fsq-production-showcase-v1"},
+    "status": {"const": "ready"},
+    "quality_scope": {"const": "held-out-balanced-production-reconstruction-v1"},
+    "compiler": {"type": "object"}, "runtime": {"type": "object"}, "source": {"type": "object"},
+    "sample_count": {"const": 40}, "samples_per_family": {"const": 8}, "family_count": {"const": 5},
+    "samples": {"type": "array", "minItems": 40, "maxItems": 40, "items": {"type": "object", "required": ["source_index", "seed", "family", "family_id", "subtype_id", "role_id", "aligned_tuple_accuracy", "visible_tuple_accuracy", "visible_silhouette_iou"]}},
+    "aggregate": {"type": "object", "required": ["aligned_tuple_accuracy", "visible_tuple_accuracy", "visible_silhouette_iou", "minimum_sample_visible_tuple_accuracy", "minimum_sample_visible_silhouette_iou"]},
+    "artifacts": {"type": "object", "required": ["fields", "contact_sheet"], "additionalProperties": {"$ref": "#/$defs/artifact"}},
+    "gates": {"type": "object", "minProperties": 8, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "pattern": "^[^\\\\]+$"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}}
+  }
+}
