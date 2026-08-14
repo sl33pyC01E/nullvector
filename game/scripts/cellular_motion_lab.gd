@@ -4,19 +4,19 @@ const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v7"
 const EXPECTED_MOTIONS := ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"]
 const EXPECTED_FACINGS := ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
 const EXPECTED_DRIVERS := ["body_bob", "body_sway", "body_squash", "head_tilt", "appendage_left", "appendage_right", "locomotor_left", "locomotor_right", "auxiliary", "weapon_recoil", "sensory_focus", "emission_pulse", "propulsion", "pain_spasm"]
-const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v6"
-const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v4"
-const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v3"
-const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v3"
+const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v7"
+const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v5"
+const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v4"
+const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v4"
 const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]
 const MOTION_VIEW_NAMES := ["PHENOTYPE", "ORGANS", "FLUID / PRESSURE", "HEALTH", "TISSUE", "SYSTEM NETWORK"]
 const SYSTEM_COLORS := [Color("#ff4d67"), Color("#51d9ff"), Color("#ffb347"), Color("#b879ff"), Color("#ffe761"), Color("#69ff91"), Color("#ff70c8"), Color("#70e8c1")]
 
-@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v11/motion_catalog.json"
-@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v10/catalog.json"
-@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v10/"
-@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v7/catalog.json"
-@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v7/"
+@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v12/motion_catalog.json"
+@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v11/catalog.json"
+@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v11/"
+@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v8/catalog.json"
+@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v8/"
 
 var motion_catalog: Dictionary = {}
 var motion_identities: Dictionary = {}
@@ -628,9 +628,9 @@ func _diagnostic_connection_sever(organism: Dictionary, system_id: int) -> Dicti
 
 
 func _diagnostic_full_identity_connection_matrix() -> Dictionary:
-	# Immune repair seeds are presently a core-only humoral system. The other
-	# seven systems have explicit routed members and must respond to a living
-	# cell being disconnected without pretending that the cell itself died.
+	# Every system, including the distinct v4 immune repair organ, has routed
+	# members and must respond to a living cell being disconnected without
+	# pretending that the cell itself died.
 	var identity_count := 0; var case_count := 0; var system_counts: Dictionary = {}; var minimum_drop := INF; var failures: Array = []
 	for species_index in range(catalog.get("species", []).size()):
 		var data := _load_species_data(species_index)
@@ -638,14 +638,14 @@ func _diagnostic_full_identity_connection_matrix() -> Dictionary:
 		var organism := _create_organism(data, Vector2.ZERO, 0, 0)
 		if organism.is_empty(): continue
 		var identity_valid := true
-		for system_id in range(7):
+		for system_id in range(SYSTEM_NAMES.size()):
 			var result := _diagnostic_connection_sever(organism, system_id); case_count += 1
 			if bool(result.get("passed", false)):
 				var name: String = SYSTEM_NAMES[system_id]; system_counts[name] = int(system_counts.get(name, 0)) + 1; minimum_drop = minf(minimum_drop, float(result.get("capacity_drop", 0.0)))
 			else:
 				identity_valid = false; failures.append({"sample_id": data.get("sample_id", "?"), "system": SYSTEM_NAMES[system_id], "result": result})
 		if identity_valid: identity_count += 1
-	return {"passed": identity_count == 45 and case_count == 315 and failures.is_empty() and system_counts.size() == 7 and system_counts.values().all(func(value): return int(value) == 45), "identity_count": identity_count, "case_count": case_count, "system_counts": system_counts, "minimum_capacity_drop": minimum_drop, "immune_model": "core-only humoral repair seeds; core injury covered by structural matrix", "failures": failures}
+	return {"passed": identity_count == 45 and case_count == 360 and failures.is_empty() and system_counts.size() == SYSTEM_NAMES.size() and system_counts.values().all(func(value): return int(value) == 45), "identity_count": identity_count, "case_count": case_count, "system_counts": system_counts, "minimum_capacity_drop": minimum_drop, "immune_model": "distinct routed repair organ v4; core, conduit, and effector connectivity are damageable", "failures": failures}
 
 
 func _prepare_physiology(organism: Dictionary, delta: float) -> void:

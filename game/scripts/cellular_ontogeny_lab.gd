@@ -4,7 +4,7 @@ const ONTOGENY_FORMAT := "nullvector-cellular-ontogeny-native-catalog-v3"
 const STAGE_NAMES := ["ZYGOTE", "GASTRULA", "ORGAN PRIMORDIA", "LARVAL", "JUVENILE", "ADULT"]
 const LINEAGE_COLORS := [Color("#000000"), Color("#4ad5ff"), Color("#ff638f"), Color("#ffb744"), Color("#c764ff"), Color("#68ff7e")]
 
-@export_file("*.json") var ontogeny_catalog_path := "res://generated/cellular_ontogeny/v5/ontogeny_catalog.json"
+@export_file("*.json") var ontogeny_catalog_path := "res://generated/cellular_ontogeny/v6/ontogeny_catalog.json"
 
 var ontogeny_catalog: Dictionary = {}
 var ontogeny_programs: Dictionary = {}

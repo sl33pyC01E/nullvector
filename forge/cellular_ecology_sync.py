@@ -22,7 +22,7 @@ from .safety import require_disk_floor
 
 FORMAT = "nullvector-cellular-ecology-native-catalog-v3"
 DEFAULT_SOURCE = DEFAULT_OUTPUT / "cellular_ecology_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ecology/v5"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ecology/v6"
 
 
 def _source_registry() -> dict[str, str]:
@@ -54,9 +54,9 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
     registry = _source_registry(); dependencies = {}
     for name, relative in {
         "organism": "game/generated/cellular_symmetry/v1/catalog.json",
-        "motion": "game/generated/cellular_motion/v11/motion_catalog.json",
-        "physiology": "game/generated/cellular_physiology/v10/catalog.json",
-        "trauma": "game/generated/cellular_trauma/v7/catalog.json",
+        "motion": "game/generated/cellular_motion/v12/motion_catalog.json",
+        "physiology": "game/generated/cellular_physiology/v11/catalog.json",
+        "trauma": "game/generated/cellular_trauma/v8/catalog.json",
     }.items():
         path = PROJECT_ROOT / relative; data = json.loads(path.read_text(encoding="utf-8")); dependencies[name] = {"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path), "bundle_id": data["bundle_id"]}
     catalog: dict[str, object] = {

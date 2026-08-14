@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["format", "status", "compiler", "authority", "contract", "system_vocab", "identity_count", "core_failure_case_count", "dynamic_scenario_count", "core_failure_matrix", "family_scenarios", "gates", "report_sha256"],
   "properties": {
-    "format": {"const": "nullvector-cellular-homeostasis-audit-v1"},
+    "format": {"const": "nullvector-cellular-homeostasis-audit-v2"},
     "status": {"const": "ready"},
     "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
     "authority": {"type": "object", "additionalProperties": false, "required": ["physiology_manifest", "physiology_manifest_sha256", "physiology_semantic_sha256", "physiology_validation"], "properties": {"physiology_manifest": {"type": "string"}, "physiology_manifest_sha256": {"$ref": "#/$defs/sha"}, "physiology_semantic_sha256": {"$ref": "#/$defs/sha"}, "physiology_validation": {"type": "object"}}},

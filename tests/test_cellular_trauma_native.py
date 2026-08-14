@@ -7,8 +7,8 @@ from forge.cellular_trauma_sync import project_runtime, validate_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "outputs/cellular_trauma_v3/cellular_trauma_manifest.json"
-RUNTIME = ROOT / "game/generated/cellular_trauma/v7"
+SOURCE = ROOT / "outputs/cellular_trauma_v4/cellular_trauma_manifest.json"
+RUNTIME = ROOT / "game/generated/cellular_trauma/v8"
 SCENE = ROOT / "game/CellularMotionLab.tscn"
 SCRIPT = ROOT / "game/scripts/cellular_motion_lab.gd"
 REPORT = ROOT / "outputs/cellular_physiology_motion_godot_report_v8.json"
@@ -23,7 +23,7 @@ def test_native_trauma_projection_is_repeatable_and_hash_closed() -> None:
 
 def test_motion_lab_loads_clots_scars_magnetism_and_fragment_fates() -> None:
     scene = SCENE.read_text(encoding="utf-8"); script = SCRIPT.read_text(encoding="utf-8")
-    assert 'trauma_catalog_path = "res://generated/cellular_trauma/v7/catalog.json"' in scene
+    assert 'trauma_catalog_path = "res://generated/cellular_trauma/v8/catalog.json"' in scene
     for feature in ("_step_trauma_magnetism", "_step_trauma_components", "trauma_clot", "trauma_scar", "trauma_fragment_fate", "trauma_reconnections", "trauma_polyps"):
         assert feature in script
 

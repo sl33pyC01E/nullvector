@@ -5,7 +5,7 @@ const ECOLOGY_ORIGIN := Vector2(505.0, 99.0)
 const ECOLOGY_CELL := 12.0
 const ECOLOGY_COLORS := [Color("#3fe0ff"), Color("#ff8746"), Color("#6eff56"), Color("#db53ff"), Color("#aabfe1")]
 
-@export_file("*.json") var ecology_catalog_path := "res://generated/cellular_ecology/v5/ecology_catalog.json"
+@export_file("*.json") var ecology_catalog_path := "res://generated/cellular_ecology/v6/ecology_catalog.json"
 
 var ecology_catalog: Dictionary = {}
 var ecology_map_index := 0

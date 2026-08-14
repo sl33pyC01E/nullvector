@@ -138,6 +138,78 @@ def _respiratory_exchange(
     return set(selected[:target_count])
 
 
+def _repair_organ(
+    arrays: Mapping[str, np.ndarray],
+    adjacency: list[list[int]],
+    reserved: set[int],
+) -> tuple[set[int], set[int], set[int]]:
+    """Derive one compact, routed repair organ outside every primary core.
+
+    The source anatomy currently has no explicit IMMUNE/STEM tissue.  The old
+    fallback selected the six vascular pixels nearest the heart; in every one
+    of the 45 bodies those pixels were the heart itself, making immune damage
+    indistinguishable from circulation damage.  This projection deliberately
+    reserves a separate midline-biased cluster while leaving source tissue and
+    anatomy hashes immutable.
+    """
+    count = len(arrays["position_xy"])
+    positions = arrays["position_xy"].astype(np.float64)
+    tissue = arrays["tissue"].astype(np.uint8, copy=False)
+    surface = _surface_cells(arrays)
+    blocked = set(reserved)
+    for index in tuple(sorted(reserved)):
+        blocked.update(adjacency[index])
+    eligible = set(range(count)) - blocked
+    if len(eligible) < 6:
+        eligible = set(range(count)) - reserved
+    if len(eligible) < 6:
+        raise ValueError("Anatomy lacks room for a distinct repair organ")
+
+    preferred = {
+        index for index in eligible
+        if int(tissue[index]) in (int(TissueType.IMMUNE), int(TissueType.STEM))
+    }
+    if not preferred:
+        preferred = {index for index in eligible if int(tissue[index]) == int(TissueType.VASCULAR)}
+    if not preferred:
+        preferred = eligible - surface
+    if not preferred:
+        preferred = set(eligible)
+
+    center = positions.mean(axis=0)
+    target_count = max(6, min(10, count // 80 + 4))
+    ordered = sorted(
+        preferred,
+        key=lambda index: (
+            abs(float(positions[index, 0] - center[0])),
+            float(np.square(positions[index] - center).sum()),
+            index,
+        ),
+    )
+    cluster: list[int] = []
+    for anchor in ordered:
+        queue = deque([anchor]); seen = {anchor}; candidate: list[int] = []
+        while queue and len(candidate) < target_count:
+            current = queue.popleft(); candidate.append(current)
+            for neighbor in adjacency[current]:
+                if neighbor in eligible and neighbor not in seen:
+                    seen.add(neighbor); queue.append(neighbor)
+        if len(candidate) >= 6:
+            cluster = candidate
+            break
+    if len(cluster) < 6:
+        raise ValueError("Anatomy cannot form a connected distinct repair organ")
+
+    core_count = 2
+    effector_count = 2
+    core = set(cluster[:core_count])
+    effectors = set(cluster[-effector_count:])
+    members = set(cluster)
+    if core & reserved or not core.isdisjoint(effectors) or len(members - core - effectors) < 2:
+        raise ValueError("Repair organ role partition differs")
+    return core, members, effectors
+
+
 def compile_systems(
     record: Mapping[str, Any], arrays: Mapping[str, np.ndarray]
 ) -> tuple[dict[str, np.ndarray], list[dict[str, object]]]:
@@ -155,10 +227,11 @@ def compile_systems(
 
     vascular = set(map(int, np.flatnonzero(tissue == int(TissueType.VASCULAR))))
     respiration = _respiratory_exchange(record, arrays, surface, heart)
-    immune_seed = set(map(int, np.flatnonzero(np.isin(tissue, (int(TissueType.IMMUNE), int(TissueType.STEM))))))
-    if not immune_seed:
-        positions = arrays["position_xy"].astype(np.float64); center = positions[sorted(heart)].mean(axis=0)
-        immune_seed = set(sorted(vascular or surface, key=lambda index: (float(np.square(positions[index] - center).sum()), index))[:max(2, min(6, count // 100 + 2))])
+    immune_core, immune_members, immune_effectors = _repair_organ(
+        arrays,
+        adjacency,
+        heart | respiration | brain | gut | reproductive | sensory,
+    )
 
     definitions: dict[str, tuple[set[int], set[int], set[int]]] = {}
     # Vascular tissue is often generated as several semantically meaningful
@@ -180,8 +253,7 @@ def compile_systems(
     definitions["locomotion"] = (brain, brain | locomotor | locomotor_paths, locomotor)
     reproduction_paths = _path_union(adjacency, reproductive, heart)
     definitions["reproduction"] = (reproductive, reproductive | reproduction_paths, reproductive)
-    immune_paths = _path_union(adjacency, immune_seed, heart)
-    definitions["immune"] = (immune_seed, immune_seed | immune_paths, immune_seed)
+    definitions["immune"] = (immune_core, immune_members, immune_effectors)
 
     roles = np.zeros((len(SYSTEM_NAMES), count), dtype=np.uint8)
     weights = np.zeros((len(SYSTEM_NAMES), count), dtype=np.float32)
@@ -214,7 +286,7 @@ def compile_systems(
 
 def _overlay_sha(arrays: Mapping[str, np.ndarray]) -> str:
     import hashlib
-    digest = hashlib.sha256(b"nullvector-connected-physiology-arrays-v2\0")
+    digest = hashlib.sha256(b"nullvector-connected-physiology-arrays-v4\0")
     for name in sorted(arrays):
         value = np.ascontiguousarray(arrays[name])
         digest.update(name.encode() + b"\0" + str(value.dtype).encode() + b"\0")
@@ -244,12 +316,20 @@ def _build_files(source_manifest: Path) -> tuple[dict[str, bytes], dict[str, obj
     source_manifest = Path(source_manifest).resolve(); validation = validate_symmetry_bank(source_manifest)
     source = json.loads(source_manifest.read_text(encoding="utf-8")); files: dict[str, bytes] = {}; identities = []
     total_memberships = 0; overlapping_cells = 0; identities_with_overlap = 0
+    primary_core_overlap_cells = 0; immune_core_overlap_cells = 0
+    minimum_immune_conduit_count = 1 << 30; minimum_immune_effector_count = 1 << 30; minimum_immune_member_count = 1 << 30
     for record in source["offspring"]:
         arrays = _load_arrays(source_manifest.parent.joinpath(*PurePosixPath(record["arrays"]["path"]).parts)); overlay, systems = compile_systems(record, arrays)
         relative = f"identities/{record['sample_id']}/physiology.npz"; payload = deterministic_npz_bytes(overlay); files[relative] = payload
         total_memberships += int(sum(item["member_count"] for item in systems))
         overlap = int(np.count_nonzero(overlay["system_membership"] & (overlay["system_membership"] - 1)))
         overlapping_cells += overlap; identities_with_overlap += int(overlap > 0)
+        core_sets = [set(map(int, np.flatnonzero(overlay["system_role"][index] == ROLE_CORE))) for index in range(len(SYSTEM_NAMES))]
+        primary_core_overlap_cells += sum(len(core_sets[left] & core_sets[right]) for left in range(4) for right in range(left + 1, 4))
+        immune_core_overlap_cells += len(core_sets[7] & set().union(*core_sets[:7]))
+        minimum_immune_conduit_count = min(minimum_immune_conduit_count, int(systems[7]["conduit_count"]))
+        minimum_immune_effector_count = min(minimum_immune_effector_count, int(systems[7]["effector_count"]))
+        minimum_immune_member_count = min(minimum_immune_member_count, int(systems[7]["member_count"]))
         identities.append({
             "sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"],
             "source_anatomy_sha256": record["anatomy_sha256"], "physical_cell_count": record["summary"]["physical_cell_count"],
@@ -257,14 +337,15 @@ def _build_files(source_manifest: Path) -> tuple[dict[str, bytes], dict[str, obj
         })
     contact_payload = _contact_sheet(source_manifest.parent, source); files["cellular_physiology_contact_sheet.png"] = contact_payload
     manifest: dict[str, object] = {
-        "format": FORMAT, "status": "ready", "quality_tier": "member-routed-local-perfusion-organ-systems-v3",
+        "format": FORMAT, "status": "ready", "quality_tier": "distinct-routed-repair-organ-systems-v4",
         "compiler": {"source_sha256": source_sha256(), "python_runtime_required": False},
         "source": {"organism_manifest": source_manifest.relative_to(PROJECT_ROOT).as_posix(), "organism_manifest_sha256": sha256_file(source_manifest), "organism_semantic_sha256": source["semantic_sha256"], "organism_validation": validation},
         "array_format": ARRAY_FORMAT, "system_vocab": list(SYSTEM_NAMES), "role_vocab": list(ROLE_NAMES),
         "identity_count": len(identities), "system_count": len(SYSTEM_NAMES), "total_system_memberships": total_memberships, "overlapping_cell_count": overlapping_cells,
+        "organ_topology": {"primary_core_overlap_cells": primary_core_overlap_cells, "immune_core_overlap_cells": immune_core_overlap_cells, "minimum_immune_conduit_count": minimum_immune_conduit_count, "minimum_immune_effector_count": minimum_immune_effector_count, "minimum_immune_member_count": minimum_immune_member_count},
         "identities": identities, "contact_sheet": artifact_record_from_bytes("cellular_physiology_contact_sheet.png", contact_payload),
-        "runtime_contract": {"overlapping_system_membership": True, "capacity_depends_on_live_cells": True, "capacity_depends_on_bond_connectivity": True, "capacity_depends_on_local_fluid_perfusion": True, "core_loss_is_catastrophic": True, "dependency_cascade_is_explicit": True, "respiratory_exchange_is_family_specific": True, "system_paths_restricted_to_declared_members": True, "per_cell_delivery_fields": True, "python_runtime_required": False},
-        "gates": {"all_45_identities_compiled": len(identities) == 45, "all_8_systems_every_identity": all(len(item["systems"]) == 8 for item in identities), "all_systems_have_core": all(system["core_count"] > 0 for item in identities for system in item["systems"]), "all_systems_have_members": all(system["member_count"] >= system["core_count"] for item in identities for system in item["systems"]), "all_identities_have_overlapping_membership": identities_with_overlap == 45, "member_restricted_network_routing": True, "local_delivery_controls_repair": True, "local_fluid_perfusion_controls_circulation": True, "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
+        "runtime_contract": {"overlapping_system_membership": True, "capacity_depends_on_live_cells": True, "capacity_depends_on_bond_connectivity": True, "capacity_depends_on_local_fluid_perfusion": True, "core_loss_is_catastrophic": True, "dependency_cascade_is_explicit": True, "respiratory_exchange_is_family_specific": True, "system_paths_restricted_to_declared_members": True, "per_cell_delivery_fields": True, "primary_organ_cores_are_distinct": True, "immune_repair_organ_is_distinct_and_routed": True, "python_runtime_required": False},
+        "gates": {"all_45_identities_compiled": len(identities) == 45, "all_8_systems_every_identity": all(len(item["systems"]) == 8 for item in identities), "all_systems_have_core": all(system["core_count"] > 0 for item in identities for system in item["systems"]), "all_systems_have_members": all(system["member_count"] >= system["core_count"] for item in identities for system in item["systems"]), "all_identities_have_overlapping_membership": identities_with_overlap == 45, "all_primary_organ_cores_disjoint": primary_core_overlap_cells == 0, "all_immune_cores_disjoint_from_other_system_cores": immune_core_overlap_cells == 0, "all_immune_repair_organs_routed": minimum_immune_conduit_count >= 2 and minimum_immune_effector_count >= 2, "member_restricted_network_routing": True, "local_delivery_controls_repair": True, "local_fluid_perfusion_controls_circulation": True, "source_anatomy_immutable": True, "native_runtime_independent_of_python": True},
     }
     manifest["semantic_sha256"] = json_sha256(manifest); files["cellular_physiology_manifest.json"] = canonical_json_bytes(manifest)
     return files, manifest

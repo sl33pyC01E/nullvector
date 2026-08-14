@@ -7,8 +7,8 @@ from forge.cellular_physiology_sync import project_runtime, validate_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
-RUNTIME = ROOT / "game/generated/cellular_physiology/v10"
+SOURCE = ROOT / "outputs/cellular_physiology_v4/cellular_physiology_manifest.json"
+RUNTIME = ROOT / "game/generated/cellular_physiology/v11"
 SCENE = ROOT / "game/CellularMotionLab.tscn"
 SCRIPT = ROOT / "game/scripts/cellular_motion_lab.gd"
 
@@ -22,7 +22,7 @@ def test_native_physiology_projection_is_repeatable_and_hash_closed() -> None:
 
 def test_motion_lab_loads_and_applies_connected_physiology() -> None:
     scene = SCENE.read_text(encoding="utf-8"); script = SCRIPT.read_text(encoding="utf-8")
-    assert 'physiology_catalog_path = "res://generated/cellular_physiology/v10/catalog.json"' in scene
+    assert 'physiology_catalog_path = "res://generated/cellular_physiology/v11/catalog.json"' in scene
     for feature in (
         "_compute_physiology_capacities", "_physiology_reachable", "_prepare_physiology",
         "_advance_physiology", "physiology_oxygen", "physiology_base_digestion",

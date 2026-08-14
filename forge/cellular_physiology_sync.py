@@ -18,10 +18,10 @@ from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-connected-cellular-physiology-runtime-v4"
-CATALOG_FORMAT = "nullvector-connected-cellular-physiology-native-catalog-v6"
-DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v10"
+FORMAT = "nullvector-connected-cellular-physiology-runtime-v5"
+CATALOG_FORMAT = "nullvector-connected-cellular-physiology-native-catalog-v7"
+DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_physiology_v4/cellular_physiology_manifest.json"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v11"
 
 
 def _source_registry() -> dict[str, str]:
@@ -48,7 +48,7 @@ def project_runtime(source_manifest: Path = DEFAULT_SOURCE) -> dict[str, bytes]:
         identities.append({"sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"], "runtime": {"path": relative, "bytes": len(payload), "sha256": sha256_bytes(payload)}})
     registry = _source_registry(); contact = (source_manifest.parent / source["contact_sheet"]["path"]).read_bytes(); files["cellular_physiology_contact_sheet.png"] = contact
     catalog: dict[str, object] = {
-        "format": CATALOG_FORMAT, "status": "ready", "bundle_version": 6,
+        "format": CATALOG_FORMAT, "status": "ready", "bundle_version": 7,
         "source_manifest_sha256": sha256_file(source_manifest),
         "source_semantic_sha256": source["semantic_sha256"],
         "sync_source_manifest": registry,

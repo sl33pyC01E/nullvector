@@ -13,7 +13,7 @@ from forge.cellular_physiology.contract import SYSTEM_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-BANK = ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
+BANK = ROOT / "outputs/cellular_physiology_v4/cellular_physiology_manifest.json"
 
 
 def _representative(family_id: int = 0):
@@ -140,7 +140,36 @@ def test_local_fluid_loss_reduces_perfusion_without_killing_the_vessel() -> None
     assert 0.0 < state.capacities()["circulation"] < baseline
 
 
+def test_every_family_has_a_distinct_routed_repair_organ() -> None:
+    for family_id in range(5):
+        _, arrays, overlay, systems = _representative(family_id)
+        roles = overlay["system_role"]
+        immune = roles[SYSTEM_NAMES.index("immune")]
+        immune_core = set(map(int, np.flatnonzero(immune == 1)))
+        other_cores = set(map(int, np.flatnonzero(np.any(roles[:7] == 1, axis=0))))
+        assert immune_core.isdisjoint(other_cores)
+        assert (np.count_nonzero(immune == 1), np.count_nonzero(immune == 3)) == (2, 2)
+        assert np.count_nonzero(immune == 2) >= 5
+        assert systems[7]["core_count"] == 2 and systems[7]["conduit_count"] >= 5
+
+        state = PhysiologyState(arrays, overlay)
+        effector = int(np.flatnonzero(immune == 3)[0])
+        baseline = state.capacities()["immune"]
+        state.break_bonds([index for index, pair in enumerate(state.bond_ab) if effector in map(int, pair)])
+        assert state.alive[effector]
+        assert state.network_delivery()["immune"][effector] == 0.0
+        assert state.capacities()["immune"] < baseline
+
+
 def test_published_physiology_bank_is_hash_closed_and_exactly_replayable() -> None:
     validation = validate_bank(BANK); replay = replay_bank(BANK)
     assert validation["passed"] is True and validation["identity_count"] == 45
     assert replay["exact_replay"] is True and replay["artifact_count"] == 47
+    manifest = json.loads(BANK.read_text(encoding="utf-8"))
+    assert manifest["organ_topology"] == {
+        "primary_core_overlap_cells": 0,
+        "immune_core_overlap_cells": 0,
+        "minimum_immune_conduit_count": 5,
+        "minimum_immune_effector_count": 2,
+        "minimum_immune_member_count": 9,
+    }

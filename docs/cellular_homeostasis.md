@@ -30,7 +30,7 @@ behavior remain governed by the neural anatomy and motion banks.
 ```powershell
 python -m forge.cellular_homeostasis build
 python -m forge.cellular_homeostasis validate `
-  outputs/cellular_homeostasis_v1/homeostasis_report.json
+  outputs/cellular_homeostasis_v2/homeostasis_report.json
 ```
 
 The layer is deterministic reference logic and requires no neural checkpoint or

@@ -22,9 +22,9 @@ from .multifield_style_motion.hashing import canonical_json_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-cellular-homeostasis-audit-v1"
-DEFAULT_PHYSIOLOGY = PROJECT_ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
-DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/cellular_homeostasis_v1/homeostasis_report.json"
+FORMAT = "nullvector-cellular-homeostasis-audit-v2"
+DEFAULT_PHYSIOLOGY = PROJECT_ROOT / "outputs/cellular_physiology_v4/cellular_physiology_manifest.json"
+DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/cellular_homeostasis_v2/homeostasis_report.json"
 SCHEMA = PROJECT_ROOT / "shared/schema/cellular_homeostasis_report.schema.json"
 SOURCE_FILES = (
     "forge/cellular_homeostasis.py",
@@ -41,7 +41,7 @@ def _json_hash(payload: Mapping[str, Any]) -> str:
 
 
 def source_sha256() -> str:
-    digest = hashlib.sha256(b"nullvector-cellular-homeostasis-source-v1\0")
+    digest = hashlib.sha256(b"nullvector-cellular-homeostasis-source-v2\0")
     for relative in SOURCE_FILES:
         path = PROJECT_ROOT / relative
         digest.update(relative.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")

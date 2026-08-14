@@ -9,7 +9,7 @@ from forge.cellular_motion_sync import project_runtime, validate_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
-RUNTIME = ROOT / "game/generated/cellular_motion/v11"
+RUNTIME = ROOT / "game/generated/cellular_motion/v12"
 SCENE = ROOT / "game/CellularMotionLab.tscn"
 SCRIPT = ROOT / "game/scripts/cellular_motion_lab.gd"
 
@@ -23,7 +23,7 @@ def test_motion_native_projection_is_repeatable_and_closed() -> None:
 
 def test_native_scene_uses_live_organ_drivers_not_sprite_frames() -> None:
     scene = SCENE.read_text(encoding="utf-8"); script = SCRIPT.read_text(encoding="utf-8")
-    assert 'motion_catalog_path = "res://generated/cellular_motion/v11/motion_catalog.json"' in scene
+    assert 'motion_catalog_path = "res://generated/cellular_motion/v12/motion_catalog.json"' in scene
     assert "expected_species_count = 45" in scene
     for feature in (
         "_apply_motion_force", "_channel_driver", "_neural_reachable_cells",
@@ -71,14 +71,14 @@ def test_native_smoke_exhausts_motion_programs_and_actuates_damageable_body() ->
     assert all(value > 0.001 for value in actuation["minimum_channel_velocity"].values())
     connections = report["full_identity_connection_matrix"]
     assert connections["passed"] is True
-    assert (connections["identity_count"], connections["case_count"], connections["failures"]) == (45, 315, [])
+    assert (connections["identity_count"], connections["case_count"], connections["failures"]) == (45, 360, [])
     assert connections["system_counts"] == {
         "circulation": 45, "respiration": 45, "digestion": 45,
         "neural": 45, "sensory": 45, "locomotion": 45,
-        "reproduction": 45,
+        "reproduction": 45, "immune": 45,
     }
     assert connections["minimum_capacity_drop"] > 0.0001
-    assert "core-only humoral" in connections["immune_model"]
+    assert "distinct routed repair organ" in connections["immune_model"]
     assert set(report["system_core_failures"]) == {
         "circulation", "respiration", "digestion", "neural", "sensory",
         "locomotion", "reproduction", "immune",

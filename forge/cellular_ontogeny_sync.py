@@ -20,7 +20,7 @@ from .safety import require_disk_floor
 
 FORMAT = "nullvector-cellular-ontogeny-native-catalog-v3"
 DEFAULT_SOURCE = DEFAULT_OUTPUT / "cellular_ontogeny_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ontogeny/v5"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ontogeny/v6"
 
 
 def _source_registry() -> dict[str, str]:

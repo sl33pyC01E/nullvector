@@ -33,15 +33,15 @@ Build and exact replay:
 
 ```powershell
 python -m forge.cellular_trauma build
-python -m forge.cellular_trauma validate outputs/cellular_trauma_v3/cellular_trauma_manifest.json
-python -m forge.cellular_trauma replay outputs/cellular_trauma_v3/cellular_trauma_manifest.json
+python -m forge.cellular_trauma validate outputs/cellular_trauma_v4/cellular_trauma_manifest.json
+python -m forge.cellular_trauma replay outputs/cellular_trauma_v4/cellular_trauma_manifest.json
 ```
 
 Native projection:
 
 ```powershell
 python -m forge.cellular_trauma_sync \
-  --destination game/generated/cellular_trauma/v7 \
+  --destination game/generated/cellular_trauma/v8 \
   --report outputs/cellular_trauma_sync_report.json
 ```
 

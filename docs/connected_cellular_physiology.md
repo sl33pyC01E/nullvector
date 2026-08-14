@@ -14,7 +14,8 @@ Every one of the 45 organisms receives eight explicit systems:
 - sensory: eyes/effectors connected to the brain;
 - locomotion: brain core, motor paths, and appendage effectors;
 - reproduction: reproductive nexus connected to circulation;
-- immune/repair: stem or immune seed cells and their vascular route.
+- immune/repair: a distinct repair core, routed conduits, and two repair
+  effectors, spatially separated from every primary organ core.
 
 Membership overlaps deliberately: one pixel cell may be structural tissue, a
 vascular conduit, and part of a neural or respiratory route. Each system stores
@@ -38,9 +39,9 @@ Build, validate, and replay without CUDA:
 ```powershell
 python -m forge.cellular_physiology build
 python -m forge.cellular_physiology validate `
-  outputs/cellular_physiology_v3/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v4/cellular_physiology_manifest.json
 python -m forge.cellular_physiology replay `
-  outputs/cellular_physiology_v3/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v4/cellular_physiology_manifest.json
 ```
 
 The deterministic `PhysiologyState` is the reference capacity/damage model.
@@ -48,8 +49,8 @@ The native projection is built with:
 
 ```powershell
 python -m forge.cellular_physiology_sync `
-  --destination game/generated/cellular_physiology/v10 `
-  --report outputs/cellular_physiology_sync_v4_2.json
+  --destination game/generated/cellular_physiology/v11 `
+  --report outputs/cellular_physiology_native_sync_v11.json
 ```
 
 `CellularMotionLab.tscn` consumes that projection alongside the attachment-root
@@ -97,13 +98,14 @@ failures.
 
 Cell connectivity is now exercised separately from cell death. For every
 identity, the native smoke selects one living routed member in circulation,
-respiration, digestion, neural, sensory, locomotor, and reproductive systems,
+respiration, digestion, neural, sensory, locomotor, reproductive, and immune systems,
 cuts every physical bond at that member, and requires local delivery to fall
-from nonzero to exactly zero while the isolated cell remains alive. All 315
+from nonzero to exactly zero while the isolated cell remains alive. All 360
 identity/system cases must also reduce the appropriate whole-system capacity.
 This proves a severed vessel, airway/exchange path, gut route, nerve, sensory
-connection, motor tract, or reproductive route cannot continue functioning as
-an invisible global counter. The current immune representation is explicitly
-different: it is a core-only humoral repair-seed system, so its destruction is
-covered by the 360 core-lesion matrix rather than misreported as a routed
-severance case.
+connection, motor tract, reproductive route, or repair conduit cannot continue
+functioning as an invisible global counter. Physiology v4 expands this to all
+360 identity/system severance cases. The immune organ now has a distinct core,
+at least five conduits, and two effectors; its core never overlaps any primary
+organ core, and cutting a living immune member reduces repair delivery while
+the isolated cell itself remains alive.
