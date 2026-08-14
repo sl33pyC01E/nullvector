@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://nullvector.local/schema/map_theme_refinement.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "policy", "compiler", "schedule", "config", "records", "aggregate", "contact_sheet", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-map-theme-refinement-audit-v1"}, "status": {"const": "ready"}, "policy": {"const": "bounded-archipelago-land-water-shoreline-selection-v1"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "dependency_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "dependency_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "schedule": {"type": "object", "additionalProperties": false, "required": ["base_seed", "samples_per_theme", "themes", "max_attempts"], "properties": {"base_seed": {"type": "string", "pattern": "^0x[0-9a-f]{16}$"}, "samples_per_theme": {"const": 8}, "themes": {"const": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]}, "max_attempts": {"const": 32}}},
+    "config": {"type": "object"}, "records": {"type": "array", "minItems": 48, "maxItems": 48, "items": {"$ref": "#/$defs/record"}},
+    "aggregate": {"type": "object", "required": ["leave_one_out_accuracy", "per_theme", "unique_semantic_count", "maximum_archipelago_attempt", "mean_archipelago_attempt"], "properties": {"leave_one_out_accuracy": {"const": 1.0}, "per_theme": {"type": "object"}, "unique_semantic_count": {"const": 48}, "maximum_archipelago_attempt": {"type": "integer", "minimum": 0, "maximum": 31}, "mean_archipelago_attempt": {"type": "number", "minimum": 0}}, "additionalProperties": true},
+    "contact_sheet": {"$ref": "#/$defs/artifact"}, "gates": {"type": "object", "minProperties": 8, "additionalProperties": {"const": true}}, "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"const": "refined_archipelago_contact_sheet.png"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "record": {"type": "object", "additionalProperties": false, "required": ["theme", "sample_index", "requested_seed", "selected_seed", "attempt", "map_id", "semantic_sha256", "validation_failure_count", "archipelago_metrics", "feature_values", "classification"], "properties": {"theme": {"type": "string"}, "sample_index": {"type": "integer", "minimum": 0, "maximum": 7}, "requested_seed": {"type": "string"}, "selected_seed": {"type": "string"}, "attempt": {"type": "integer", "minimum": 0, "maximum": 31}, "map_id": {"type": "string"}, "semantic_sha256": {"$ref": "#/$defs/sha"}, "validation_failure_count": {"const": 0}, "archipelago_metrics": {"type": "object", "additionalProperties": {"type": "number"}}, "feature_values": {"type": "array", "minItems": 83, "maxItems": 83, "items": {"type": "number"}}, "classification": {"type": "object"}}}
+  }
+}
