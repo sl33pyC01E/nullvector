@@ -610,6 +610,44 @@ func _diagnostic_full_identity_actuation_matrix() -> Dictionary:
 	return {"passed": identity_count == 45 and case_count == 225 and failures.is_empty() and family_counts.size() == 5, "identity_count": identity_count, "case_count": case_count, "family_counts": family_counts, "minimum_channel_velocity": minima, "failures": failures}
 
 
+func _diagnostic_connection_sever(organism: Dictionary, system_id: int) -> Dictionary:
+	var roles: Array = organism.get("physiology_role", [])[system_id]; var weights: Array = organism.get("physiology_weight", [])[system_id]
+	var before_network := _physiology_reachable(organism, roles, system_id); var target := -1; var target_score := -1.0
+	for index in range(roles.size()):
+		if int(roles[index]) <= 1 or not organism["alive"][index]: continue
+		var score := float(weights[index]) * float(before_network.get(str(index), 0.0))
+		if score > target_score: target_score = score; target = index
+	if target < 0: return {"passed": false, "system": SYSTEM_NAMES[system_id], "reason": "no routed member"}
+	var before_capacity := _compute_physiology_capacities(organism); var diagnostic: Dictionary = organism.duplicate(true); var bonds_cut := 0
+	for edge in diagnostic.get("motion_neighbors", [])[target]:
+		var bond_index := int(edge[1])
+		if diagnostic["bond_alive"][bond_index]: diagnostic["bond_alive"][bond_index] = false; bonds_cut += 1
+	var after_network := _physiology_reachable(diagnostic, roles, system_id); var after_capacity := _compute_physiology_capacities(diagnostic); var name: String = SYSTEM_NAMES[system_id]; var drop: float = float(before_capacity.get(name, 0.0)) - float(after_capacity.get(name, 0.0))
+	var passed: bool = bonds_cut > 0 and diagnostic["alive"][target] and float(before_network.get(str(target), 0.0)) > 0.0 and float(after_network.get(str(target), 0.0)) == 0.0 and drop > 0.0000001
+	return {"passed": passed, "system": name, "target_cell": target, "bonds_cut": bonds_cut, "target_alive": diagnostic["alive"][target], "delivery_before": before_network.get(str(target), 0.0), "delivery_after": after_network.get(str(target), 0.0), "capacity_before": before_capacity.get(name, 0.0), "capacity_after": after_capacity.get(name, 0.0), "capacity_drop": drop}
+
+
+func _diagnostic_full_identity_connection_matrix() -> Dictionary:
+	# Immune repair seeds are presently a core-only humoral system. The other
+	# seven systems have explicit routed members and must respond to a living
+	# cell being disconnected without pretending that the cell itself died.
+	var identity_count := 0; var case_count := 0; var system_counts: Dictionary = {}; var minimum_drop := INF; var failures: Array = []
+	for species_index in range(catalog.get("species", []).size()):
+		var data := _load_species_data(species_index)
+		if data.is_empty(): continue
+		var organism := _create_organism(data, Vector2.ZERO, 0, 0)
+		if organism.is_empty(): continue
+		var identity_valid := true
+		for system_id in range(7):
+			var result := _diagnostic_connection_sever(organism, system_id); case_count += 1
+			if bool(result.get("passed", false)):
+				var name: String = SYSTEM_NAMES[system_id]; system_counts[name] = int(system_counts.get(name, 0)) + 1; minimum_drop = minf(minimum_drop, float(result.get("capacity_drop", 0.0)))
+			else:
+				identity_valid = false; failures.append({"sample_id": data.get("sample_id", "?"), "system": SYSTEM_NAMES[system_id], "result": result})
+		if identity_valid: identity_count += 1
+	return {"passed": identity_count == 45 and case_count == 315 and failures.is_empty() and system_counts.size() == 7 and system_counts.values().all(func(value): return int(value) == 45), "identity_count": identity_count, "case_count": case_count, "system_counts": system_counts, "minimum_capacity_drop": minimum_drop, "immune_model": "core-only humoral repair seeds; core injury covered by structural matrix", "failures": failures}
+
+
 func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	organism["physiology_clock"] = float(organism.get("physiology_clock", 0.0)) - delta
 	if float(organism["physiology_clock"]) <= 0.0:
@@ -969,7 +1007,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var full_identity_actuation_matrix: Dictionary = {}; var homeostasis_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var full_identity_actuation_matrix: Dictionary = {}; var full_identity_connection_matrix: Dictionary = {}; var homeostasis_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -1024,6 +1062,8 @@ func _run_motion_smoke() -> void:
 		if not bool(full_identity_failure_matrix.get("passed", false)): errors.append("full identity physiology failure matrix")
 		full_identity_actuation_matrix = _diagnostic_full_identity_actuation_matrix()
 		if not bool(full_identity_actuation_matrix.get("passed", false)): errors.append("full identity native actuation matrix")
+		full_identity_connection_matrix = _diagnostic_full_identity_connection_matrix()
+		if not bool(full_identity_connection_matrix.get("passed", false)): errors.append("full identity routed connection matrix")
 		selected_motion = EXPECTED_MOTIONS.find("locomote"); selected_facing = 2; motion_epoch = 0.0; simulation_time = 0.25
 		_apply_motion_force(organisms[0], 1.0 / 60.0)
 		for velocity in organisms[0]["velocity"]: actuation_velocity += velocity.length()
@@ -1067,6 +1107,7 @@ func _run_motion_smoke() -> void:
 		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
 		"full_identity_failure_matrix": full_identity_failure_matrix,
 		"full_identity_actuation_matrix": full_identity_actuation_matrix,
+		"full_identity_connection_matrix": full_identity_connection_matrix,
 		"homeostasis_matrix": homeostasis_matrix, "reserve_aware_homeostasis_verified": bool(homeostasis_matrix.get("passed", false)),
 		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "local_perfusion_verified": local_perfusion_verified, "progressive_chain_verified": progressive_chain_verified,
 		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,

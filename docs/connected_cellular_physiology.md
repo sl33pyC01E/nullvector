@@ -94,3 +94,16 @@ immune delivery, circulation, and reproduction gate feeding conversion,
 healing/scarring, clotting, and offspring. The Godot smoke records and verifies
 this four-lesion time course in addition to the original 360 structural core
 failures.
+
+Cell connectivity is now exercised separately from cell death. For every
+identity, the native smoke selects one living routed member in circulation,
+respiration, digestion, neural, sensory, locomotor, and reproductive systems,
+cuts every physical bond at that member, and requires local delivery to fall
+from nonzero to exactly zero while the isolated cell remains alive. All 315
+identity/system cases must also reduce the appropriate whole-system capacity.
+This proves a severed vessel, airway/exchange path, gut route, nerve, sensory
+connection, motor tract, or reproductive route cannot continue functioning as
+an invisible global counter. The current immune representation is explicitly
+different: it is a core-only humoral repair-seed system, so its destruction is
+covered by the 360 core-lesion matrix rather than misreported as a routed
+severance case.
