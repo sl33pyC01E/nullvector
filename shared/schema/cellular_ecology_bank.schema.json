@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_ecology_bank.schema.json",
+  "title": "Nullvector Cellular Ecology Bank v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "organism_source", "family_vocab", "resource_vocab", "field_vocab", "map_count", "resource_node_count", "maps", "contact_sheet", "runtime_contract", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-ecology-bank-v1"},
+    "status": {"const": "ready"},
+    "quality_tier": {"const": "deterministic-topology-safe-living-habitat-v1"},
+    "compiler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "rng"],
+      "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "rng": {"const": "coordinate-splitmix64-plus-fixed-neighbor-diffusion-v1"}}
+    },
+    "organism_source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifest", "manifest_sha256", "semantic_sha256", "sample_count", "symmetry_policy"],
+      "properties": {
+        "manifest": {"type": "string", "minLength": 1}, "manifest_sha256": {"$ref": "#/$defs/sha"}, "semantic_sha256": {"$ref": "#/$defs/sha"},
+        "sample_count": {"const": 45}, "symmetry_policy": {"const": "family-aware-soft-bilateral-additive-v1"}
+      }
+    },
+    "family_vocab": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/vocab"}},
+    "resource_vocab": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/vocab"}},
+    "field_vocab": {"const": ["nutrient", "moisture", "light", "temperature", "toxicity", "energy", "biomass"]},
+    "map_count": {"const": 6},
+    "resource_node_count": {"type": "integer", "minimum": 90, "maximum": 120},
+    "maps": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/map"}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "runtime_contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pixels_are_resource_cells", "resources_regrow", "organisms_consume_local_resources", "family_specific_niches", "mission_topology_is_immutable", "environmental_damage_sources", "reproduction_requires_energy_and_local_carrying_capacity"],
+      "properties": {
+        "pixels_are_resource_cells": {"const": true}, "resources_regrow": {"const": true}, "organisms_consume_local_resources": {"const": true},
+        "family_specific_niches": {"const": true}, "mission_topology_is_immutable": {"const": true},
+        "environmental_damage_sources": {"const": ["toxicity", "temperature", "hazard"]},
+        "reproduction_requires_energy_and_local_carrying_capacity": {"const": true}
+      }
+    },
+    "gates": {"$ref": "#/$defs/gates"},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "vocab": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name"],
+      "properties": {"id": {"type": "integer", "minimum": 0}, "name": {"type": "string", "minLength": 1}}
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}
+    },
+    "stats": {
+      "type": "object", "additionalProperties": false, "required": ["minimum", "mean", "maximum"],
+      "properties": {"minimum": {"type": "number", "minimum": 0, "maximum": 1}, "mean": {"type": "number", "minimum": 0, "maximum": 1}, "maximum": {"type": "number", "minimum": 0, "maximum": 1}}
+    },
+    "gates": {
+      "type": "object", "minProperties": 1, "additionalProperties": {"const": true}
+    },
+    "resource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "family", "family_id", "kind", "resource_type", "position", "capacity", "regrowth_per_second", "habitat_score"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 0}, "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "kind": {"enum": ["organic_food", "water", "photonic_bloom", "anomalous_plasma", "mineral_charge"]},
+        "resource_type": {"type": "integer", "minimum": 1, "maximum": 5},
+        "position": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 0, "maximum": 255}},
+        "capacity": {"type": "number", "exclusiveMinimum": 0}, "regrowth_per_second": {"type": "number", "exclusiveMinimum": 0},
+        "habitat_score": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "habitat_stats": {
+      "type": "object", "additionalProperties": false,
+      "required": ["family", "family_id", "minimum", "mean", "maximum"],
+      "properties": {
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "minimum": {"type": "number", "minimum": 0, "maximum": 1},
+        "mean": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "map": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "map_id", "theme", "dimensions", "source", "ecology_array_sha256", "statistics", "family_habitats", "resource_nodes", "gates", "artifact"],
+      "properties": {
+        "format": {"const": "nullvector-cellular-ecology-map-v1"}, "map_id": {"type": "string", "minLength": 1},
+        "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+        "dimensions": {
+          "type": "object", "additionalProperties": false, "required": ["width", "height"],
+          "properties": {"width": {"type": "integer", "minimum": 32, "maximum": 256}, "height": {"type": "integer", "minimum": 32, "maximum": 256}}
+        },
+        "source": {
+          "type": "object", "additionalProperties": false, "required": ["manifest", "manifest_sha256", "semantic_array_sha256", "topology_mask_sha256"],
+          "properties": {"manifest": {"type": "string", "minLength": 1}, "manifest_sha256": {"$ref": "#/$defs/sha"}, "semantic_array_sha256": {"$ref": "#/$defs/sha"}, "topology_mask_sha256": {"$ref": "#/$defs/sha"}}
+        },
+        "ecology_array_sha256": {"$ref": "#/$defs/sha"},
+        "statistics": {
+          "type": "object", "additionalProperties": false,
+          "required": ["nutrient", "moisture", "light", "temperature", "toxicity", "energy", "biomass"],
+          "properties": {"nutrient": {"$ref": "#/$defs/stats"}, "moisture": {"$ref": "#/$defs/stats"}, "light": {"$ref": "#/$defs/stats"}, "temperature": {"$ref": "#/$defs/stats"}, "toxicity": {"$ref": "#/$defs/stats"}, "energy": {"$ref": "#/$defs/stats"}, "biomass": {"$ref": "#/$defs/stats"}}
+        },
+        "family_habitats": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/habitat_stats"}},
+        "resource_nodes": {"type": "array", "minItems": 15, "maxItems": 20, "items": {"$ref": "#/$defs/resource"}},
+        "gates": {"$ref": "#/$defs/gates"}, "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://scripts/cellular_ecology_lab.gd" type="Script" id="1_ecology"]
+
+[node name="CellularEcologyLab" type="Node2D"]
+script = ExtResource("1_ecology")
+catalog_path = "res://generated/cellular_symmetry/v1/catalog.json"
+asset_root = "res://generated/cellular_symmetry/v1/"
+expected_species_count = 45
+exact_family_count = 0
+lineage_mode = true
+lab_title = "NULLVECTOR // LIVING CELLULAR ECOLOGY LAB"
+lab_subtitle = "SOFT SYMMETRY // LIVE ORGANS // REGENERATING NICHES // 6 TOPOLOGY-SAFE HABITATS"
+motion_catalog_path = "res://generated/cellular_motion/v1/motion_catalog.json"
+ecology_catalog_path = "res://generated/cellular_ecology/v1/ecology_catalog.json"
