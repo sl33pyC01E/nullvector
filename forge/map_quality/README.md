@@ -44,3 +44,8 @@ the whole result.
 The showcase overlays the captured protected route in blue, agent-center
 articulations in amber, and mission-disconnecting agent-center cells in red.
 Its PNG and manifest also support exact replay.
+
+The 24-map multi-size/multi-aspect authority bank and its fixed seed recipe are
+documented in `docs/map_quality_matrix_v2.md`. It complements the six-map
+ForgeLab showcase with compact, portrait, landscape, and expanded coverage for
+every theme.
