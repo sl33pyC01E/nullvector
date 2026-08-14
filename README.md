@@ -132,6 +132,11 @@ predicts only safe variant, decal, prop, and emission fields. It never predicts
 terrain, collision, mission routes, or topology masks. Training is segmented
 into fresh two-epoch CUDA processes with immutable checkpoints and exact resume
 because this host has demonstrated intermittent native process corruption.
+The current v4 hybrid exposes the renderer's public SplitMix64 proposal substrate
+and applies a frozen-core neural residual only to decal/prop conflict suppression.
+Its bounded 64-step calibration exact-replays the complete validation and sentinel
+splits, improves both object heads, preserves variant/emission exactly, and is not
+yet a production or Godot integration claim.
 
 A learned structural map prior is being developed separately as a discrete VQ
 codec plus masked latent diffusion. Its raw proposals will pass through a

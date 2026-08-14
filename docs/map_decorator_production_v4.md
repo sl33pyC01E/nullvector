@@ -1,7 +1,7 @@
 # Map Decorator Public-Entropy Residual v4
 
-Status: CPU-only hybrid architecture foundation. It is not trained, production-integrable,
-or a Godot asset source.
+Status: corrected hybrid substrate plus one accepted, frozen-core 64-step CUDA residual
+calibration. It is not production-integrated or a Godot asset source.
 
 ## Why v3 failed
 
@@ -73,7 +73,14 @@ python -m forge.map_decorator_production_v4 audit-corpus `
   --output outputs/map_decorator_production_v4/full_proposal_audit_v1
 ```
 
-CUDA remains unauthorized while the unrelated motion-LoRA job owns the GPU. The next boundary
-after exact full-corpus replay is a fresh v4 residual training contract; it must preserve the
-unchanged validation/test gates and compare the procedural proposal baseline against trained
-raw and EMA outputs rather than claiming credit for deterministic proposal coverage.
+The residual package now includes an accepted bounded calibration at
+`outputs/map_decorator_production_v4_training/cuda_calibration_v2_frozen_core`. Its selected
+EMA improves validation/test decal macro-IoU to `0.995097/0.998597` and prop macro-IoU to
+`0.989279/0.989276`. Because the categorical core is frozen, variant and emission outputs are
+exactly unchanged from the procedural baseline. Independent full-split replay passed over all
+576 validation maps and 24 test sentinels. See `docs/map_decorator_v4_residual_training.md` for
+the complete gates and identities.
+
+This is still a calibration boundary: production schedules and runtime integration remain
+unauthorized. A future schedule must preserve the frozen-core separation, immutable proposal
+authority, full-split baseline comparisons, and exact legality/provenance gates.

@@ -8,7 +8,7 @@ from ..map_decorator_production_v4.contract import V4_CONTRACT_SHA256
 
 
 V4_TRAINING_CONTRACT_NAME: Final[str] = "nullvector-map-decorator-v4-residual-training"
-V4_TRAINING_CONTRACT_VERSION: Final[str] = "1.0.0"
+V4_TRAINING_CONTRACT_VERSION: Final[str] = "1.2.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +60,40 @@ class ResidualTrainingConfig:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class ResidualCalibrationConfig:
+    steps: int = 64
+    patch_size: int = 48
+    batch_size: int = 4
+    validation_batch_size: int = 4
+    test_batch_size: int = 2
+    object_regression_tolerance: float = 0.002
+
+    def __post_init__(self) -> None:
+        integers = (
+            self.steps,
+            self.patch_size,
+            self.batch_size,
+            self.validation_batch_size,
+            self.test_batch_size,
+        )
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in integers):
+            raise TypeError("V4 calibration sizes must be integers.")
+        if not 1 <= self.steps <= 500:
+            raise ValueError("V4 calibration steps must remain in [1,500].")
+        if not 32 <= self.patch_size <= 96 or self.patch_size % 4:
+            raise ValueError("V4 calibration patch size must be a multiple of four in [32,96].")
+        if self.batch_size != 4:
+            raise ValueError("V4 calibration reserves exactly two decal and two prop slots.")
+        if not 1 <= self.validation_batch_size <= 8 or not 1 <= self.test_batch_size <= 4:
+            raise ValueError("V4 calibration evaluation batches exceed their safe bounds.")
+        if isinstance(self.object_regression_tolerance, bool) or not 0 <= self.object_regression_tolerance <= 0.01:
+            raise ValueError("V4 object regression tolerance must remain in [0,0.01].")
+
+    def to_dict(self) -> dict[str, int | float]:
+        return asdict(self)
+
+
 def v4_training_contract_manifest() -> dict[str, object]:
     return {
         "contract_name": V4_TRAINING_CONTRACT_NAME,
@@ -67,21 +101,25 @@ def v4_training_contract_manifest() -> dict[str, object]:
         "v4_substrate_sha256": V4_CONTRACT_SHA256,
         "loss": ResidualLossConfig().to_dict(),
         "training": ResidualTrainingConfig().to_dict(),
+        "calibration": ResidualCalibrationConfig().to_dict(),
         "authority": {
             "proposal_fields_are_immutable_inputs": True,
             "target_fields_never_generate_proposals": True,
             "off_proposal_object_decode_impossible": True,
             "procedural_baseline_reported_separately": True,
+            "categorical_core_frozen_during_cuda_calibration": True,
         },
         "acceptance": {
             "zero_legality_topology_or_provenance_failures": True,
             "trained_raw_and_ema_compared_to_untrained_baseline": True,
-            "no_object_head_may_regress_below_v4_baseline": True,
+            "no_categorical_or_object_head_may_regress_below_v4_baseline": True,
             "unchanged_validation_and_test_quality_gates": True,
         },
         "safety": {
-            "cpu_foundation_only": True,
-            "cuda_calibration_authorized": False,
+            "cpu_resume_foundation_required": True,
+            "cuda_bf16_calibration_authorized": True,
+            "cuda_calibration_maximum_steps": 500,
+            "production_schedule_authorized": False,
             "runtime_integration_authorized": False,
         },
     }

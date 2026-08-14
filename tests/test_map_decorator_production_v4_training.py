@@ -16,11 +16,13 @@ from forge.map_decorator_production_v4.decoding import select_proposal_condition
 from forge.map_decorator_production_v4.model import ProposalConditionedDecoratorV4
 from forge.map_decorator_production_v4.proposal import ProposalAuthority
 from forge.map_decorator_production_v4_training.contract import (
+    ResidualCalibrationConfig,
     ResidualLossConfig,
     ResidualTrainingConfig,
     V4_TRAINING_CONTRACT_SHA256,
     v4_training_contract_manifest,
 )
+from forge.map_decorator_production_v4_training.calibration import compare_to_baseline
 from forge.map_decorator_production_v4_training.dataset import (
     ProposalTeacherSample,
     collate_proposal_samples,
@@ -50,9 +52,52 @@ def test_v4_training_contract_preserves_public_proposal_authority() -> None:
         "target_fields_never_generate_proposals": True,
         "off_proposal_object_decode_impossible": True,
         "procedural_baseline_reported_separately": True,
+        "categorical_core_frozen_during_cuda_calibration": True,
     }
     with pytest.raises(ValueError, match="cannot be disabled"):
         ResidualLossConfig(proposal_presence_weight=0)
+    assert manifest["safety"] == {
+        "cpu_resume_foundation_required": True,
+        "cuda_bf16_calibration_authorized": True,
+        "cuda_calibration_maximum_steps": 500,
+        "production_schedule_authorized": False,
+        "runtime_integration_authorized": False,
+    }
+
+
+def test_v4_cuda_calibration_is_bounded_and_baseline_relative() -> None:
+    assert ResidualCalibrationConfig().steps == 64
+    with pytest.raises(ValueError, match=r"\[1,500\]"):
+        ResidualCalibrationConfig(steps=501)
+    smoke = json.loads(
+        Path("outputs/map_decorator_production_v4/public_proposal_smoke_v1/smoke_report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    baseline = smoke["metrics"]
+    identical = compare_to_baseline(baseline, baseline, tolerance=0.002)
+    assert identical["passed"] is True
+    degraded = json.loads(json.dumps(baseline))
+    degraded["heads"]["prop"]["foreground_macro_iou"] -= 0.01
+    rejected = compare_to_baseline(baseline, degraded, tolerance=0.002)
+    assert rejected["checks"]["prop.foreground_macro_iou"] is False
+    assert rejected["passed"] is False
+    degraded_emission = json.loads(json.dumps(baseline))
+    degraded_emission["heads"]["emission"]["foreground_f1"] -= 0.01
+    rejected_emission = compare_to_baseline(baseline, degraded_emission, tolerance=0.002)
+    assert rejected_emission["checks"]["emission.foreground_f1"] is False
+    assert rejected_emission["passed"] is False
+
+
+def test_v4_cuda_calibration_optimizer_excludes_frozen_categorical_core() -> None:
+    model = ProposalConditionedDecoratorV4(CORE, LOCATOR)
+    model.core.requires_grad_(False)
+    optimizer = make_optimizer(model, TRAINING)
+    optimized = {id(parameter) for group in optimizer.param_groups for parameter in group["params"]}
+    assert optimized
+    assert all(id(parameter) not in optimized for parameter in model.core.parameters())
+    assert all(id(parameter) in optimized for parameter in model.locators["decal"].parameters())
+    assert all(id(parameter) in optimized for parameter in model.locators["prop"].parameters())
 
 
 def test_v4_train_step_is_finite_and_decode_cannot_escape_proposals() -> None:

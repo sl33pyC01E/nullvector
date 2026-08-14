@@ -17,7 +17,10 @@ def make_optimizer(
     model: ProposalConditionedDecoratorV4,
     config: ResidualTrainingConfig = ResidualTrainingConfig(),
 ) -> torch.optim.Optimizer:
-    return torch.optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    if not parameters:
+        raise ValueError("V4 residual optimizer requires at least one trainable parameter.")
+    return torch.optim.AdamW(parameters, lr=config.learning_rate, weight_decay=config.weight_decay)
 
 
 def train_batch(
