@@ -40,6 +40,10 @@ Focused tests cover:
 - real topology-v2 foreground crops with gradients reaching both locator and count heads;
 - CUDA fail-closed behavior;
 - deterministic two-run CPU smoke equality and resealed-report tamper rejection.
+- bounded, atomic v3 checkpoints with complete dependency-source, corpus, index, model,
+  optimizer, EMA, generator, and CPU RNG provenance;
+- exact interrupted-versus-uninterrupted training equivalence plus rejection of fully rehashed
+  sidecar and tensor tampering.
 
 Run the focused suite without touching CUDA:
 
@@ -62,8 +66,8 @@ python -m forge.map_decorator_production_v3 validate `
 ## Next authorized boundary
 
 Do not reuse a v2 checkpoint: the locator/count parameter contract is intentionally different.
-Before CUDA work, add a v3-specific bounded checkpoint/resume contract and a fresh 100-step
-calibration command. Run that only in a free GPU window, keep the unchanged v2 validation/test
-gates, and compare raw plus EMA full-split object metrics. Longer training and runtime
-integration remain forbidden until both decal and prop pass every predeclared quality and
-density gate.
+The v3 checkpoint/resume boundary now exists and is CPU-proven. The next implementation slice
+is a fresh 100-step calibration runner with immutable process supervision and full validation/
+test evaluation. Run it only in a free GPU window, keep the unchanged v2 quality/density gates,
+and compare raw plus EMA full-split object metrics. Longer training and runtime integration
+remain forbidden until both decal and prop pass every predeclared quality and density gate.

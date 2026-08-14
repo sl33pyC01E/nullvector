@@ -9,6 +9,7 @@ from ..map_decorator_ml.contract import HEAD_CLASS_COUNTS, ModelConfig
 
 V3_CONTRACT_NAME: Final[str] = "nullvector-map-decorator-sparse-locator-v3"
 V3_CONTRACT_VERSION: Final[str] = "3.0.0"
+V3_CHECKPOINT_FORMAT_VERSION: Final[str] = "3.0.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +145,7 @@ def v3_contract_manifest() -> dict[str, object]:
     return {
         "contract_name": V3_CONTRACT_NAME,
         "contract_version": V3_CONTRACT_VERSION,
+        "checkpoint_format_version": V3_CHECKPOINT_FORMAT_VERSION,
         "output_heads": dict(HEAD_CLASS_COUNTS),
         "model": LocatorModelConfig().to_dict(),
         "loss": LocatorLossConfig().to_dict(),

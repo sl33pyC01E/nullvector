@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from forge.map_decorator.hashing import json_sha256
+from forge.map_decorator_ml.checkpoint import file_sha256
 from forge.map_decorator_ml.contract import HEAD_CLASS_COUNTS, HEAD_NAMES
 from forge.map_decorator_ml.dataset import TeacherSample, collate_teacher_samples
 from forge.map_decorator_ml.legality import TorchLegalMasks
@@ -22,6 +23,14 @@ from forge.map_decorator_production_v3.contract import (
     LocatorTrainingConfig,
     V3_CONTRACT_SHA256,
     v3_contract_manifest,
+)
+from forge.map_decorator_production_v3.checkpoint import (
+    V3CheckpointError,
+    checkpoint_source_sha256,
+    inspect_checkpoint,
+    load_checkpoint,
+    save_checkpoint,
+    tensor_state_sha256,
 )
 from forge.map_decorator_production_v3.decoding import (
     independent_count_quotas,
@@ -274,3 +283,143 @@ def test_cpu_smoke_is_byte_semantic_replayable_and_tamper_checked(tmp_path) -> N
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="format/status"):
         validate_cpu_smoke(path)
+
+
+def test_v3_checkpoint_resume_matches_uninterrupted_training_exactly(tmp_path) -> None:
+    sample = _teacher_sample()
+    patch = ForegroundPatchConfig(batch_size=2, decal_slots=1, prop_slots=1)
+    crops = [
+        foreground_centered_crop(sample, focus_head=head, epoch=0, step=0, slot=slot, seed=73, config=patch)
+        for slot, head in enumerate(("decal", "prop"))
+    ]
+    batch = collate_teacher_samples(crops)
+    model_config = LocatorModelConfig(base_channels=4, condition_channels=8, locator_channels=4, locator_blocks=1, count_hidden_channels=4, count_prior=2.0)
+    training_config = LocatorTrainingConfig(seed=79, ema_decay=0.9, full_mask_stride=1)
+    loss_config = LocatorLossConfig(halo_radius=2)
+
+    def fresh():
+        torch.manual_seed(83)
+        model = SparseLocatorDecoratorV3(model_config)
+        optimizer = make_optimizer_v3(model, training_config)
+        ema = WarmStartEMA(model, training_config.ema_decay)
+        generator = torch.Generator().manual_seed(training_config.seed)
+        return model, optimizer, ema, generator
+
+    uninterrupted_model, uninterrupted_optimizer, uninterrupted_ema, uninterrupted_generator = fresh()
+    for _ in range(2):
+        train_batch_v3(
+            uninterrupted_model,
+            uninterrupted_optimizer,
+            uninterrupted_ema,
+            batch,
+            generator=uninterrupted_generator,
+            training_config=training_config,
+            loss_config=loss_config,
+        )
+
+    interrupted_model, interrupted_optimizer, interrupted_ema, interrupted_generator = fresh()
+    first_result = train_batch_v3(
+        interrupted_model,
+        interrupted_optimizer,
+        interrupted_ema,
+        batch,
+        generator=interrupted_generator,
+        training_config=training_config,
+        loss_config=loss_config,
+    )
+    checkpoint = tmp_path / "step-000001.pt"
+    authority = {
+        "corpus_sha256": "1" * 64,
+        "corpus_manifest_sha256": "2" * 64,
+        "index_semantic_sha256": "3" * 64,
+        "index_manifest_sha256": "4" * 64,
+    }
+    sidecar = save_checkpoint(
+        checkpoint,
+        interrupted_model,
+        interrupted_optimizer,
+        interrupted_ema,
+        training_config=training_config,
+        loss_config=loss_config,
+        patch_config=patch,
+        schedule={"epochs": 2, "steps_per_epoch": 1},
+        **authority,
+        epoch=1,
+        global_step=1,
+        predecessor_checkpoint_sha256=None,
+        training_generator=interrupted_generator,
+        metrics={"first": first_result["loss"]["total"]},
+    )
+    assert sidecar["source_sha256"] == checkpoint_source_sha256()
+    inspected = inspect_checkpoint(checkpoint)
+    assert inspected["global_step"] == inspected["ema_state"]["updates"] == 1
+
+    resumed_model, resumed_optimizer, resumed_ema, resumed_generator = fresh()
+    load_checkpoint(
+        checkpoint,
+        resumed_model,
+        resumed_optimizer,
+        resumed_ema,
+        resumed_generator,
+        expected={**authority, "global_step": 1, "epoch": 1},
+    )
+    train_batch_v3(
+        resumed_model,
+        resumed_optimizer,
+        resumed_ema,
+        batch,
+        generator=resumed_generator,
+        training_config=training_config,
+        loss_config=loss_config,
+    )
+    assert tensor_state_sha256(resumed_model.state_dict()) == tensor_state_sha256(uninterrupted_model.state_dict())
+    assert tensor_state_sha256(resumed_ema.shadow) == tensor_state_sha256(uninterrupted_ema.shadow)
+    assert resumed_ema.updates == uninterrupted_ema.updates == 2
+    assert torch.equal(resumed_generator.get_state(), uninterrupted_generator.get_state())
+
+
+def test_v3_checkpoint_rejects_fully_rehashed_sidecar_and_tensor_tamper(tmp_path) -> None:
+    sample = _teacher_sample()
+    batch = collate_teacher_samples([sample])
+    model_config = LocatorModelConfig(base_channels=4, condition_channels=8, locator_channels=4, locator_blocks=1, count_hidden_channels=4)
+    training_config = LocatorTrainingConfig(full_mask_stride=1)
+    model = SparseLocatorDecoratorV3(model_config)
+    optimizer = make_optimizer_v3(model, training_config)
+    ema = WarmStartEMA(model, training_config.ema_decay)
+    generator = torch.Generator().manual_seed(training_config.seed)
+    train_batch_v3(model, optimizer, ema, batch, generator=generator, training_config=training_config)
+    checkpoint = tmp_path / "tamper.pt"
+    authority = dict(corpus_sha256="1" * 64, corpus_manifest_sha256="2" * 64, index_semantic_sha256="3" * 64, index_manifest_sha256="4" * 64)
+    save_checkpoint(
+        checkpoint, model, optimizer, ema,
+        training_config=training_config, loss_config=LocatorLossConfig(), patch_config=ForegroundPatchConfig(batch_size=2, decal_slots=1, prop_slots=1),
+        schedule={"steps": 1}, **authority, epoch=1, global_step=1,
+        predecessor_checkpoint_sha256=None, training_generator=generator, metrics={"passed": True},
+    )
+    sidecar_path = checkpoint.with_suffix(".pt.json")
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar["epoch"] = 99
+    sidecar["sidecar_sha256"] = json_sha256({key: value for key, value in sidecar.items() if key != "sidecar_sha256"})
+    sidecar_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(V3CheckpointError, match="sidecar.epoch"):
+        inspect_checkpoint(checkpoint)
+
+    # Restore the valid sidecar, then mutate a model tensor and fully rehash
+    # the checkpoint file plus sidecar. The embedded tensor identity still fails.
+    save_checkpoint(
+        checkpoint, model, optimizer, ema,
+        training_config=training_config, loss_config=LocatorLossConfig(), patch_config=ForegroundPatchConfig(batch_size=2, decal_slots=1, prop_slots=1),
+        schedule={"steps": 1}, **authority, epoch=1, global_step=1,
+        predecessor_checkpoint_sha256=None, training_generator=generator, metrics={"passed": True},
+    )
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    tensor_name = next(iter(payload["model_state"]))
+    payload["model_state"][tensor_name] = payload["model_state"][tensor_name].clone()
+    payload["model_state"][tensor_name].view(-1)[0] += 1
+    torch.save(payload, checkpoint)
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar["checkpoint_sha256"] = file_sha256(checkpoint)
+    sidecar["sidecar_sha256"] = json_sha256({key: value for key, value in sidecar.items() if key != "sidecar_sha256"})
+    sidecar_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(V3CheckpointError, match="model tensor SHA"):
+        inspect_checkpoint(checkpoint)
