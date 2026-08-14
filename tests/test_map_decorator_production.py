@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 
@@ -29,6 +30,7 @@ from forge.map_decorator_production.teacher import (
     semantic_teacher_targets,
 )
 from forge.map_decorator_production.training import ProductionTrainingConfig
+from forge.map_decorator_production.replay_supervisor import run_isolated_replay
 from forge.map_decorator_ml.dataset import _teacher_targets
 from forge.map_decorator.hashing import json_sha256
 from forge.maps import MapConfig, THEMES, generate_map
@@ -138,6 +140,66 @@ def test_atomic_homogeneous_shard_reloads_and_replays_every_sample(tmp_path: Pat
     recovered = build_shard(spec, tmp_path)
     assert recovered["recovered_after_atomic_publish"] is True
     assert recovered["npz_sha256"] == first["npz_sha256"]
+
+
+def test_isolated_replay_is_resumable_and_closes_over_every_artifact(tmp_path: Path) -> None:
+    spec = _tiny_spec()
+    build_shard(spec, tmp_path)
+    validate_shard(spec, tmp_path)
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    (specs / f"{spec.shard_id}.json").write_text(
+        json.dumps(spec.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "isolated-replay"
+    identity = "a" * 64
+    first = run_isolated_replay(
+        tmp_path,
+        output,
+        python=Path(sys.executable),
+        workers=1,
+        max_attempts=2,
+        timeout_seconds=60,
+        specs=(spec,),
+        fixture_corpus_sha256=identity,
+    )
+    assert first["status"] == "passed"
+    assert first["counts"] == {
+        "shards": 1,
+        "samples": 2,
+        "attempts": 1,
+        "retries": 0,
+        "native_failures": 0,
+    }
+    assert all(first["gates"].values())
+    assert run_isolated_replay(
+        tmp_path,
+        output,
+        python=Path(sys.executable),
+        workers=1,
+        max_attempts=2,
+        timeout_seconds=60,
+        specs=(spec,),
+        fixture_corpus_sha256=identity,
+    ) == first
+
+    result_path = output / "results" / f"{spec.shard_id}.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["worker_report"]["sample_count"] = 99
+    result["result_sha256"] = json_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        run_isolated_replay(
+            tmp_path,
+            output,
+            specs=(spec,),
+            fixture_corpus_sha256=identity,
+        )
+    except ValueError as error:
+        assert "worker report identity drifted" in str(error)
+    else:
+        raise AssertionError("Resealed shard-result tampering did not fail closed.")
 
 
 def test_shard_sidecar_tamper_fails_closed(tmp_path: Path) -> None:

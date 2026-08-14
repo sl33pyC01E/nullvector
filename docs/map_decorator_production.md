@@ -74,6 +74,24 @@ python -m forge.map_decorator_production validate `
   --verify-shards
 ```
 
+On hosts affected by intermittent native access violations, prefer the resumable isolated
+replay supervisor. It launches one shard per fresh process, allows no more than two workers
+and three attempts, hashes every stdout/stderr/attempt/result artifact, and writes the root
+report only after all 216 shard results close exactly over the frozen corpus authority:
+
+```powershell
+$env:CUDA_VISIBLE_DEVICES='-1'
+python -m forge.map_decorator_production.replay_supervisor `
+  --corpus outputs/map_decorator_corpus_v1 `
+  --output outputs/map_decorator_corpus_v1_isolated_replay_20260814 `
+  --workers 2 `
+  --max-attempts 3
+```
+
+The sealed 2026-08-14 replay covers 216 shards and 3,096 maps with zero retries or native
+failures. Its semantic replay identity is
+`398ac5513f24a2b9102c45fe4ca0a08d4e6835848d2b94143111aaabf3bf5208`.
+
 ## CUDA calibration and training
 
 The training supervisor first runs 100 CUDA BF16 calibration steps and gates finite losses,
@@ -95,4 +113,3 @@ python -m forge.map_decorator_production.supervisor `
 
 No ForgeLab or gameplay integration is performed by this slice. The deterministic renderer
 remains authoritative until later visual-quality and compiled-art gates pass.
-
