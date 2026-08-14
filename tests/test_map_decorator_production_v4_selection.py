@@ -14,7 +14,6 @@ from forge.map_decorator_production_v4.model import ProposalConditionedDecorator
 from forge.map_decorator_production_v4.proposal import ProposalAuthority
 from forge.map_decorator_production_v4_calibration.runner import calibration_source_sha256, validate_supervised
 from forge.map_decorator_production_v4_selection.audit import (
-    _derive_config,
     selection_source_manifest,
     selection_source_sha256,
 )
@@ -75,9 +74,9 @@ def test_protected_selector_restores_only_empty_legal_noncolliding_proposals() -
         assert not bool(((protected[head] != 0) & ~proposed).any())
 
 
-def test_protected_selection_source_and_rare_class_derivation_are_frozen() -> None:
+def test_historical_protected_selection_artifact_fails_closed_after_frozen_core_upgrade() -> None:
     manifest = selection_source_manifest()
     assert manifest["calibration_source_sha256"] == calibration_source_sha256()
     assert selection_source_sha256() == json_sha256(manifest)
-    calibration = validate_supervised(CALIBRATION, corpus_root=CORPUS, index_root=INDEX)["calibration"]
-    assert _derive_config(calibration) == ProtectedSelectionConfig(decal_classes=(2,))
+    with pytest.raises(ValueError, match="source drifted"):
+        validate_supervised(CALIBRATION, corpus_root=CORPUS, index_root=INDEX)

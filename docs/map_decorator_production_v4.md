@@ -84,3 +84,9 @@ the complete gates and identities.
 This is still a calibration boundary: production schedules and runtime integration remain
 unauthorized. A future schedule must preserve the frozen-core separation, immutable proposal
 authority, full-split baseline comparisons, and exact legality/provenance gates.
+
+The earlier protected-selection audit remains preserved as historical evidence but is retired
+from the active path. Its test decal macro-IoU was `0.992444`; the frozen-core EMA reaches
+`0.998597` without that postprocessor. Restoring every remaining rare-class proposal would buy
+only `0.000320` recall while giving back materially more precision, so the stale selector now
+fails closed instead of being silently rebound.
