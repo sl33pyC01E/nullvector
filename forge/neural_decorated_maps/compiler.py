@@ -17,7 +17,7 @@ import torch
 
 from ..config import PROJECT_ROOT
 from ..map_art.provenance import source_hash as map_art_source_sha256
-from ..map_decorator.catalog import build_legal_class_masks, validate_decoration_fields
+from ..map_decorator.catalog import build_legal_class_masks, catalog_for, validate_decoration_fields
 from ..map_decorator.features import encode_features
 from ..map_decorator.hashing import named_arrays_sha256, json_sha256
 from ..map_decorator_ml.contract import HEAD_NAMES, ModelConfig, global_condition_vector
@@ -33,7 +33,7 @@ from ..map_decorator_production_v4_selection.contract import ProtectedSelectionC
 from ..map_decorator_production_v4_selection.decoder import select_protected_proposal_argmax
 from ..map_decorator_production_v4_training.checkpoint import inspect_checkpoint, tensor_state_sha256
 from ..maps.io import array_digest, file_sha256, load_map_pack
-from ..maps.model import THEMES, MapData
+from ..maps.model import THEMES, MapData, Terrain
 from ..maps.validate import validate_pack
 from ..safety import require_disk_floor
 from .contract import (
@@ -135,9 +135,28 @@ def _predict_once(
     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         output = model(features, labels, masked, theme, conditions, torch.ones((1,), device=device), proposal_tensors)
         selected, diagnostics = select_protected_proposal_argmax(output, base_legal, config=config)
-    fields = {
+    neural_fields = {
         name: np.ascontiguousarray(selected[name][0].cpu().numpy(), dtype=np.uint8)
         for name in ("variant", "decal", "prop")
+    }
+    neural_conditional = build_legal_class_masks(
+        data,
+        protected_backbone=data.protected_backbone,
+        required_clearance=data.required_clearance,
+        decoration_forbidden=data.decoration_forbidden,
+        selected_variant=neural_fields["variant"],
+        selected_decal=neural_fields["decal"],
+        selected_prop=neural_fields["prop"],
+    )
+    conditional_torch = legal_masks_to_torch(neural_conditional, device=device)
+    with torch.inference_mode():
+        emission = torch.argmax(apply_legal_mask(output.emission, conditional_torch.emission, "emission"), dim=1)
+    neural_fields["emission"] = np.ascontiguousarray(emission[0].cpu().numpy(), dtype=np.uint8)
+    teacher, _, _ = semantic_teacher_targets(data)
+    fields = {
+        "variant": np.ascontiguousarray(teacher["variant"], dtype=np.uint8),
+        "decal": neural_fields["decal"],
+        "prop": neural_fields["prop"],
     }
     conditional = build_legal_class_masks(
         data,
@@ -148,10 +167,16 @@ def _predict_once(
         selected_decal=fields["decal"],
         selected_prop=fields["prop"],
     )
-    conditional_torch = legal_masks_to_torch(conditional, device=device)
-    with torch.inference_mode():
-        emission = torch.argmax(apply_legal_mask(output.emission, conditional_torch.emission, "emission"), dim=1)
-    fields["emission"] = np.ascontiguousarray(emission[0].cpu().numpy(), dtype=np.uint8)
+    semantic_emission = np.zeros(data.shape, dtype=np.uint8)
+    capable = conditional.emission[1]
+    semantic_emission[capable] = 1
+    semantic_emission[(data.terrain == int(Terrain.CRYSTAL)) & capable] = 2
+    catalog = catalog_for(data.theme)
+    for field, entries in ((fields["decal"], catalog.decal_classes), (fields["prop"], catalog.prop_classes)):
+        for entry in entries:
+            if entry.emission_capable:
+                semantic_emission[(field == entry.class_id) & capable] = 3 if entry.color_role == "secondary" else 2
+    fields["emission"] = np.ascontiguousarray(semantic_emission, dtype=np.uint8)
     validation = validate_decoration_fields(
         data,
         protected_backbone=data.protected_backbone,
@@ -161,7 +186,6 @@ def _predict_once(
     )
     if not validation["passed"]:
         raise RuntimeError(f"Neural decorated map prediction is illegal: {validation}")
-    teacher, _, _ = semantic_teacher_targets(data)
     agreement = {
         name: float((fields[name] == teacher[name]).mean()) for name in HEAD_NAMES
     }
@@ -169,7 +193,15 @@ def _predict_once(
         "feature_seed": feature_seed(data.seed),
         "feature_tensor_sha256": encoded.tensor_sha256,
         "proposal_fields_sha256": proposals.fields_sha256,
+        "neural_raw_fields_sha256": named_arrays_sha256(neural_fields),
         "selection_fields_sha256": named_arrays_sha256(fields),
+        "field_authority": {
+            "variant": "deterministic_semantic_teacher",
+            "decal": "accepted_neural_protected_selector",
+            "prop": "accepted_neural_protected_selector",
+            "emission": "conditional_semantic_projection",
+        },
+        "unsupported_neural_heads_cross_runtime_boundary": False,
         "validation": validation,
         "agreement_with_procedural_teacher": agreement,
         "protected_diagnostics": diagnostics,

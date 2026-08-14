@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://scripts/neural_decorated_map_lab.gd" type="Script" id="1_map_lab"]
+
+[node name="NeuralDecoratedMapLab" type="Node2D"]
+script = ExtResource("1_map_lab")
+catalog_path = "res://generated/neural_decorated_maps/v1_1/catalog.json"
+asset_root = "res://generated/neural_decorated_maps/v1_1/"

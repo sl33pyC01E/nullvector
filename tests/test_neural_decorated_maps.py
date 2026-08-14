@@ -25,6 +25,9 @@ def test_neural_decorated_map_contract_preserves_topology_and_runtime_boundary()
     assert manifest["authority"]["topology_v2_arrays_immutable"] is True
     assert manifest["authority"]["selection_checkpoint_not_shipped"] is True
     assert manifest["authority"]["runtime_assets"] == [".json", ".png"]
+    assert manifest["authority"]["neural_heads_authorized"] == ["decal", "prop"]
+    assert manifest["authority"]["semantic_heads_authorized"] == ["variant", "emission"]
+    assert manifest["authority"]["unsupported_neural_heads_cross_runtime_boundary"] is False
 
 
 def test_source_registry_selects_exactly_one_current_v2_map_per_theme() -> None:

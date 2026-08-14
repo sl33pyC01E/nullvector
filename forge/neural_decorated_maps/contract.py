@@ -7,8 +7,8 @@ from ..map_decorator_production_v4_selection.contract import V4_SELECTION_CONTRA
 from ..maps.model import THEMES
 
 
-BANK_FORMAT: Final[str] = "nullvector-neural-decorated-map-bank/1.0.0"
-RUNTIME_FORMAT: Final[str] = "nullvector-neural-decorated-map-runtime/1.0.0"
+BANK_FORMAT: Final[str] = "nullvector-neural-decorated-map-bank/1.1.0"
+RUNTIME_FORMAT: Final[str] = "nullvector-neural-decorated-map-runtime/1.1.0"
 CELL_SIZE: Final[int] = 384
 ATLAS_COLUMNS: Final[int] = 4
 STATIC_LAYERS: Final[tuple[str, ...]] = (
@@ -26,7 +26,7 @@ HAZARD_FRAMES: Final[int] = 8
 
 def contract_manifest() -> dict[str, object]:
     return {
-        "format": "nullvector-neural-decorated-map-contract/1.0.0",
+        "format": "nullvector-neural-decorated-map-contract/1.1.0",
         "selection_contract_sha256": V4_SELECTION_CONTRACT_SHA256,
         "themes": list(THEMES),
         "atlas": {
@@ -43,12 +43,15 @@ def contract_manifest() -> dict[str, object]:
             "selection_checkpoint_not_shipped": True,
             "runtime_assets": [".json", ".png"],
             "python_runtime_required": False,
+            "neural_heads_authorized": ["decal", "prop"],
+            "semantic_heads_authorized": ["variant", "emission"],
+            "unsupported_neural_heads_cross_runtime_boundary": False,
         },
         "rendering": {
             "tile_pixels": 8,
-            "selected_variant_drives_terrain_micro_pattern": True,
-            "selected_object_classes_drive_catalog_sprites": True,
-            "selected_emission_scales_additive_pixels": True,
+            "semantic_variant_drives_terrain_micro_pattern": True,
+            "neural_object_classes_drive_catalog_sprites": True,
+            "conditional_semantic_emission_scales_additive_pixels": True,
             "hazards_remain_topology_authoritative": True,
         },
     }
