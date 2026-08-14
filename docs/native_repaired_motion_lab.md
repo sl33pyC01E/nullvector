@@ -64,3 +64,51 @@ Godot executable so the invoking shell waits for the authoritative exit code.
 The smoke streams atlases one at a time, verifies every runtime byte/hash and
 dimension, validates all 8,320 clip bounds, and constructs all 75,520 frame
 regions without retaining the full atlas bank in memory.
+
+## Motion quality contract
+
+Addressable frames alone do not prove useful animation. The additive
+`forge.repaired_motion_quality` audit decodes every base atlas and evaluates all
+8,320 clips after removing integer centroid translation. It fails on blank or
+near-static playback, occupancy flashes, motion-specific articulation collapse,
+duplicate rendered identity sequences, family imbalance, source drift, or a
+fully rehashed forged report.
+
+The calibrated minimum translation-compensated articulation floors range from
+3% for breathing to 55% for death. Locomotion requires at least 8.5%; attack
+and hit require 32%; cast requires 19%. Every playback clip must contain at
+least four distinct silhouette frames, and no frame may exceed 1.35 times its
+clip's median occupancy. These are regression floors, not aesthetic maxima.
+
+The current explicitly attested, visually inspected report is
+`outputs/repaired_motion_quality_v2/motion_quality_report.json`:
+
+- 80 unique rendered base atlases, 8,320 clips, and 75,520 stored frames;
+- zero blank, static, occupancy-spike, or articulation-floor failures;
+- minimum observed articulation `36,680 ppm` and maximum occupancy spike
+  `1,307,918 ppm`;
+- 104 shared alpha-sequence groups belonging to one intentional machine
+  palette-variant pair, but zero duplicate full-RGBA sequences;
+- clip-metric identity
+  `fbf217dcc7988a353896bdac7dde95ba0c8084d16e6ffbf76b7d469fb3c5ea66`;
+- report identity
+  `1a8a1ec57834902d0ca719715dae8974bb52bf611161f5b0793e8c9da17a5993`;
+- report file SHA256
+  `7e567134ac9245448c6bf47b80dde84344de71ad7135dd848afd6a1b6d6a8eb9`;
+- audit source identity
+  `c5632c0a7ad443a7165c27359dbea750e9b0e72d08e8190815c3ed40ab517a11`;
+- dynamics contact sheet
+  `592b26ddfbe4ef0ab272e51d9d4abade1180d4b456591532320521efae55ac0e`.
+
+Each contact-sheet cell shows the first frame beside the frame with maximum
+translation-compensated articulation for one north-facing family
+representative. Exact replay recomputes every metric and the PNG bytes from the
+hash-bound native bank. Version 2 additionally fails publication unless the
+builder supplies the explicit `--visually-inspected` attestation; validation
+replays that attestation instead of silently inventing it.
+
+```powershell
+python -m forge.repaired_motion_quality validate `
+  --output outputs/repaired_motion_quality_v2 `
+  --runtime game/generated/repaired_motion_lab/v1
+```

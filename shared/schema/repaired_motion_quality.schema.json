@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/repaired_motion_quality.schema.json",
+  "title": "All-80 repaired neural motion quality audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "authority", "source_sha256", "execution", "counts", "thresholds", "summary", "families", "motions", "contact_sheet", "gates", "report_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-repaired-neural-motion-quality-v2"},
+    "status": {"const": "ready"},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_catalog", "runtime_catalog_sha256", "runtime_bundle_id"],
+      "properties": {
+        "runtime_catalog": {"const": "game/generated/repaired_motion_lab/v1/catalog.json"},
+        "runtime_catalog_sha256": {"$ref": "#/$defs/sha"},
+        "runtime_bundle_id": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "execution": {
+      "const": {
+        "device": "cpu",
+        "cuda_used": false,
+        "pixel_authority": "base_atlas_alpha",
+        "global_translation_removed": "integer_centroid_alignment_v1"
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_count", "family_count", "motion_count", "facing_count", "clip_count", "frame_count", "unique_base_atlas_count"],
+      "properties": {
+        "identity_count": {"const": 80},
+        "family_count": {"const": 5},
+        "motion_count": {"const": 13},
+        "facing_count": {"const": 8},
+        "clip_count": {"const": 8320},
+        "frame_count": {"const": 75520},
+        "unique_base_atlas_count": {"const": 80}
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_unique_playback_frames", "maximum_occupancy_spike_ppm", "articulation_floor_ppm"],
+      "properties": {
+        "minimum_unique_playback_frames": {"const": 4},
+        "maximum_occupancy_spike_ppm": {"const": 1350000},
+        "articulation_floor_ppm": {"type": "object", "minProperties": 13, "maxProperties": 13, "additionalProperties": {"type": "integer", "minimum": 1}}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blank_clip_count", "static_clip_count", "occupancy_spike_failure_count", "articulation_failure_count", "cross_identity_duplicate_alpha_sequence_group_count", "cross_identity_duplicate_rgba_sequence_group_count", "minimum_articulation_peak_ppm", "maximum_articulation_peak_ppm", "minimum_unique_frame_count", "maximum_occupancy_spike_ppm", "clip_metrics_sha256"],
+      "properties": {
+        "blank_clip_count": {"const": 0},
+        "static_clip_count": {"const": 0},
+        "occupancy_spike_failure_count": {"const": 0},
+        "articulation_failure_count": {"const": 0},
+        "cross_identity_duplicate_alpha_sequence_group_count": {"type": "integer", "minimum": 0},
+        "cross_identity_duplicate_rgba_sequence_group_count": {"const": 0},
+        "minimum_articulation_peak_ppm": {"type": "integer", "minimum": 1},
+        "maximum_articulation_peak_ppm": {"type": "integer", "minimum": 1},
+        "minimum_unique_frame_count": {"type": "integer", "minimum": 4},
+        "maximum_occupancy_spike_ppm": {"type": "integer", "maximum": 1350000},
+        "clip_metrics_sha256": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "families": {"type": "object", "minProperties": 5, "maxProperties": 5, "additionalProperties": {"$ref": "#/$defs/aggregate"}},
+    "motions": {"type": "object", "minProperties": 13, "maxProperties": 13, "additionalProperties": {"$ref": "#/$defs/motionAggregate"}},
+    "contact_sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "columns", "rows", "cell_content", "visually_inspected"],
+      "properties": {
+        "path": {"const": "motion_dynamics_contact_sheet.png"},
+        "bytes": {"type": "integer", "minimum": 1, "maximum": 33554432},
+        "sha256": {"$ref": "#/$defs/sha"},
+        "columns": {"type": "array", "minItems": 13, "maxItems": 13, "uniqueItems": true},
+        "rows": {"const": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "cell_content": {"const": "first_frame_then_peak_translation_compensated_articulation_frame"},
+        "visually_inspected": {"const": true}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all_80_identity_atlases_unique", "all_8320_clips_audited", "no_blank_playback_clips", "no_static_or_near_static_clips", "no_occupancy_flash_spikes", "all_motion_articulation_floors_met", "no_cross_identity_duplicate_rgba_sequences", "all_five_families_balanced", "source_runtime_validation_passed", "contact_sheet_visually_inspected", "cpu_only"],
+      "properties": {
+        "all_80_identity_atlases_unique": {"const": true},
+        "all_8320_clips_audited": {"const": true},
+        "no_blank_playback_clips": {"const": true},
+        "no_static_or_near_static_clips": {"const": true},
+        "no_occupancy_flash_spikes": {"const": true},
+        "all_motion_articulation_floors_met": {"const": true},
+        "no_cross_identity_duplicate_rgba_sequences": {"const": true},
+        "all_five_families_balanced": {"const": true},
+        "source_runtime_validation_passed": {"const": true},
+        "contact_sheet_visually_inspected": {"const": true},
+        "cpu_only": {"const": true}
+      }
+    },
+    "report_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_count", "minimum_unique_frames", "minimum_articulation_peak_ppm", "maximum_articulation_peak_ppm", "maximum_occupancy_spike_ppm", "blank_clip_count", "static_clip_count"],
+      "properties": {
+        "clip_count": {"type": "integer", "minimum": 1},
+        "minimum_unique_frames": {"type": "integer", "minimum": 1},
+        "minimum_articulation_peak_ppm": {"type": "integer", "minimum": 0},
+        "maximum_articulation_peak_ppm": {"type": "integer", "minimum": 0},
+        "maximum_occupancy_spike_ppm": {"type": "integer", "minimum": 1000000},
+        "blank_clip_count": {"const": 0},
+        "static_clip_count": {"const": 0}
+      }
+    },
+    "motionAggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_count", "minimum_unique_frames", "minimum_articulation_peak_ppm", "maximum_articulation_peak_ppm", "maximum_occupancy_spike_ppm", "blank_clip_count", "static_clip_count", "articulation_floor_ppm"],
+      "properties": {
+        "clip_count": {"type": "integer", "minimum": 1},
+        "minimum_unique_frames": {"type": "integer", "minimum": 1},
+        "minimum_articulation_peak_ppm": {"type": "integer", "minimum": 0},
+        "maximum_articulation_peak_ppm": {"type": "integer", "minimum": 0},
+        "maximum_occupancy_spike_ppm": {"type": "integer", "minimum": 1000000},
+        "blank_clip_count": {"const": 0},
+        "static_clip_count": {"const": 0},
+        "articulation_floor_ppm": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}
