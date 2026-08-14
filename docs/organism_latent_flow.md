@@ -61,19 +61,25 @@ Diagnostics:
 
 The images were visually inspected at native scale. Main silhouettes are
 recognizable, diverse, family-conditioned, and far cleaner than the 64-step
-calibration. Internal physiological networks remain coherent. Small isolated
-alpha islands still appear around otherwise coherent bodies, however. The
-strict connectivity quality gate therefore fails. This v1 is a valid trained
-prior and research baseline, but it is not approved for runtime promotion.
-No deterministic connected-component cleanup is applied or implied.
+calibration. Internal physiological networks remain coherent.
+
+The original single-component quality gate is retained in the immutable v1
+manifest as historical evidence, but a later full reference audit proved its
+premise wrong. All 45 authoritative organisms contain 3-39 components due to
+intentional appendage tips, aura cells, ornaments, and anomaly orbital pieces.
+Reference mean component count/share is 10.6/4.526%; the generated bank is
+11.77/4.339%. The prior therefore matches, rather than violates, source
+topology. See `docs/organism_latent_refiner.md` for the exact reference audit
+and neural corruption-recovery result. Runtime promotion remains false because
+unseen generalization and integration are not yet proven, not because organisms
+must be single-component. No deterministic connected-component cleanup is
+applied or implied.
 
 ## Next neural correction
 
-The next aligned stage is a learned latent-manifold refiner. It should denoise
-flow endpoints toward valid exact and same-family interpolated latent fields,
-with frozen-decoder supervision for occupancy edges and organ continuity. That
-keeps cleanup neural, preserves continuous breeding, and directly targets the
-satellite-cell failure instead of concealing it after rasterization.
+The next aligned stage was implemented as a learned latent-manifold refiner.
+It preserves valid prior topology and supplies global neural homeostasis after
+continuous latent injury; it is not used to delete authoritative components.
 
 ## Commands
 
