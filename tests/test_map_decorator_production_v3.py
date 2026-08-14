@@ -46,6 +46,11 @@ from forge.map_decorator_production_v3.pilot import (
 )
 from forge.map_decorator_production_v3.smoke import run_cpu_smoke, validate_cpu_smoke
 from forge.map_decorator_production_v3.training import make_optimizer_v3, train_batch_v3
+from forge.map_decorator_production_v3.calibration import (
+    CALIBRATION_GATE_SHA256,
+    CalibrationConfig,
+    _exit_class,
+)
 from forge.maps import MapConfig, generate_map
 
 
@@ -130,7 +135,9 @@ def test_v3_contract_separates_where_from_how_many_and_self_hashes() -> None:
         "positive_vs_hard-negative_ranking": True,
         "count_decoupled_from_probability_sum": True,
     }
-    assert manifest["safety"]["cpu_foundation_only"] is True
+    assert manifest["safety"]["cpu_foundation_preserved"] is True
+    assert manifest["safety"]["cuda_calibration_authorized"] is True
+    assert manifest["safety"]["cuda_calibration_precision"] == "bf16"
     assert manifest["safety"]["production_claim"] is False
 
 
@@ -265,7 +272,7 @@ def test_v3_training_fails_closed_on_cuda_and_invalid_contracts() -> None:
         LocatorModelConfig(base_channels=4, condition_channels=8, locator_channels=4, locator_blocks=1, count_hidden_channels=4)
     )
     training = LocatorTrainingConfig(full_mask_stride=1)
-    with pytest.raises(ValueError, match="CPU-only"):
+    with pytest.raises(ValueError, match="explicit BF16"):
         train_batch_v3(
             model,
             make_optimizer_v3(model, training),
@@ -275,6 +282,31 @@ def test_v3_training_fails_closed_on_cuda_and_invalid_contracts() -> None:
             training_config=training,
             device="cuda",
         )
+    with pytest.raises(ValueError, match="Mixed precision"):
+        train_batch_v3(
+            model,
+            make_optimizer_v3(model, training),
+            WarmStartEMA(model, training.ema_decay),
+            batch,
+            generator=torch.Generator().manual_seed(1),
+            training_config=training,
+            device="cpu",
+            autocast_dtype=torch.bfloat16,
+        )
+
+
+def test_v3_calibration_boundary_is_bounded_and_classifies_native_failures() -> None:
+    config = CalibrationConfig()
+    assert config.steps == 100
+    assert config.to_dict()["precision"] == "bf16"
+    assert len(CALIBRATION_GATE_SHA256) == 64
+    with pytest.raises(ValueError, match="steps"):
+        CalibrationConfig(steps=0)
+    with pytest.raises(ValueError, match="validation_batch_size"):
+        CalibrationConfig(validation_batch_size=17)
+    assert _exit_class(0, False) == "success"
+    assert _exit_class(0xC0000005, False) == "windows_access_violation"
+    assert _exit_class(None, True) == "timeout"
 
 
 def test_cpu_smoke_is_byte_semantic_replayable_and_tamper_checked(tmp_path) -> None:

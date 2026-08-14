@@ -407,7 +407,10 @@ def load_checkpoint(
     model.load_state_dict(payload["model_state"], strict=True)
     optimizer.load_state_dict(payload["optimizer_state"])
     ema.load_state_dict(payload["ema_state"])
-    training_generator.set_state(payload["training_generator_state"].to(training_generator.device))
+    # Generator.set_state requires its serialized ByteTensor on CPU for both
+    # CPU and CUDA generators. Moving it to the generator device makes a CUDA
+    # resume fail only after all training/evaluation work has completed.
+    training_generator.set_state(payload["training_generator_state"].cpu())
     torch.set_rng_state(payload["torch_cpu_rng_state"])
     cuda_rng_states = payload["torch_cuda_rng_states"]
     if cuda_rng_states:

@@ -8,7 +8,7 @@ from ..map_decorator_ml.contract import HEAD_CLASS_COUNTS, ModelConfig
 
 
 V3_CONTRACT_NAME: Final[str] = "nullvector-map-decorator-sparse-locator-v3"
-V3_CONTRACT_VERSION: Final[str] = "3.0.0"
+V3_CONTRACT_VERSION: Final[str] = "3.1.0"
 V3_CHECKPOINT_FORMAT_VERSION: Final[str] = "3.0.0"
 
 
@@ -168,8 +168,11 @@ def v3_contract_manifest() -> dict[str, object]:
             "mutates_authority": False,
         },
         "safety": {
-            "cpu_foundation_only": True,
-            "cuda_calibration_authorized": False,
+            "cpu_foundation_preserved": True,
+            "cuda_calibration_authorized": True,
+            "cuda_calibration_precision": "bf16",
+            "cuda_calibration_max_steps": 1_000,
+            "cuda_calibration_process_isolated": True,
             "godot_integration_authorized": False,
             "production_claim": False,
         },

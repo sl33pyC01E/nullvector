@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import nullcontext
 
 import torch
 
@@ -32,10 +33,15 @@ def train_batch_v3(
     training_config: LocatorTrainingConfig = LocatorTrainingConfig(),
     loss_config: LocatorLossConfig = LocatorLossConfig(),
     device: torch.device | str = "cpu",
+    autocast_dtype: torch.dtype | None = None,
 ) -> dict[str, object]:
     device = torch.device(device)
-    if device.type != "cpu":
-        raise ValueError("The v3 localization foundation is CPU-only until a new calibration is authorized.")
+    if device.type not in {"cpu", "cuda"}:
+        raise ValueError("V3 training supports only CPU or an explicit CUDA calibration device.")
+    if device.type == "cuda" and autocast_dtype is not torch.bfloat16:
+        raise ValueError("CUDA v3 training is restricted to explicit BF16 calibration.")
+    if autocast_dtype is not None and device.type != "cuda":
+        raise ValueError("Mixed precision is restricted to the CUDA calibration path.")
     features = batch["features"].to(device)  # type: ignore[union-attr]
     targets = {name: batch["targets"][name].to(device) for name in HEAD_NAMES}  # type: ignore[index,union-attr]
     legal_masks = {name: batch["legal_masks"][name].to(device) for name in HEAD_NAMES}  # type: ignore[index,union-attr]
@@ -57,18 +63,24 @@ def train_batch_v3(
         probability[index] = 1.0
 
     optimizer.zero_grad(set_to_none=True)
-    output = model(features, targets, masked, theme, conditions, probability.to(torch.float32))
-    loss, details, predictions = sparse_locator_refinement_loss(
-        output,
-        targets,
-        masked,
-        legal_masks,
-        valid,
-        hard_empty,
-        config=loss_config,
+    autocast = (
+        torch.autocast(device_type="cuda", dtype=autocast_dtype)
+        if autocast_dtype is not None
+        else nullcontext()
     )
+    with autocast:
+        output = model(features, targets, masked, theme, conditions, probability.to(torch.float32))
+        loss, details, predictions = sparse_locator_refinement_loss(
+            output,
+            targets,
+            masked,
+            legal_masks,
+            valid,
+            hard_empty,
+            config=loss_config,
+        )
     if not bool(torch.isfinite(loss)):
-        raise FloatingPointError("V3 CPU training produced a non-finite loss.")
+        raise FloatingPointError("V3 training produced a non-finite loss.")
     loss.backward()
     gradient_norm = torch.nn.utils.clip_grad_norm_(
         model.parameters(), max_norm=1.0, error_if_nonfinite=True
