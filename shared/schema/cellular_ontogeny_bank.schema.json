@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_ontogeny_bank.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "quality_tier", "compiler", "source", "stages", "lineages", "program_count", "programs", "totals", "contact_sheet", "runtime_contract", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-ontogeny-bank-v1"}, "status": {"const": "ready"},
+    "quality_tier": {"const": "deterministic-connected-soft-symmetric-cell-lineage-v1"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "growth_policy"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "growth_policy": {"const": "bond-frontier-organ-priority-mirror-cohort-v1"}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["manifest", "manifest_sha256", "semantic_sha256", "sample_count"], "properties": {"manifest": {"type": "string", "minLength": 1}, "manifest_sha256": {"$ref": "#/$defs/sha"}, "semantic_sha256": {"$ref": "#/$defs/sha"}, "sample_count": {"const": 45}}},
+    "stages": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"type": "object", "additionalProperties": false, "required": ["id", "name", "target_fraction"], "properties": {"id": {"type": "integer", "minimum": 0, "maximum": 5}, "name": {"enum": ["zygote", "gastrula", "organ_primordia", "larval", "juvenile", "adult"]}, "target_fraction": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}}}},
+    "lineages": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer", "minimum": 1, "maximum": 5}, "name": {"enum": ["ectoderm", "mesoderm", "endoderm", "germline", "specialized"]}}}},
+    "program_count": {"const": 45}, "programs": {"type": "array", "minItems": 45, "maxItems": 45, "items": {"$ref": "#/$defs/program"}},
+    "totals": {"type": "object", "additionalProperties": false, "required": ["cells", "bonds", "lineage_edges", "paired_cells"], "properties": {"cells": {"type": "integer", "minimum": 1000}, "bonds": {"type": "integer", "minimum": 1000}, "lineage_edges": {"type": "integer", "minimum": 900}, "paired_cells": {"type": "integer", "minimum": 100}}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "runtime_contract": {"type": "object", "minProperties": 7, "additionalProperties": {"const": true}},
+    "gates": {"$ref": "#/$defs/gates"}, "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "program_artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "array_sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}, "array_sha256": {"$ref": "#/$defs/sha"}}},
+    "gates": {"type": "object", "minProperties": 1, "additionalProperties": {"const": true}},
+    "stage": {"type": "object", "additionalProperties": false, "required": ["id", "name", "cell_count", "cell_fraction", "bond_count", "visible_organ_count", "functional_organ_count", "functional_essential_count", "symmetry_score"], "properties": {"id": {"type": "integer", "minimum": 0, "maximum": 5}, "name": {"type": "string"}, "cell_count": {"type": "integer", "minimum": 1}, "cell_fraction": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}, "bond_count": {"type": "integer", "minimum": 0}, "visible_organ_count": {"type": "integer", "minimum": 1}, "functional_organ_count": {"type": "integer", "minimum": 0}, "functional_essential_count": {"type": "integer", "minimum": 0}, "symmetry_score": {"type": "number", "minimum": 0, "maximum": 1}}},
+    "metrics": {"type": "object", "additionalProperties": false, "required": ["root_cell", "axis_x", "lineage_count", "paired_cell_count", "mean_paired_stage_delta", "maximum_paired_stage_delta", "adult_cell_count", "adult_bond_count"], "properties": {"root_cell": {"type": "integer", "minimum": 0}, "axis_x": {"type": "number"}, "lineage_count": {"type": "integer", "minimum": 1, "maximum": 5}, "paired_cell_count": {"type": "integer", "minimum": 0}, "mean_paired_stage_delta": {"type": "number", "minimum": 0}, "maximum_paired_stage_delta": {"type": "integer", "minimum": 0, "maximum": 5}, "adult_cell_count": {"type": "integer", "minimum": 24}, "adult_bond_count": {"type": "integer", "minimum": 23}}},
+    "program": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "sample_id", "ordinal", "family", "family_id", "role", "role_id", "source_anatomy_sha256", "source_arrays_sha256", "cell_count", "bond_count", "development_seconds", "stages", "metrics", "artifact", "gates"],
+      "properties": {
+        "format": {"const": "nullvector-cellular-ontogeny-program-v1"}, "sample_id": {"type": "string", "minLength": 1}, "ordinal": {"type": "integer", "minimum": 0, "maximum": 44},
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "role": {"type": "string", "minLength": 1}, "role_id": {"type": "integer", "minimum": 0, "maximum": 7},
+        "source_anatomy_sha256": {"$ref": "#/$defs/sha"}, "source_arrays_sha256": {"$ref": "#/$defs/sha"}, "cell_count": {"type": "integer", "minimum": 24}, "bond_count": {"type": "integer", "minimum": 23},
+        "development_seconds": {"type": "number", "exclusiveMinimum": 0}, "stages": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/stage"}},
+        "metrics": {"$ref": "#/$defs/metrics"}, "artifact": {"$ref": "#/$defs/program_artifact"}, "gates": {"$ref": "#/$defs/gates"}
+      }
+    }
+  }
+}
