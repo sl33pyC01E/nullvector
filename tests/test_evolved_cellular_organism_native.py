@@ -27,7 +27,7 @@ def test_evolved_native_projection_is_repeatable_and_hash_closed() -> None:
         "cell_count": 14457,
         "bond_count": 48569,
         "organ_count": 580,
-        "bundle_id": "df87a2f3b460e4c648b54e26b01d369702b9b0203152e0bd5689765e7094d0d1",
+        "bundle_id": "a2471c7739263ee1178282f1c574a2c9ee97e31ec81664bb643a58ffd941ee76",
     }
 
 
@@ -37,6 +37,9 @@ def test_runtime_exposes_exact_neural_lineage_and_truthful_reproduction_scope() 
     assert catalog["generation_counts"] == {"1": 12, "2": 12, "3": 12}
     assert catalog["runtime_contract"]["neural_lineage_visible"] is True
     assert catalog["runtime_contract"]["runtime_offspring_redecode"] is False
+    assert catalog["orientation"]["contract"]["projection"] == "top_down_dorsal"
+    assert catalog["runtime_contract"]["external_fluid_is_surface_diffusion"] is True
+    assert catalog["simulation"]["gravity"] == 0.0
     for entry in catalog["species"]:
         runtime = json.loads((RUNTIME / entry["runtime"]["path"]).read_text(encoding="utf-8"))
         assert runtime["lineage"] == entry["lineage"]
@@ -54,12 +57,16 @@ def test_evolved_scene_reuses_cell_physics_with_lineage_configuration() -> None:
 
 
 def test_native_smoke_proves_all_descendants_and_arena_is_untouched() -> None:
-    report = json.loads((ROOT / "outputs/evolved_cellular_organism_godot_report.json").read_text(encoding="utf-8"))
+    report = json.loads((ROOT / "outputs/evolved_cellular_organism_topdown_godot_report.json").read_text(encoding="utf-8"))
     assert report["passed"] is True and report["species_loaded"] == 36
     assert report["cells_checked"] == 14457
     assert report["organs_checked"] == 580
     assert report["bonds_checked"] == 48569
     assert report["population_after_reproduction"] == 2
     assert report["python_runtime_required"] is False
+    assert report["orientation"] == "top_down_dorsal"
+    assert report["uniform_screen_gravity"] is False
+    assert report["surface_fluid_model"] == "isotropic_surface_diffusion"
+    assert report["surface_puddles_observed"] > 0
     assert 'run/main_scene="res://Arena.tscn"' in PROJECT.read_text(encoding="utf-8")
     assert hashlib.sha256(ARENA.read_bytes()).hexdigest() == "c5f8b961297b43f683d40dff831cb576d89539c222f0a5a9abab3d29a1f67490"

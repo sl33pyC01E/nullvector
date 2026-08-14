@@ -48,7 +48,8 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe --headless `
 
 `CellularBreedingLab.tscn` loads all 45 real child anatomies without Python and
 supports the same tear, blast, fluid leakage, feeding, metabolism, healing,
-gravity, and reproduction simulation as the base organism lab. The displayed
+top-down planar motion, surface-fluid diffusion, and reproduction simulation as
+the base organism lab. The displayed
 parent IDs and operators are source-bound.
 
 The scope remains explicit: the runtime simulates a decoded structural child,

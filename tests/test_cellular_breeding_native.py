@@ -27,7 +27,7 @@ def test_breeding_native_projection_is_repeatable_and_hash_closed() -> None:
         "bond_count": 77829,
         "organ_count": 746,
         "family_pair_count": 15,
-        "bundle_id": "af062de9afaf696b11c289debb12a0a3a08900510695c703e500fb81ea9d6e3a",
+        "bundle_id": "b956f84de997f6e805e0aa3113ac6d353264b7c046c202d52e47d5e1168fa3dc",
     }
 
 
@@ -36,6 +36,9 @@ def test_native_catalog_exposes_true_structural_lineage() -> None:
     assert catalog["bank_kind"] == "two-parent-structural-cellular-breeding"
     assert catalog["runtime_contract"]["offspring_anatomy_is_forge_decoded"] is True
     assert catalog["runtime_contract"]["runtime_offspring_redecode"] is False
+    assert catalog["orientation"]["contract"]["projection"] == "top_down_dorsal"
+    assert catalog["runtime_contract"]["uniform_screen_gravity_disabled"] is True
+    assert catalog["simulation"]["gravity"] == 0.0
     assert len(catalog["family_pair_counts"]) == 15
     for entry in catalog["species"]:
         runtime = json.loads((RUNTIME / entry["runtime"]["path"]).read_text(encoding="utf-8"))
@@ -55,8 +58,12 @@ def test_breeding_scene_uses_the_cell_physics_lab_without_changing_arena() -> No
 
 
 def test_native_smoke_proves_all_structural_offspring() -> None:
-    report = json.loads((ROOT / "outputs/cellular_breeding_godot_report.json").read_text(encoding="utf-8"))
+    report = json.loads((ROOT / "outputs/cellular_breeding_topdown_godot_report.json").read_text(encoding="utf-8"))
     assert report["passed"] is True and report["species_loaded"] == 45
     assert report["cells_checked"] == 22933 and report["organs_checked"] == 746 and report["bonds_checked"] == 77829
     assert report["population_after_reproduction"] == 2
     assert report["python_runtime_required"] is False
+    assert report["orientation"] == "top_down_dorsal"
+    assert report["uniform_screen_gravity"] is False
+    assert report["surface_fluid_model"] == "isotropic_surface_diffusion"
+    assert report["surface_puddles_observed"] > 0

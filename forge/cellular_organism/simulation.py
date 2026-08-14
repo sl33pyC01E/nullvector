@@ -8,6 +8,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from .contract import CellFlag, SimulationDefaults, TissueType
+from .orientation import ORIENTATION_CONTRACT_SHA256, SurfacePuddleField
 
 
 @dataclass(slots=True)
@@ -57,6 +58,8 @@ class OrganismState:
         self.damage_taken = 0.0
         self.birth_count = 0
         self._initial_fluid = float(self.fluid.sum())
+        surface_extent = max(256, int(np.ceil(float(self.position.max(initial=0)))) + 24)
+        self.surface_fluid = SurfacePuddleField(surface_extent, surface_extent)
 
     @property
     def cell_count(self) -> int:
@@ -141,6 +144,8 @@ class OrganismState:
         leaked = np.minimum(self.fluid, exposure * self.defaults.leak_rate * dt)
         self.fluid -= leaked
         self.fluid_lost += float(leaked.sum())
+        self.surface_fluid.deposit(self.position, leaked)
+        self.surface_fluid.step(dt)
 
     def _metabolism_step(self, dt: float) -> None:
         alive_count = max(1, int(self.alive.sum()))
@@ -167,7 +172,7 @@ class OrganismState:
         self.health[healing] += amount[healing]
         self.energy[healing] -= amount[healing] * self.defaults.regeneration_energy_cost
 
-    def _physics_step(self, dt: float, gravity: bool) -> None:
+    def _physics_step(self, dt: float) -> None:
         active = self.bond_alive & self.alive[self.bond_ab[:, 0]] & self.alive[self.bond_ab[:, 1]]
         if bool(active.any()):
             indices = np.where(active)[0]
@@ -185,17 +190,24 @@ class OrganismState:
             impulse = direction * force[:, None] * dt
             np.add.at(self.velocity, a, impulse / self.mass[a, None])
             np.add.at(self.velocity, b, -impulse / self.mass[b, None])
-        if gravity:
-            self.velocity[self.alive, 1] += self.defaults.gravity * dt
+        dead = ~self.alive
+        if bool(dead.any()) and bool(self.alive.any()):
+            center = self.position[self.alive].mean(axis=0)
+            toward = center[None] - self.position[dead]
+            distance = np.maximum(np.linalg.norm(toward, axis=1), 18.0)
+            magnetic = np.minimum(0.0018, 0.055 / distance) * dt
+            self.velocity[dead] += toward * magnetic[:, None]
         self.velocity *= self.defaults.linear_damping
-        self.position[self.alive] += self.velocity[self.alive] * dt
+        self.position += self.velocity * dt
 
     def step(self, dt: float, *, gravity: bool = False) -> dict[str, object]:
         if not math.isfinite(dt) or not 0 < dt <= 0.1:
             raise ValueError("Simulation dt must be finite in (0,0.1].")
+        if gravity:
+            raise ValueError("Uniform screen gravity is incompatible with the top-down surface contract.")
         sub_dt = dt / self.defaults.substeps
         for _ in range(self.defaults.substeps):
-            self._physics_step(sub_dt, gravity)
+            self._physics_step(sub_dt)
             self._fluid_step(sub_dt)
             self._metabolism_step(sub_dt)
         self.age_seconds += dt
@@ -257,6 +269,9 @@ class OrganismState:
             "health_fraction": float(self.health.sum() / np.maximum(self.max_health.sum(), 1e-6)),
             "fluid_fraction": float(self.fluid.sum() / np.maximum(self.fluid_capacity.sum(), 1e-6)),
             "fluid_lost": self.fluid_lost,
+            "surface_fluid": self.surface_fluid.total,
+            "surface_spread_radius": self.surface_fluid.rms_radius(),
+            "orientation_contract_sha256": ORIENTATION_CONTRACT_SHA256,
             "nutrients": float(self.nutrient.sum()),
             "energy": float(self.energy.sum()),
             "food_consumed": self.food_consumed,

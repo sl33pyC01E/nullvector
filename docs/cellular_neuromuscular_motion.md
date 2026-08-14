@@ -105,7 +105,8 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe --headless `
 Controls are inherited from the organism lab. `W/S` selects motion and the
 arrow keys select facing. `Q/E` changes species, `V` changes anatomy view,
 `F` feeds, `R` reproduces, `Space` blasts, left-drag tears cells, right-click
-places food, `B` toggles bonds, `G` toggles gravity and `P` pauses.
+places food, `B` toggles bonds and `P` pauses. The lab is permanently top-down;
+uniform screen gravity is rejected and external fluid diffuses over surface XY.
 
 The native lab now applies each authored driver over a continuous attachment
 root-to-tip coordinate. Breathing and idle squash remain coherent at the

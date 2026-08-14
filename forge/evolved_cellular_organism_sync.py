@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from .cellular_organism.compiler import _load_arrays
 from .cellular_organism.contract import DISK_FLOOR_GIB, TISSUE_NAMES
+from .cellular_organism.orientation import orientation_manifest, top_down_simulation_defaults, validate_orientation
 from .cellular_organism_sync import CATALOG_FORMAT, RUNTIME_FORMAT, _runtime_species
 from .config import PROJECT_ROOT
 from .evolved_cellular_organism import validate_bank
@@ -28,6 +29,7 @@ def _source_registry() -> dict[str, str]:
         PROJECT_ROOT / "forge/cellular_organism_sync.py",
         PROJECT_ROOT / "forge/cellular_organism/compiler.py",
         PROJECT_ROOT / "forge/cellular_organism/simulation.py",
+        PROJECT_ROOT / "forge/cellular_organism/orientation.py",
         PROJECT_ROOT / "forge/evolved_cellular_organism/compiler.py",
     )
     return {
@@ -84,7 +86,8 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
         "fusion_modes": source["fusion_modes"],
         "mutation_modes": source["mutation_modes"],
         "totals": source["totals"],
-        "simulation": source["simulation"],
+        "simulation": top_down_simulation_defaults(source["simulation"]),
+        "orientation": orientation_manifest(),
         "tissues": list(TISSUE_NAMES),
         "contact_sheet": {
             "path": "evolved_cellular_organism_contact_sheet.png",
@@ -100,6 +103,9 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
             "cell_and_bond_totals_exact": True,
             "neural_lineage_visible": True,
             "runtime_offspring_redecode": False,
+            "top_down_dorsal_projection": True,
+            "uniform_screen_gravity_disabled": True,
+            "external_fluid_is_surface_diffusion": True,
         },
     }
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog))
@@ -144,6 +150,9 @@ def validate_runtime(destination: Path) -> dict[str, object]:
         raise ValueError("Evolved native catalog kind is invalid")
     if catalog.get("sample_count") != 36 or len(catalog.get("species", [])) != 36:
         raise ValueError("Evolved native species census differs")
+    validate_orientation(catalog.get("orientation", {}))
+    if catalog.get("simulation", {}).get("gravity") != 0.0:
+        raise ValueError("Evolved native simulation still exposes scalar gravity")
     cells = bonds = organs = 0
     for entry in catalog["species"]:
         artifact = entry["runtime"]

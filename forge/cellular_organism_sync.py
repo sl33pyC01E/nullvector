@@ -12,6 +12,7 @@ import numpy as np
 
 from .cellular_organism.compiler import _load_arrays, validate_bank
 from .cellular_organism.contract import DISK_FLOOR_GIB, FORMAT, TISSUE_NAMES
+from .cellular_organism.orientation import orientation_manifest, top_down_simulation_defaults, validate_orientation
 from .config import PROJECT_ROOT
 from .multifield_style.hashing import sha256_file
 from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
@@ -74,6 +75,7 @@ def _source_manifest() -> dict[str, str]:
         PROJECT_ROOT / "forge/cellular_organism/contract.py",
         PROJECT_ROOT / "forge/cellular_organism/compiler.py",
         PROJECT_ROOT / "forge/cellular_organism/simulation.py",
+        PROJECT_ROOT / "forge/cellular_organism/orientation.py",
     ]
     return {path.relative_to(PROJECT_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
@@ -120,7 +122,8 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
         "sample_count": len(catalog_species),
         "family_counts": source["family_counts"],
         "totals": source["totals"],
-        "simulation": source["simulation"],
+        "simulation": top_down_simulation_defaults(source["simulation"]),
+        "orientation": orientation_manifest(),
         "tissues": list(TISSUE_NAMES),
         "contact_sheet": {
             "path": "cellular_organism_contact_sheet.png",
@@ -134,6 +137,9 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
             "all_80_species_projected": True,
             "runtime_files_are_audit_bound_to_npz": True,
             "cell_and_bond_totals_exact": True,
+            "top_down_dorsal_projection": True,
+            "uniform_screen_gravity_disabled": True,
+            "external_fluid_is_surface_diffusion": True,
         },
     }
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog))
@@ -171,6 +177,16 @@ def validate_runtime(destination: Path) -> dict[str, object]:
         raise ValueError("Native cellular catalog header is invalid.")
     if int(catalog.get("sample_count", -1)) != 80 or len(catalog.get("species", [])) != 80:
         raise ValueError("Native cellular catalog census is invalid.")
+    validate_orientation(catalog.get("orientation", {}))
+    if catalog.get("simulation", {}).get("gravity") != 0.0 or catalog.get("simulation", {}).get("legacy_scalar_gravity_disabled") is not True:
+        raise ValueError("Native cellular simulation still exposes scalar gravity.")
+    runtime_contract = catalog.get("runtime_contract", {})
+    if not all(runtime_contract.get(key) is True for key in (
+        "top_down_dorsal_projection",
+        "uniform_screen_gravity_disabled",
+        "external_fluid_is_surface_diffusion",
+    )):
+        raise ValueError("Native cellular top-down runtime gates differ.")
     total_cells = 0
     total_bonds = 0
     for entry in catalog["species"]:

@@ -22,7 +22,7 @@ def test_symmetry_native_projection_is_repeatable_and_closed() -> None:
         "bond_count": 85357,
         "organ_count": 748,
         "symmetry_cells_added": 2535,
-        "bundle_id": "ab80cbdf768bd1ade6dd2d8cd3f74aeb88c433dcaaac5dc84a68e1faf331ee38",
+        "bundle_id": "0312e078b4f3df0a50452c750fd224b7d78912c005491ef05c6b205f59609685",
     }
 
 

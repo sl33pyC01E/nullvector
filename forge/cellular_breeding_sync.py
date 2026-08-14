@@ -11,6 +11,7 @@ from typing import Mapping
 from .cellular_breeding import validate_bank
 from .cellular_organism.compiler import _load_arrays
 from .cellular_organism.contract import DISK_FLOOR_GIB, TISSUE_NAMES
+from .cellular_organism.orientation import orientation_manifest, top_down_simulation_defaults, validate_orientation
 from .cellular_organism_sync import CATALOG_FORMAT, RUNTIME_FORMAT, _runtime_species
 from .config import PROJECT_ROOT
 from .multifield_style.hashing import sha256_file
@@ -30,6 +31,7 @@ def _source_registry() -> dict[str, str]:
         PROJECT_ROOT / "forge/cellular_organism_sync.py",
         PROJECT_ROOT / "forge/cellular_organism/compiler.py",
         PROJECT_ROOT / "forge/cellular_organism/simulation.py",
+        PROJECT_ROOT / "forge/cellular_organism/orientation.py",
         PROJECT_ROOT / "shared/schema/cellular_breeding_bank.schema.json",
         PROJECT_ROOT / "game/CellularBreedingLab.tscn",
         PROJECT_ROOT / "game/scripts/cellular_organism_lab.gd",
@@ -88,7 +90,8 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
         "crossover_modes": source["crossover_modes"],
         "mutation_modes": source["mutation_modes"],
         "totals": source["totals"],
-        "simulation": source["simulation"],
+        "simulation": top_down_simulation_defaults(source["simulation"]),
+        "orientation": orientation_manifest(),
         "tissues": list(TISSUE_NAMES),
         "contact_sheet": {"path": "cellular_breeding_contact_sheet.png", "bytes": len(contact), "sha256": sha256_bytes(contact)},
         "species": species,
@@ -100,6 +103,9 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
             "offspring_anatomy_is_forge_decoded": True,
             "cell_and_bond_totals_exact": True,
             "runtime_offspring_redecode": False,
+            "top_down_dorsal_projection": True,
+            "uniform_screen_gravity_disabled": True,
+            "external_fluid_is_surface_diffusion": True,
         },
     }
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog))
@@ -140,6 +146,9 @@ def validate_runtime(destination: Path) -> dict[str, object]:
         raise ValueError("Cellular breeding native catalog header differs")
     if catalog.get("sample_count") != 45 or len(catalog.get("species", [])) != 45:
         raise ValueError("Cellular breeding native species census differs")
+    validate_orientation(catalog.get("orientation", {}))
+    if catalog.get("simulation", {}).get("gravity") != 0.0:
+        raise ValueError("Cellular breeding native simulation still exposes scalar gravity")
     registry = _source_registry()
     if catalog.get("sync_source_manifest") != registry or catalog.get("sync_source_sha256") != sha256_bytes(canonical_json_bytes(registry)):
         raise ValueError("Cellular breeding native source provenance differs")

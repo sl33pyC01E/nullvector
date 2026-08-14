@@ -5,7 +5,8 @@ const RUNTIME_FORMAT := "nullvector-cellular-organism-runtime-v1"
 const CELL_SCALE := 5.0
 const LAB_RECT := Rect2(350.0, 92.0, 900.0, 590.0)
 const MAX_ORGANISMS := 8
-const MAX_SPILLS := 900
+const MAX_SPILLS := 420
+const ORIENTATION_FORMAT := "nullvector-top-down-surface-physics-v1"
 const FLAG_EYE := 1
 const FLAG_MOUTH := 2
 const FLAG_HEART := 4
@@ -35,7 +36,6 @@ var catalog: Dictionary = {}
 var selected_species := 0
 var view_mode := 0
 var show_bonds := true
-var gravity_enabled := false
 var paused := false
 var organisms: Array[Dictionary] = []
 var foods: Array[Dictionary] = []
@@ -89,6 +89,14 @@ func _validate_catalog() -> void:
 		var observed := int(families.get(family, -1))
 		if exact_family_count > 0 and observed != exact_family_count: startup_errors.append("family " + family)
 		if exact_family_count <= 0 and observed < 1: startup_errors.append("family " + family)
+	var orientation: Dictionary = catalog.get("orientation", {})
+	var surface_contract: Dictionary = orientation.get("contract", {})
+	if surface_contract.get("format", "") != ORIENTATION_FORMAT: startup_errors.append("orientation format")
+	if surface_contract.get("projection", "") != "top_down_dorsal": startup_errors.append("orientation projection")
+	if surface_contract.get("uniform_acceleration_xy", []) != [0.0, 0.0]: startup_errors.append("orientation acceleration")
+	if not bool(surface_contract.get("scalar_screen_gravity_disabled", false)): startup_errors.append("orientation gravity gate")
+	if surface_contract.get("external_fluid_model", "") != "isotropic_surface_diffusion": startup_errors.append("orientation fluid")
+	if str(orientation.get("contract_sha256", "")).length() != 64: startup_errors.append("orientation hash")
 	var totals: Dictionary = catalog.get("totals", {})
 	var total_cells := int(totals.get("physical_cells", 0))
 	if total_cells < expected_species_count * 24: startup_errors.append("cell census")
@@ -161,9 +169,10 @@ func _build_interface() -> void:
 	_button(left, Vector2(105, 417), Vector2(92, 31), "REPRO R", _induce_reproduction)
 	_button(left, Vector2(202, 417), Vector2(97, 31), "BLAST SPC", _blast_current)
 	_button(left, Vector2(14, 454), Vector2(86, 31), "BONDS B", func(): show_bonds = not show_bonds; queue_redraw())
-	_button(left, Vector2(105, 454), Vector2(92, 31), "GRAVITY G", func(): gravity_enabled = not gravity_enabled)
+	var orientation_label := _label(left, Vector2(105, 454), Vector2(92, 31), "TOP-DOWN\nSURFACE XY", CYAN, 8)
+	orientation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; orientation_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_button(left, Vector2(202, 454), Vector2(97, 31), "PAUSE P", func(): paused = not paused)
-	controls_label = _label(left, Vector2(14, 500), Vector2(285, 82), "LMB / DRAG  tear tissue\nRMB  place food\nMouse wheel  damage radius\nV  phenotype / organs / fluid / health / tissue", MUTED, 9)
+	controls_label = _label(left, Vector2(14, 500), Vector2(285, 82), "LMB / DRAG  tear tissue\nRMB  place food\nPuddles diffuse across surface XY\nV  phenotype / organs / fluid / health / tissue", MUTED, 9)
 	controls_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	view_label = _label(canvas, Vector2(365, 102), Vector2(400, 24), "VIEW // PHENOTYPE", CYAN, 10)
 	event_label = _label(canvas, Vector2(365, 650), Vector2(870, 25), event_message, PINK, 10)
@@ -291,8 +300,12 @@ func _step_organism(organism: Dictionary, delta: float) -> void:
 		var scar_stiffness := 1.0 + scar_fraction * 0.45
 		var force: Vector2 = difference / length * (length - target) * float(strength[bond_index]) * scar_stiffness * 7.5 * delta
 		velocity[a] += force / max(0.1, float(mass[a])); velocity[b] -= force / max(0.1, float(mass[b]))
+	var living_center := _organism_center(organism)
 	for cell_index in range(positions.size()):
-		if gravity_enabled or not alive[cell_index]: velocity[cell_index].y += 28.0 * delta
+		if not alive[cell_index]:
+			var toward: Vector2 = living_center - positions[cell_index]
+			var distance: float = maxf(18.0, toward.length())
+			velocity[cell_index] += toward * minf(0.0018, 0.055 / distance) * delta
 		velocity[cell_index] *= 0.985; positions[cell_index] += velocity[cell_index] * delta
 		if positions[cell_index].x < LAB_RECT.position.x:
 			positions[cell_index].x = LAB_RECT.position.x; velocity[cell_index].x = abs(velocity[cell_index].x) * 0.15
@@ -371,9 +384,15 @@ func _step_food(delta: float) -> void:
 
 func _step_spills(delta: float) -> void:
 	for spill in spills:
-		spill["velocity"] += Vector2(0, 18.0) * delta
-		spill["position"] += spill["velocity"] * delta
-		spill["life"] = float(spill["life"]) - delta
+		var age: float = float(spill["age"]) + delta; spill["age"] = age
+		var curl: float = sin(float(spill["seed"]) * 37.0 + age * 1.1) * delta * 0.7
+		spill["velocity"] = Vector2(spill["velocity"]).rotated(curl) * pow(0.958, delta * 60.0)
+		var spill_position: Vector2 = Vector2(spill["position"]) + Vector2(spill["velocity"]) * delta
+		spill_position.x = clampf(spill_position.x, LAB_RECT.position.x, LAB_RECT.end.x)
+		spill_position.y = clampf(spill_position.y, LAB_RECT.position.y, LAB_RECT.end.y)
+		spill["position"] = spill_position
+		spill["radius"] = minf(22.0, float(spill["radius"]) + delta * (4.2 + minf(8.0, float(spill["amount"]) * 55.0)))
+		spill["life"] = float(spill["life"]) - delta * (0.085 + minf(0.055, float(spill["amount"]) * 0.4))
 	spills = spills.filter(func(spill: Dictionary): return float(spill["life"]) > 0.0)
 
 
@@ -381,12 +400,35 @@ func _spawn_spill(position: Vector2, organism: Dictionary, amount: float) -> voi
 	if spills.size() >= MAX_SPILLS: return
 	var palette: Dictionary = organism["data"].get("palette", {})
 	var rgb: Array = palette.get("fluid_rgb", [255, 50, 100])
+	var center := _organism_center(organism)
+	var radial := (position - center).normalized()
+	var seed := rng.randf()
+	if radial.length_squared() < 0.01: radial = Vector2.RIGHT.rotated(seed * TAU)
+	var angle_jitter := sin(seed * 31.7 + simulation_time * 0.66) * 0.72
 	spills.append({
 		"position": position,
-		"velocity": Vector2(rng.randf_range(-20.0, 20.0), rng.randf_range(-24.0, 2.0)),
-		"life": clamp(0.35 + amount * 2.0, 0.35, 2.2),
+		"velocity": radial.rotated(angle_jitter) * (10.0 + minf(38.0, amount * 220.0)),
+		"life": 1.0,
+		"age": 0.0,
+		"radius": 1.5 + minf(2.5, amount * 18.0),
+		"amount": amount,
+		"seed": seed,
 		"color": Color8(int(rgb[0]), int(rgb[1]), int(rgb[2]), 210),
 	})
+
+
+func _draw_surface_spill(spill: Dictionary) -> void:
+	var density: float = maxf(0.0, float(spill["life"])); var radius: float = maxf(2.0, float(spill["radius"]))
+	var center: Vector2 = Vector2(spill["position"]).round(); var base: Color = spill["color"]
+	var core := base; core.a = density * 0.28
+	draw_rect(Rect2(center - Vector2.ONE * radius * 0.28, Vector2.ONE * radius * 0.56), core)
+	for lobe in range(12):
+		var angle: float = float(spill["seed"]) * TAU + float(lobe) * PI / 6.0
+		var phase: float = float((lobe * 7) % 11) / 10.0
+		var distance: float = radius * (0.3 + phase * 0.62); var size: float = maxf(1.5, 4.2 - phase * 2.4)
+		var point := (center + Vector2.RIGHT.rotated(angle) * distance).round()
+		var color := base; color.a = density * (0.36 - phase * 0.18)
+		draw_rect(Rect2(point - Vector2.ONE * size * 0.5, Vector2.ONE * size), color)
 
 
 func _damage_at(point: Vector2, radius := 24.0, damage := 1.45, impulse := 135.0) -> Dictionary:
@@ -537,7 +579,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_E: _change_species(1)
 			KEY_V: _cycle_view()
 			KEY_B: show_bonds = not show_bonds; queue_redraw()
-			KEY_G: gravity_enabled = not gravity_enabled
 			KEY_P: paused = not paused
 			KEY_F: _feed_current(35.0)
 			KEY_R: _induce_reproduction()
@@ -559,7 +600,7 @@ func _draw() -> void:
 	for food in foods:
 		var radius := 5.0 + sin(float(food["pulse"])) * 1.5
 		draw_circle(food["position"], radius + 4.0, Color(0.7, 1.0, 0.25, 0.1)); draw_circle(food["position"], radius, LIME)
-	for spill in spills: draw_circle(spill["position"], 1.4, spill["color"])
+	for spill in spills: _draw_surface_spill(spill)
 	for organism in organisms: _draw_organism(organism)
 	draw_rect(LAB_RECT, RULE, false, 1)
 
@@ -635,6 +676,8 @@ func _run_headless_smoke() -> void:
 		"cells_checked": total_cells, "organs_checked": total_organs, "bonds_checked": total_bonds,
 		"damage_bond_baseline": before_bonds, "fluid_baseline": before_fluid,
 		"population_after_reproduction": organisms.size(), "python_runtime_required": false,
+		"orientation": "top_down_dorsal", "uniform_screen_gravity": false,
+		"surface_fluid_model": "isotropic_surface_diffusion", "surface_puddles_observed": spills.size(),
 	}
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)

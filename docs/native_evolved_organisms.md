@@ -49,4 +49,5 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe --headless `
 The smoke loads all 36 runtime JSON anatomies and exercises damage, fracture,
 fluid leakage, feeding, and reproduction. Controls are the same as the base
 cellular lab: `Q/E` species, `V` view, `F` feed, `R` reproduce, `Space` blast,
-left-drag tear, right-click food, `B` bonds, `G` gravity, and `P` pause.
+left-drag tear, right-click food, `B` bonds, and `P` pause. The native lab is
+top-down: detached tissue remains planar and leaked fluid forms surface puddles.
