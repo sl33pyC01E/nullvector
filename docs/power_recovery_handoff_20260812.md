@@ -133,25 +133,39 @@ The compiler will reuse exact source-bound shards and retry missing work. Do
 not integrate this repair bank until all 16 shards and the independent 75,520-
 frame replay are sealed.
 
-## Semantic sprite FSQ codec — source hardened, output deliberately stale
+## Semantic sprite FSQ codec — production closure 2026-08-14
 
-- Current source SHA-256:
-  `6b045997dd50f66578b27a61a2c8c3f7c0bc3495e3234fd9a55e4707cda1efc7`.
-- CPU tests: 8 passed; frozen production corpus contract probe passed.
-- Added differentiable soft-FSQ usage entropy, strict NPZ/corpus provenance,
-  train-only legal-tuple binding, strict manifest/checkpoint/runtime binding,
-  safe artifact resolution, and exact CPU semantic/byte replay checks.
-- `outputs/sprite_latent/smoke_v1` is intentionally preserved as stale evidence
-  and must fail the current validator.
-- No production segmented trainer, resume checkpoint format, or production eval
-  gates exist yet. No CUDA work is authorized at this boundary.
+- Current foundation source SHA-256:
+  `aa0887845933ea3980efb2765a4fec73278f7cc8e9e12e97d11bd4f3bcd8ce4c`.
+- `outputs/sprite_latent/smoke_v1` remains intentionally stale evidence.
+- The additive `outputs/sprite_latent/smoke_v2` bank passes strict semantic and
+  byte replay. It reconstructs all five families at native 48 px, reaches
+  0.82944876 aligned legal-tuple accuracy, and uses 235 implicit codes. Its
+  self-hash is
+  `5e10adb63752508e788d797fce2ca4d684ac8e3f6d8131d837864ee5f52aa3c4`.
+- The 17-test foundation suite passes, including nonzero differentiable usage
+  gradient, malicious NPZ rejection, manifest/checkpoint reseal rejection,
+  and traversal, absolute, drive-qualified, backslash, and explicit-dot path
+  rejection. The reconstruction contact sheet was visually inspected; it is a
+  coarse representation smoke and does not claim production quality.
 
-Next safe step (new additive output only):
+The later segmented production trainer is complete and current at
+`checkpoints/sprite_latent_production_v1_run3`. Its source SHA-256 is
+`9ddd274701d553777e95176db8ccde721d0c9094a5a1e5ca1c638d27c713fa79`;
+the immutable 12-segment, 24-epoch chain validates with manifest SHA-256
+`7ca60d478090470186b10c7f39b7e11e880fd4c21d8d38b1135f1f555dda5b08`.
+The best EMA checkpoint is epoch 24 and passes every global and worst-family
+quality gate: 0.960376 aligned tuple accuracy, 0.831137 visible tuple accuracy,
+0.973630 visible silhouette IoU, 0.810480 worst-family visible tuple accuracy,
+0.958969 worst-family silhouette IoU, and 0.775156 latent-code utilization.
 
-```powershell
-python -m forge.sprite_latent smoke --output outputs/sprite_latent/smoke_v2
-python -m forge.sprite_latent validate outputs/sprite_latent/smoke_v2/smoke_manifest.json
-```
-
-After independent visual review, add adversarial tests and a segmented,
-fresh-process CUDA trainer before any production run.
+The trained latent space is also exercised by the current deterministic
+three-generation fusion/mutation bank at
+`outputs/neural_fusion_production_evolution_v1_run2`. Its source SHA-256 is
+`eacad82ea06e2a0d9f78e94f9241186684fe5b08051e3e0afd609a286b043a22`
+and evolution SHA-256 is
+`d9a9935018472d36a7b7e9e2a59803b173b906798131c7e1f177d110e7eaac71`.
+Validation proves 108 accepted candidates, 36 selected descendants, all five
+families, all six fusion operators, all six mutation operators, closed lineage,
+legal connected rigs, and valid motion. The independent repeat has the same
+evolution hash, and the three-generation contact sheet was visually inspected.
