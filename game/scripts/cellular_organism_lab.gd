@@ -283,9 +283,12 @@ func _step_organism(organism: Dictionary, delta: float) -> void:
 		if not alive[a] or not alive[b]: _break_bond(organism, bond_index); continue
 		var difference: Vector2 = positions[b] - positions[a]
 		var length: float = maxf(0.001, difference.length()); var target: float = float(rest[bond_index]) * CELL_SCALE
-		if length / target > 1.25 + float(strength[bond_index]) * 0.22:
+		var scar_fraction := 0.0
+		if organism.has("trauma_scar") and organism["trauma_scar"].size() == positions.size(): scar_fraction = (float(organism["trauma_scar"][a]) + float(organism["trauma_scar"][b])) * 0.5
+		if length / target > 1.25 + float(strength[bond_index]) * 0.22 - scar_fraction * 0.08:
 			_break_bond(organism, bond_index); continue
-		var force: Vector2 = difference / length * (length - target) * float(strength[bond_index]) * 7.5 * delta
+		var scar_stiffness := 1.0 + scar_fraction * 0.45
+		var force: Vector2 = difference / length * (length - target) * float(strength[bond_index]) * scar_stiffness * 7.5 * delta
 		velocity[a] += force / max(0.1, float(mass[a])); velocity[b] -= force / max(0.1, float(mass[b]))
 	for cell_index in range(positions.size()):
 		if gravity_enabled or not alive[cell_index]: velocity[cell_index].y += 28.0 * delta
@@ -331,7 +334,9 @@ func _step_fluid_and_metabolism(organism: Dictionary, delta: float) -> void:
 		var exposure: float = float(organism["open_bonds"][index]) / maxf(1.0, float(organism["incident"][index]))
 		exposure += clamp(1.0 - float(health[index]) / max(0.001, float(max_health[index])), 0.0, 1.0)
 		if not alive[index]: exposure += 2.0
-		var leaked: float = minf(float(fluid[index]), exposure * 0.7 * delta)
+		var clot_fraction := 0.0
+		if organism.has("trauma_clot") and organism["trauma_clot"].size() == fluid.size(): clot_fraction = clampf(float(organism["trauma_clot"][index]), 0.0, 1.0)
+		var leaked: float = minf(float(fluid[index]), exposure * (1.0 - clot_fraction) * 0.7 * delta)
 		if leaked > 0.0005:
 			fluid[index] -= leaked; organism["fluid_lost"] = float(organism["fluid_lost"]) + leaked
 			if rng.randf() < min(1.0, leaked * 10.0): _spawn_spill(organism["position"][index], organism, leaked)

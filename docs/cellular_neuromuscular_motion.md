@@ -37,6 +37,11 @@ organ stops intentional motion.
 Motion costs cellular energy. Damage can still kill cells, tear appendages,
 break springs and spill internal fluid while a motion is active.
 
+The additive trauma overlay now gives those injuries persistent wound state:
+open bonds clot, recent tears attract weakly toward their matching endpoint,
+successful reconnection leaves scar tissue, and expired fragments become
+biomass or family-specific polyps. See `docs/cellular_trauma_and_repair.md`.
+
 Build and verify:
 
 ```powershell

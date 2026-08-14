@@ -6,16 +6,22 @@ const EXPECTED_FACINGS := ["north", "northeast", "east", "southeast", "south", "
 const EXPECTED_DRIVERS := ["body_bob", "body_sway", "body_squash", "head_tilt", "appendage_left", "appendage_right", "locomotor_left", "locomotor_right", "auxiliary", "weapon_recoil", "sensory_focus", "emission_pulse", "propulsion", "pain_spasm"]
 const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v3"
 const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v1"
+const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v1"
+const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v1"
 const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]
 
 @export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v4/motion_catalog.json"
 @export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v3/catalog.json"
 @export_dir var physiology_asset_root := "res://generated/cellular_physiology/v3/"
+@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v1/catalog.json"
+@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v1/"
 
 var motion_catalog: Dictionary = {}
 var motion_identities: Dictionary = {}
 var physiology_catalog: Dictionary = {}
 var physiology_identities: Dictionary = {}
+var trauma_catalog: Dictionary = {}
+var trauma_identities: Dictionary = {}
 var selected_motion := 0
 var selected_facing := 0
 var motion_epoch := 0.0
@@ -27,8 +33,10 @@ var driver_label: Label
 func _ready() -> void:
 	motion_catalog = _load_json(motion_catalog_path)
 	physiology_catalog = _load_json(physiology_catalog_path)
+	trauma_catalog = _load_json(trauma_catalog_path)
 	_validate_motion_catalog()
 	_validate_physiology_catalog()
+	_validate_trauma_catalog()
 	super()
 	_cross_validate_motion_identities()
 	_build_motion_overlay()
@@ -58,6 +66,24 @@ func _load_physiology_data(sample_id: String) -> Dictionary:
 	return data
 
 
+func _validate_trauma_catalog() -> void:
+	if trauma_catalog.get("format", "") != TRAUMA_FORMAT: startup_errors.append("trauma format")
+	if trauma_catalog.get("status", "") != "ready": startup_errors.append("trauma status")
+	if int(trauma_catalog.get("identity_count", -1)) != 45: startup_errors.append("trauma census")
+	if int(trauma_catalog.get("total_cells", -1)) != 25668 or int(trauma_catalog.get("total_bonds", -1)) != 85357: startup_errors.append("trauma totals")
+	for identity in trauma_catalog.get("identities", []): trauma_identities[str(identity.get("sample_id", ""))] = identity
+	if trauma_identities.size() != 45: startup_errors.append("trauma identities")
+
+
+func _load_trauma_data(sample_id: String) -> Dictionary:
+	var identity: Dictionary = trauma_identities.get(sample_id, {}); var artifact: Dictionary = identity.get("runtime", {})
+	var path := trauma_asset_root + str(artifact.get("path", ""))
+	if not FileAccess.file_exists(path) or FileAccess.get_file_as_bytes(path).size() != int(artifact.get("bytes", -1)) or FileAccess.get_sha256(path) != str(artifact.get("sha256", "")): return {}
+	var data := _load_json(path)
+	if data.get("format", "") != TRAUMA_RUNTIME_FORMAT or str(data.get("sample_id", "")) != sample_id: return {}
+	return data
+
+
 func _validate_motion_catalog() -> void:
 	if motion_catalog.get("format", "") != MOTION_FORMAT: startup_errors.append("motion format")
 	if motion_catalog.get("status", "") != "ready": startup_errors.append("motion status")
@@ -79,6 +105,7 @@ func _cross_validate_motion_identities() -> void:
 		if identity.is_empty(): startup_errors.append("motion identity " + sample_id); continue
 		if int(identity.get("family_id", -1)) != int(entry.get("family_id", -2)): startup_errors.append("motion family " + sample_id)
 		if int(identity.get("physical_cell_count", -1)) != int(entry.get("summary", {}).get("physical_cell_count", -2)): startup_errors.append("motion cells " + sample_id)
+		if not trauma_identities.has(sample_id): startup_errors.append("trauma identity " + sample_id)
 
 
 func _build_motion_overlay() -> void:
@@ -132,7 +159,39 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["physiology_oxygen"] = 1.0; organism["physiology_clock"] = 0.0
 	organism["physiology_base_digestion"] = float(organism["genome"].get("digestion_efficiency", 0.7))
 	organism["physiology_base_regeneration"] = float(organism["genome"].get("tissue_regeneration_rate", 0.01))
+	var trauma := _load_trauma_data(str(data.get("sample_id", "")))
+	var trauma_arrays: Dictionary = trauma.get("arrays", {})
+	if trauma.is_empty() or trauma_arrays.get("heal_class", []).size() != organism["position"].size() or trauma_arrays.get("bond_repair_weight", []).size() != organism["bond_ab"].size():
+		startup_errors.append("trauma identity " + str(data.get("sample_id", "?"))); return organism
+	organism["trauma_profile"] = trauma.get("profile", {}).duplicate(true)
+	organism["trauma_heal_class"] = trauma_arrays.get("heal_class", []).duplicate()
+	organism["trauma_clotting_weight"] = trauma_arrays.get("clotting_weight", []).duplicate()
+	organism["trauma_scar_bias"] = trauma_arrays.get("scar_bias", []).duplicate()
+	organism["trauma_regrowth_weight"] = trauma_arrays.get("regrowth_weight", []).duplicate()
+	organism["trauma_bond_repair_weight"] = trauma_arrays.get("bond_repair_weight", []).duplicate()
+	organism["trauma_bond_magnetic_weight"] = trauma_arrays.get("bond_magnetic_weight", []).duplicate()
+	organism["trauma_clot"] = _filled_float_array(organism["position"].size(), 0.0)
+	organism["trauma_scar"] = _filled_float_array(organism["position"].size(), 0.0)
+	organism["trauma_wound_age"] = _filled_float_array(organism["position"].size(), 0.0)
+	organism["trauma_bond_age"] = _filled_float_array(organism["bond_ab"].size(), 0.0)
+	organism["trauma_fragment_fate"] = _filled_string_array(organism["position"].size(), "attached")
+	organism["trauma_component_age"] = {}
+	organism["trauma_reconnections"] = 0
+	organism["trauma_polyps"] = 0
+	organism["trauma_biomass_components"] = 0
 	return organism
+
+
+func _filled_float_array(count: int, value: float) -> Array:
+	var result: Array = []
+	for index in range(count): result.append(value)
+	return result
+
+
+func _filled_string_array(count: int, value: String) -> Array:
+	var result: Array = []
+	for index in range(count): result.append(value)
+	return result
 
 
 func _current_clip(family_id: int) -> Dictionary:
@@ -315,11 +374,113 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 			if int(event.get("frame", -1)) == last_event_frame: _event("MOTOR EVENT // " + str(event.get("name", "?")).to_upper(), CYAN)
 
 
+func _break_bond(organism: Dictionary, bond_index: int) -> void:
+	var was_alive := bool(organism["bond_alive"][bond_index])
+	super(organism, bond_index)
+	if was_alive and organism.has("trauma_bond_age") and bond_index < organism["trauma_bond_age"].size():
+		organism["trauma_bond_age"][bond_index] = 0.000001
+		var pair: Array = organism["bond_ab"][bond_index]
+		for cell_index in [int(pair[0]), int(pair[1])]: organism["trauma_wound_age"][cell_index] = maxf(float(organism["trauma_wound_age"][cell_index]), 0.000001)
+
+
+func _trauma_components(organism: Dictionary) -> Array:
+	var components: Array = []; var unseen: Dictionary = {}
+	for index in range(organism["alive"].size()):
+		if organism["alive"][index]: unseen[str(index)] = true
+	while not unseen.is_empty():
+		var seed := int(unseen.keys().min()); var queue: Array[int] = [seed]; var component: Array[int] = []; unseen.erase(str(seed)); var cursor := 0
+		while cursor < queue.size():
+			var current := queue[cursor]; cursor += 1; component.append(current)
+			for edge in organism["motion_neighbors"][current]:
+				var neighbor := int(edge[0]); var bond_index := int(edge[1])
+				if organism["bond_alive"][bond_index] and organism["alive"][neighbor] and unseen.has(str(neighbor)):
+					unseen.erase(str(neighbor)); queue.append(neighbor)
+		component.sort(); components.append(component)
+	components.sort_custom(func(left: Array, right: Array): return left.size() > right.size() if left.size() != right.size() else int(left[0]) < int(right[0]))
+	return components
+
+
+func _component_key(component: Array) -> String:
+	var values: PackedStringArray = []
+	for index in component: values.append(str(int(index)))
+	return ",".join(values)
+
+
+func _main_component(organism: Dictionary, components: Array) -> Array:
+	if components.is_empty(): return []
+	var roles: Array = organism.get("physiology_role", []); var circulation: Array = roles[0] if not roles.is_empty() else []
+	for component in components:
+		for index in component:
+			if int(index) < circulation.size() and int(circulation[int(index)]) == 1 and organism["alive"][int(index)]: return component
+	return components[0]
+
+
+func _step_trauma_magnetism(organism: Dictionary, delta: float) -> void:
+	var profile: Dictionary = organism.get("trauma_profile", {}); var window := float(profile.get("reconnect_window_seconds", 0.0)); var radius := float(profile.get("magnetic_radius_cells", 0.0)) * CELL_SCALE
+	if window <= 0.0 or radius <= 0.0: return
+	for bond_index in range(organism["bond_ab"].size()):
+		if organism["bond_alive"][bond_index]: continue
+		var pair: Array = organism["bond_ab"][bond_index]; var a := int(pair[0]); var b := int(pair[1])
+		if not organism["alive"][a] or not organism["alive"][b]: continue
+		organism["trauma_bond_age"][bond_index] = float(organism["trauma_bond_age"][bond_index]) + delta
+		var age := float(organism["trauma_bond_age"][bond_index])
+		if age > window or str(organism["trauma_fragment_fate"][a]) != "attached" or str(organism["trauma_fragment_fate"][b]) != "attached": continue
+		var difference: Vector2 = organism["position"][b] - organism["position"][a]; var distance := difference.length()
+		if distance > radius or distance <= 0.0001: continue
+		var time_gain := 1.0 - age / window; var distance_gain := 1.0 - distance / radius; var weight := float(organism["trauma_bond_magnetic_weight"][bond_index]); var force := difference.normalized() * weight * time_gain * distance_gain * 52.0 * delta
+		organism["velocity"][a] += force / maxf(0.1, float(organism["mass"][a])); organism["velocity"][b] -= force / maxf(0.1, float(organism["mass"][b]))
+		if distance <= CELL_SCALE * 0.72 and weight > 0.01:
+			organism["bond_alive"][bond_index] = true; organism["trauma_bond_age"][bond_index] = 0.0; organism["open_bonds"][a] = maxi(0, int(organism["open_bonds"][a]) - 1); organism["open_bonds"][b] = maxi(0, int(organism["open_bonds"][b]) - 1)
+			for cell_index in [a, b]:
+				organism["trauma_clot"][cell_index] = maxf(float(organism["trauma_clot"][cell_index]), 0.72)
+				organism["trauma_scar"][cell_index] = clampf(float(organism["trauma_scar"][cell_index]) + float(organism["trauma_scar_bias"][cell_index]) * 0.28, 0.0, 1.0)
+			organism["trauma_reconnections"] = int(organism["trauma_reconnections"]) + 1
+
+
+func _step_trauma_components(organism: Dictionary, delta: float) -> void:
+	var components := _trauma_components(organism); var main := _main_component(organism, components); var main_key := _component_key(main); var previous: Dictionary = organism.get("trauma_component_age", {}); var current: Dictionary = {}; var profile: Dictionary = organism.get("trauma_profile", {})
+	var window := float(profile.get("reconnect_window_seconds", 0.0)); var minimum := int(profile.get("polyp_min_cells", 9999)); var desired := str(profile.get("detached_fate", "biomass"))
+	for component in components:
+		var key := _component_key(component)
+		if key == main_key: continue
+		var age := float(previous.get(key, 0.0)) + delta; current[key] = age
+		if age < window: continue
+		var fate := desired if desired != "biomass" and component.size() >= minimum else "biomass"; var newly_terminal := false
+		for index in component:
+			if str(organism["trauma_fragment_fate"][int(index)]) == "attached": organism["trauma_fragment_fate"][int(index)] = fate; newly_terminal = true
+		if newly_terminal:
+			if fate == "biomass": organism["trauma_biomass_components"] = int(organism["trauma_biomass_components"]) + 1
+			else: organism["trauma_polyps"] = int(organism["trauma_polyps"]) + 1
+		if fate == "biomass":
+			for index in component:
+				if organism["alive"][int(index)]:
+					organism["health"][int(index)] = float(organism["health"][int(index)]) - (0.08 if str(profile.get("family", "")) == "humanoid" else 0.10) * delta
+					if float(organism["health"][int(index)]) <= 0.0: organism["health"][int(index)] = 0.0; organism["alive"][int(index)] = false
+	organism["trauma_component_age"] = current
+
+
+func _step_trauma_after(organism: Dictionary, delta: float, previous_health: Array) -> void:
+	var capacity: Dictionary = organism.get("physiology_capacities", {}); var circulation := float(capacity.get("circulation", 0.0)); var immune := float(capacity.get("immune", 0.0)); var clot_rate := float(organism.get("trauma_profile", {}).get("clot_rate", 0.0))
+	for index in range(organism["alive"].size()):
+		if not organism["alive"][index]: continue
+		var health_ratio := float(organism["health"][index]) / maxf(0.001, float(organism["max_health"][index])); var exposed := int(organism["open_bonds"][index]) > 0 or health_ratio < 0.999
+		if exposed:
+			organism["trauma_wound_age"][index] = float(organism["trauma_wound_age"][index]) + delta
+			var gain := float(organism["trauma_clotting_weight"][index]) * clot_rate * circulation * (0.18 + 0.82 * immune) * delta
+			organism["trauma_clot"][index] = clampf(float(organism["trauma_clot"][index]) + gain, 0.0, 1.0)
+		var healed := maxf(0.0, float(organism["health"][index]) - float(previous_health[index]))
+		if healed > 0.0 and exposed: organism["trauma_scar"][index] = clampf(float(organism["trauma_scar"][index]) + float(organism["trauma_scar_bias"][index]) * healed * 0.16, 0.0, 1.0)
+	_step_trauma_components(organism, delta)
+
+
 func _step_organism(organism: Dictionary, delta: float) -> void:
 	_prepare_physiology(organism, delta)
 	_apply_motion_force(organism, delta)
+	_step_trauma_magnetism(organism, delta)
+	var previous_health: Array = organism["health"].duplicate()
 	super(organism, delta)
 	_advance_physiology(organism, delta)
+	_step_trauma_after(organism, delta, previous_health)
 
 
 func _can_reproduce(organism: Dictionary) -> bool:
@@ -331,6 +492,11 @@ func _cell_color(organism: Dictionary, index: int) -> Color:
 	if int(organism["emission"][index]) > 0:
 		var pulse: float = clampf(float(organism.get("motion_emission_pulse", 0.0)), 0.0, 1.0)
 		color = color.lerp(Color.WHITE, pulse * 0.24)
+	var scar := clampf(float(organism.get("trauma_scar", [])[index]), 0.0, 1.0) if organism.get("trauma_scar", []).size() == organism["alive"].size() else 0.0
+	if scar > 0.0: color = color.lerp(Color("#6d7782"), scar * 0.72)
+	var fate := str(organism.get("trauma_fragment_fate", [])[index]) if organism.get("trauma_fragment_fate", []).size() == organism["alive"].size() else "attached"
+	if fate.contains("polyp"): color = color.lerp(Color("#b8ff58"), 0.28)
+	if fate == "biomass": color = color.lerp(Color("#6b2e48"), 0.45)
 	return color
 
 
@@ -350,7 +516,8 @@ func _refresh_motion_overlay() -> void:
 	motion_label.text = "%s // %s // %s" % [str(EXPECTED_MOTIONS[selected_motion]).to_upper(), str(EXPECTED_FACINGS[selected_facing]).to_upper(), "%d FPS" % int(clip.get("fps", 0))]
 	if organisms.is_empty(): driver_label.text = "W/S MOTION  ARROWS FACING  //  ORGAN TARGETS + LIVE SPRINGS"; return
 	var capacity: Dictionary = organisms[0].get("physiology_capacities", {})
-	driver_label.text = "BRAIN %3d%%  HEART %3d%%  LUNG %3d%%  GUT %3d%%  O2 %3d%%" % [int(float(capacity.get("neural", 0.0)) * 100.0), int(float(capacity.get("circulation", 0.0)) * 100.0), int(float(capacity.get("respiration", 0.0)) * 100.0), int(float(capacity.get("digestion", 0.0)) * 100.0), int(float(organisms[0].get("physiology_oxygen", 0.0)) * 100.0)]
+	var scar_mean := _sum_float(organisms[0].get("trauma_scar", [])) / maxf(1.0, float(organisms[0]["alive"].size()))
+	driver_label.text = "BRAIN %3d  HEART %3d  LUNG %3d  GUT %3d  SCAR %2d  POLYP %d" % [int(float(capacity.get("neural", 0.0)) * 100.0), int(float(capacity.get("circulation", 0.0)) * 100.0), int(float(capacity.get("respiration", 0.0)) * 100.0), int(float(capacity.get("digestion", 0.0)) * 100.0), int(scar_mean * 100.0), int(organisms[0].get("trauma_polyps", 0))]
 
 
 func _refresh_labels() -> void:
@@ -366,6 +533,26 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_S: _select_motion(1)
 			KEY_LEFT: _select_facing(-1)
 			KEY_RIGHT: _select_facing(1)
+
+
+func _diagnostic_detach_component(organism: Dictionary, minimum_cells: int) -> Array:
+	var groups: Dictionary = {}
+	for index in range(organism["organ_id"].size()):
+		var key := str(int(organism["organ_id"][index])); if not groups.has(key): groups[key] = []
+		groups[key].append(index)
+	var candidates: Array = groups.values(); candidates.sort_custom(func(left: Array, right: Array): return left.size() < right.size())
+	for component in candidates:
+		if component.size() < minimum_cells or component.size() >= organism["alive"].size() / 2: continue
+		var membership: Dictionary = {}; for index in component: membership[str(int(index))] = true
+		var boundary: Array[int] = []
+		for bond_index in range(organism["bond_ab"].size()):
+			var pair: Array = organism["bond_ab"][bond_index]
+			if membership.has(str(int(pair[0]))) != membership.has(str(int(pair[1]))): boundary.append(bond_index)
+		if boundary.is_empty(): continue
+		for bond_index in boundary: _break_bond(organism, bond_index)
+		for observed in _trauma_components(organism):
+			if observed.size() == component.size() and _component_key(observed) == _component_key(component): return observed
+	return []
 
 
 func _run_motion_smoke() -> void:
@@ -390,7 +577,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -398,6 +585,10 @@ func _run_motion_smoke() -> void:
 		_apply_motion_force(organisms[0], 1.0 / 60.0)
 		for velocity in organisms[0]["velocity"]: actuation_velocity += velocity.length()
 		if not is_finite(actuation_velocity) or actuation_velocity <= 0.01: errors.append("neuromuscular actuation")
+		var reconnect_bond := 0; var reconnect_pair: Array = organisms[0]["bond_ab"][reconnect_bond]; var reconnect_a := int(reconnect_pair[0]); var reconnect_b := int(reconnect_pair[1]); _break_bond(organisms[0], reconnect_bond)
+		organisms[0]["position"][reconnect_b] = organisms[0]["position"][reconnect_a] + Vector2(CELL_SCALE * 0.5, 0.0); _step_trauma_magnetism(organisms[0], 1.0 / 60.0)
+		trauma_reconnection_verified = organisms[0]["bond_alive"][reconnect_bond] and int(organisms[0]["trauma_reconnections"]) == 1 and maxf(float(organisms[0]["trauma_scar"][reconnect_a]), float(organisms[0]["trauma_scar"][reconnect_b])) > 0.0
+		if not trauma_reconnection_verified: errors.append("trauma reconnection")
 		if _feed_current(20.0) <= 0.0: errors.append("motion body feeding")
 		if not _reproduce(organisms[0], true): errors.append("motion body reproduction")
 		trauma = _damage_at(_organism_center(organisms[0]), 38.0, 2.2, 260.0)
@@ -413,7 +604,17 @@ func _run_motion_smoke() -> void:
 			var damaged_capacity := _compute_physiology_capacities(diagnostic)
 			physiology_core_damage_verified = float(damaged_capacity.get("neural", 1.0)) == 0.0 and float(damaged_capacity.get("locomotion", 1.0)) == 0.0 and float(damaged_capacity.get("circulation", 0.0)) > 0.9
 			if not physiology_core_damage_verified: errors.append("physiology brain cascade")
-	var report := {"format": "nullvector-cellular-motion-godot-smoke-v2", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
+	var plant_index := -1
+	for index in range(catalog.get("species", []).size()):
+		if int(catalog.get("species", [])[index].get("family_id", -1)) == 2: plant_index = index; break
+	if plant_index >= 0:
+		var previous_species := selected_species; selected_species = plant_index; var plant_data := _load_species_data(plant_index); var plant := _create_organism(plant_data, Vector2(1000, 360), 0, 0); selected_species = previous_species
+		var minimum := int(plant.get("trauma_profile", {}).get("polyp_min_cells", 4)); var detached := _diagnostic_detach_component(plant, minimum)
+		if not detached.is_empty():
+			_step_trauma_components(plant, float(plant["trauma_profile"].get("reconnect_window_seconds", 15.0)) + 0.1)
+			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
+	if not plant_polyp_verified: errors.append("plant polyp fate")
+	var report := {"format": "nullvector-cellular-motion-godot-smoke-v3", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)
 		if file != null: file.store_string(JSON.stringify(report, "  ", true) + "\n")

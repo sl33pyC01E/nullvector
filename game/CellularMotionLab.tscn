@@ -14,3 +14,5 @@ lab_subtitle = "LIVE ORGAN DRIVERS // SPRING PHYSICS // 13 MOTIONS x 8 FACINGS /
 motion_catalog_path = "res://generated/cellular_motion/v4/motion_catalog.json"
 physiology_catalog_path = "res://generated/cellular_physiology/v3/catalog.json"
 physiology_asset_root = "res://generated/cellular_physiology/v3/"
+trauma_catalog_path = "res://generated/cellular_trauma/v1/catalog.json"
+trauma_asset_root = "res://generated/cellular_trauma/v1/"

@@ -29,7 +29,7 @@ def _source_registry() -> dict[str, str]:
         Path(__file__).resolve(), PROJECT_ROOT / "forge/cellular_physiology/contract.py",
         PROJECT_ROOT / "forge/cellular_physiology/compiler.py", PROJECT_ROOT / "forge/cellular_physiology/simulation.py",
         PROJECT_ROOT / "shared/schema/cellular_physiology_bank.schema.json",
-        PROJECT_ROOT / "game/scripts/cellular_motion_lab.gd", PROJECT_ROOT / "game/CellularMotionLab.tscn",
+        PROJECT_ROOT / "game/scripts/cellular_motion_lab.gd", PROJECT_ROOT / "game/scripts/cellular_organism_lab.gd", PROJECT_ROOT / "game/CellularMotionLab.tscn",
     )
     return {path.relative_to(PROJECT_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
