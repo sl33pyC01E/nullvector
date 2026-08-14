@@ -340,3 +340,19 @@ two-step CPU checkpoint, and reproduced the codec decode identity. The focused
 suite contains 23 tests, including replay under a changed ambient thread count.
 The combined topology-foundation, authoritative map, and map-quality run passed
 63 tests.
+
+## Accepted CUDA representation milestone
+
+Stage A now has a source-bound production calibration in
+`outputs/map_topology_neural_production/calibration_500step_v2_hardened`.
+The 500-step deterministic BF16 run uses the frozen 3,096-map corpus, 48
+stratified validation maps, and all 24 size sentinels. Its EMA reaches terrain
+accuracy 0.775510/0.806554, elevation accuracy 0.559691/0.612762, and derived
+walkability IoU 0.830467/0.852473 on validation/test. Both splits pass the
+frozen terrain, hazard, elevation, walkability, code-use, and loss-improvement
+gates. Exact metric replay passed after a fresh checkpoint reload.
+
+This milestone remains representation-only. No masked latent prior has been
+trained, no neural proposal has been promoted to a topology-v2 pack, and no
+Godot integration exists. See `docs/map_topology_neural_production.md` for the
+complete artifact identities, command, gates, and claim boundary.

@@ -139,9 +139,12 @@ splits, improves both object heads, preserves variant/emission exactly, and is n
 yet a production or Godot integration claim.
 
 A learned structural map prior is being developed separately as a discrete VQ
-codec plus masked latent diffusion. Its raw proposals will pass through a
-deterministic topology compiler and an explicit edit ledger before they can
-become runtime map packs.
+codec plus masked latent diffusion. The codec now has an accepted, exactly
+replayed 500-step representation milestone over the frozen 3,096-map corpus:
+held-out EMA walkability IoU is 0.830/0.852 on validation/sentinels, with every
+frozen reconstruction gate passing. It is still not a generator. Its future raw
+latent proposals must pass through the deterministic topology compiler and an
+explicit edit ledger before they can become runtime map packs.
 
 ## Native Godot Workshop
 
