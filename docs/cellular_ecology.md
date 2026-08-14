@@ -17,3 +17,23 @@ python -m forge.cellular_ecology replay outputs/cellular_ecology_v1/cellular_eco
 The bank is exact-replayable, source-bound to both maps and organisms, schema validated, canonical JSON, and guarded by the repository's 100 GiB free-space floor.
 
 `CellularEcologyLab.tscn` is the native interactive exhibit. It layers the ecological fields over the existing spring-physics organism lab, seeds all 20 resources for the selected biome, regrows depleted nodes, applies temperature/toxicity stress to living cells, and makes local biomass a carrying-capacity requirement for reproduction. `A/D` changes among the six habitats. Motion, tissue fracture, fluid leakage, feeding, and organ failure remain the same physical systems used by the organism and neuromuscular labs; the ecology scene adds no Python runtime dependency.
+
+The current native projection binds the ecology catalog to the exact organism,
+motion-v4, connected-physiology, and trauma bundle identities. Resource use is
+family-specific instead of a universal food pellet:
+
+- humanoids are broad generalists and can exploit organic or fabricated nodes;
+- animalians strongly prefer organic animal/plant niches and reject machine or
+  anomaly substrates;
+- plantlike cells absorb local light, moisture, nutrients, and compatible
+  regenerative nodes without walking toward food;
+- anomalies metabolize energetic/toxic gradients and phase-resource nodes;
+- machines acquire charge/material from machine and anomaly nodes and prefer
+  lower-moisture energetic terrain.
+
+Mobile organisms use their live neural and locomotor capacities to acquire a
+weak resource-seeking impulse toward the best compatible nonempty node. Brain,
+respiratory, circulatory, or locomotor injury therefore degrades ecological
+movement through the same connected organ graph. Reproduction is gated by the
+family-specific suitability field and local carrying capacity, which prevents
+the earlier universal rapid-reproduction collapse.

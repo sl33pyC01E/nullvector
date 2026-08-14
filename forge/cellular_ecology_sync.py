@@ -29,7 +29,7 @@ def _source_registry() -> dict[str, str]:
     paths = (
         Path(__file__).resolve(), PROJECT_ROOT / "forge/cellular_ecology/contract.py", PROJECT_ROOT / "forge/cellular_ecology/compiler.py",
         PROJECT_ROOT / "shared/schema/cellular_ecology_bank.schema.json", PROJECT_ROOT / "game/CellularEcologyLab.tscn",
-        PROJECT_ROOT / "game/scripts/cellular_ecology_lab.gd", PROJECT_ROOT / "game/scripts/cellular_motion_lab.gd",
+        PROJECT_ROOT / "game/scripts/cellular_ecology_lab.gd", PROJECT_ROOT / "game/scripts/cellular_motion_lab.gd", PROJECT_ROOT / "game/scripts/cellular_organism_lab.gd",
     )
     return {path.relative_to(PROJECT_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
@@ -51,14 +51,21 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
             "family_suitability_u8": [_quantize(fields["family_suitability"][index]) for index in range(5)],
             "resource_type_u8": fields["resource_type"].reshape(-1).tolist(),
         })
-    registry = _source_registry()
+    registry = _source_registry(); dependencies = {}
+    for name, relative in {
+        "organism": "game/generated/cellular_symmetry/v1/catalog.json",
+        "motion": "game/generated/cellular_motion/v4/motion_catalog.json",
+        "physiology": "game/generated/cellular_physiology/v3/catalog.json",
+        "trauma": "game/generated/cellular_trauma/v1/catalog.json",
+    }.items():
+        path = PROJECT_ROOT / relative; data = json.loads(path.read_text(encoding="utf-8")); dependencies[name] = {"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path), "bundle_id": data["bundle_id"]}
     catalog: dict[str, object] = {
         "format": FORMAT, "status": "ready", "bundle_version": 1,
         "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"],
         "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)),
         "map_count": 6, "resource_node_count": source["resource_node_count"], "family_vocab": source["family_vocab"],
         "resource_vocab": source["resource_vocab"], "field_vocab": source["field_vocab"], "maps": maps,
-        "runtime_contract": source["runtime_contract"], "validation": validation,
+        "runtime_contract": source["runtime_contract"], "runtime_dependencies": dependencies, "validation": validation,
     }
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog))
     contact = (source_manifest.parent / source["contact_sheet"]["path"]).read_bytes()
@@ -85,6 +92,9 @@ def validate_runtime(destination: Path) -> dict[str, object]:
     if catalog.get("sync_source_manifest") != registry or catalog.get("sync_source_sha256") != sha256_bytes(canonical_json_bytes(registry)): raise ValueError("Ecology native source provenance differs")
     if catalog.get("bundle_id") != sha256_bytes(canonical_json_bytes({key: value for key, value in catalog.items() if key != "bundle_id"})): raise ValueError("Ecology native bundle identity differs")
     if (catalog.get("map_count"), catalog.get("resource_node_count")) != (6, 120): raise ValueError("Ecology native census differs")
+    for dependency in catalog.get("runtime_dependencies", {}).values():
+        path = PROJECT_ROOT.joinpath(*PurePosixPath(dependency["path"]).parts)
+        if path.stat().st_size != dependency["bytes"] or sha256_file(path) != dependency["sha256"] or json.loads(path.read_text(encoding="utf-8"))["bundle_id"] != dependency["bundle_id"]: raise ValueError("Ecology native dependency provenance differs")
     expected = project_runtime(DEFAULT_SOURCE)
     for relative, payload in expected.items():
         artifact = destination / relative
