@@ -87,11 +87,13 @@ Exact replay uses the same environment and replaces `smoke` with `validate`.
 
 ## Next production slice
 
-Before CUDA training, build a frozen latent corpus for all 3,096 maps in fresh
-bounded worker shards. Each record must bind its source map, codec checkpoint,
-EMA, shape/padding, conditions, token grid, and exact token hash. The production
-trainer should use fresh short segments with optimizer/EMA/RNG resume, held-out
-masked-token metrics, conditional counterfactuals, raw-sample diversity, and
-repair-cost evaluation after deterministic compilation. No raw proposal should
-become a map pack solely because its token loss is low.
+The frozen latent corpus is now complete at
+`outputs/map_topology_neural_prior_corpus/v1`: all 3,096 maps in 216 shards were
+independently re-encoded with zero failed attempt. See
+`docs/map_topology_neural_prior_corpus.md`.
 
+The production trainer should use fresh short segments with
+optimizer/EMA/RNG resume, held-out masked-token metrics, conditional
+counterfactuals, raw-sample diversity, and repair-cost evaluation after
+deterministic compilation. No raw proposal should become a map pack solely
+because its token loss is low.

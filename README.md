@@ -152,6 +152,12 @@ reveal, and publishes six theme-balanced raw latent proposals under an explicit
 non-map claim boundary. Its two training steps are a pipeline proof only; no
 generative-quality or runtime claim is made.
 
+Its production input is now frozen as a 216-shard latent corpus covering all
+3,096 maps. Every shard was re-encoded from source in a separate CPU process;
+the complete 2,496/576/24 train/validation/test census passed with zero retry,
+access violation, or timeout. The corpus is only a training substrate and does
+not weaken the compiler/runtime authority boundary.
+
 ## Native Godot Workshop
 
 `game/ForgeHub.tscn` is the additive native front door to the forge. Its neon,
