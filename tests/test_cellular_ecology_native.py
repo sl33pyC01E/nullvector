@@ -20,7 +20,7 @@ def test_native_catalog_validates_when_present() -> None:
 
 def test_ecology_scene_uses_current_motion_physiology_and_trauma_bundles() -> None:
     scene = (ROOT / "game/CellularEcologyLab.tscn").read_text(encoding="utf-8"); script = (ROOT / "game/scripts/cellular_ecology_lab.gd").read_text(encoding="utf-8")
-    for path in ("cellular_motion/v7", "cellular_physiology/v6", "cellular_trauma/v3", "cellular_ecology/v3"):
+    for path in ("cellular_motion/v11", "cellular_physiology/v10", "cellular_trauma/v7", "cellular_ecology/v5"):
         assert path in scene
     for feature in (
         "_resource_affinity", "_is_resource_cell", "_step_ecology_motility",

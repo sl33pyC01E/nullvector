@@ -8,7 +8,7 @@ from forge.cellular_physiology_sync import project_runtime, validate_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
-RUNTIME = ROOT / "game/generated/cellular_physiology/v6"
+RUNTIME = ROOT / "game/generated/cellular_physiology/v10"
 SCENE = ROOT / "game/CellularMotionLab.tscn"
 SCRIPT = ROOT / "game/scripts/cellular_motion_lab.gd"
 
@@ -22,7 +22,7 @@ def test_native_physiology_projection_is_repeatable_and_hash_closed() -> None:
 
 def test_motion_lab_loads_and_applies_connected_physiology() -> None:
     scene = SCENE.read_text(encoding="utf-8"); script = SCRIPT.read_text(encoding="utf-8")
-    assert 'physiology_catalog_path = "res://generated/cellular_physiology/v6/catalog.json"' in scene
+    assert 'physiology_catalog_path = "res://generated/cellular_physiology/v10/catalog.json"' in scene
     for feature in (
         "_compute_physiology_capacities", "_physiology_reachable", "_prepare_physiology",
         "_advance_physiology", "physiology_oxygen", "physiology_base_digestion",
@@ -32,9 +32,10 @@ def test_motion_lab_loads_and_applies_connected_physiology() -> None:
         assert feature in script
 
 
-def test_godot_smoke_proves_brain_damage_cascade_and_runtime_census() -> None:
-    report = json.loads((ROOT / "outputs/cellular_physiology_motion_godot_report_v7.json").read_text(encoding="utf-8"))
+def test_godot_smoke_proves_all_identity_organ_cascades_and_runtime_census() -> None:
+    report = json.loads((ROOT / "outputs/cellular_physiology_motion_godot_report_v8.json").read_text(encoding="utf-8"))
     assert report["passed"] is True
+    assert report["format"] == "nullvector-cellular-motion-godot-smoke-v8"
     assert (report["physiology_identity_count"], report["physiology_system_count"]) == (45, 8)
     assert report["physiology_core_damage_verified"] is True
     assert report["all_system_core_failures_verified"] is True
@@ -43,3 +44,9 @@ def test_godot_smoke_proves_brain_damage_cascade_and_runtime_census() -> None:
     assert report["local_perfusion_verified"] is True
     assert report["progressive_chain_verified"] is True
     assert report["population_after_reproduction"] == 2
+    matrix = report["full_identity_failure_matrix"]
+    assert matrix["passed"] is True
+    assert matrix["family_census_valid"] is True
+    assert (matrix["identity_count"], matrix["core_failure_case_count"], matrix["cascade_signature_count"]) == (45, 360, 180)
+    assert matrix["family_counts"] == {"humanoid": 11, "animalian": 10, "plantlike": 9, "anomaly": 8, "machine": 7}
+    assert matrix["minimum_retained_circulation"] > 0.5

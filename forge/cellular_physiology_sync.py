@@ -21,7 +21,7 @@ from .safety import require_disk_floor
 FORMAT = "nullvector-connected-cellular-physiology-runtime-v4"
 CATALOG_FORMAT = "nullvector-connected-cellular-physiology-native-catalog-v6"
 DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v6"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_physiology/v10"
 
 
 def _source_registry() -> dict[str, str]:

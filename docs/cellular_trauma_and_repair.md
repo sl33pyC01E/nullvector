@@ -41,7 +41,7 @@ Native projection:
 
 ```powershell
 python -m forge.cellular_trauma_sync \
-  --destination game/generated/cellular_trauma/v3 \
+  --destination game/generated/cellular_trauma/v7 \
   --report outputs/cellular_trauma_sync_report.json
 ```
 

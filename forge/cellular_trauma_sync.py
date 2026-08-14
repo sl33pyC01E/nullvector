@@ -22,7 +22,7 @@ from .safety import require_disk_floor
 FORMAT = "nullvector-cellular-trauma-runtime-v3"
 CATALOG_FORMAT = "nullvector-cellular-trauma-native-catalog-v3"
 DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_trauma_v3/cellular_trauma_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_trauma/v3"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_trauma/v7"
 
 
 def _source_registry() -> dict[str, str]:

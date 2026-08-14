@@ -12,11 +12,11 @@ const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sen
 const MOTION_VIEW_NAMES := ["PHENOTYPE", "ORGANS", "FLUID / PRESSURE", "HEALTH", "TISSUE", "SYSTEM NETWORK"]
 const SYSTEM_COLORS := [Color("#ff4d67"), Color("#51d9ff"), Color("#ffb347"), Color("#b879ff"), Color("#ffe761"), Color("#69ff91"), Color("#ff70c8"), Color("#70e8c1")]
 
-@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v7/motion_catalog.json"
-@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v6/catalog.json"
-@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v6/"
-@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v3/catalog.json"
-@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v3/"
+@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v11/motion_catalog.json"
+@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v10/catalog.json"
+@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v10/"
+@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v7/catalog.json"
+@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v7/"
 
 var motion_catalog: Dictionary = {}
 var motion_identities: Dictionary = {}
@@ -409,6 +409,74 @@ func _diagnostic_system_core_failures(organism: Dictionary) -> Dictionary:
 	return failures
 
 
+func _diagnostic_full_identity_failure_matrix() -> Dictionary:
+	# Exercise the actual native JSON projection for every identity. This stays
+	# outside the interactive population so the smoke does not create 45 live
+	# physics bodies merely to prove organ causality.
+	var identity_count := 0
+	var core_failure_case_count := 0
+	var cascade_signature_count := 0
+	var family_counts: Dictionary = {}
+	var minimum_retained_circulation := 1.0
+	for species_index in range(catalog.get("species", []).size()):
+		var data := _load_species_data(species_index)
+		if data.is_empty(): continue
+		var diagnostic := _create_organism(data, Vector2.ZERO, 0, 0)
+		if diagnostic.is_empty(): continue
+		var failures := _diagnostic_system_core_failures(diagnostic)
+		if failures.size() != SYSTEM_NAMES.size(): continue
+		var identity_valid := true
+		for system_name in SYSTEM_NAMES:
+			var failure: Dictionary = failures.get(system_name, {})
+			if int(failure.get("core_cells", 0)) <= 0 or float(failure.get("remaining_capacity", 1.0)) > 0.000001:
+				identity_valid = false
+			else:
+				core_failure_case_count += 1
+
+		var circulation: Dictionary = failures.get("circulation", {}).get("capacities", {})
+		var circulation_cascade := SYSTEM_NAMES.all(func(name): return float(circulation.get(name, 1.0)) <= 0.000001)
+		if circulation_cascade: cascade_signature_count += 1
+		else: identity_valid = false
+
+		var respiration: Dictionary = failures.get("respiration", {}).get("capacities", {})
+		var respiration_cascade := ["respiration", "neural", "sensory", "locomotion", "reproduction"].all(func(name): return float(respiration.get(name, 1.0)) <= 0.000001)
+		respiration_cascade = respiration_cascade and float(respiration.get("circulation", 0.0)) > 0.5
+		if respiration_cascade: cascade_signature_count += 1
+		else: identity_valid = false
+
+		var digestion: Dictionary = failures.get("digestion", {}).get("capacities", {})
+		var digestion_cascade := ["digestion", "reproduction", "immune"].all(func(name): return float(digestion.get(name, 1.0)) <= 0.000001)
+		digestion_cascade = digestion_cascade and float(digestion.get("circulation", 0.0)) > 0.5
+		if digestion_cascade: cascade_signature_count += 1
+		else: identity_valid = false
+
+		var neural: Dictionary = failures.get("neural", {}).get("capacities", {})
+		var neural_cascade := ["neural", "sensory", "locomotion"].all(func(name): return float(neural.get(name, 1.0)) <= 0.000001)
+		neural_cascade = neural_cascade and float(neural.get("circulation", 0.0)) > 0.5
+		if neural_cascade: cascade_signature_count += 1
+		else: identity_valid = false
+		minimum_retained_circulation = minf(minimum_retained_circulation, minf(float(neural.get("circulation", 0.0)), minf(float(respiration.get("circulation", 0.0)), float(digestion.get("circulation", 0.0)))))
+
+		if identity_valid:
+			identity_count += 1
+			var family := str(data.get("family", "unknown"))
+			family_counts[family] = int(family_counts.get(family, 0)) + 1
+	var expected_identities := int(catalog.get("species", []).size())
+	var expected_family_counts: Dictionary = catalog.get("family_counts", {})
+	var family_census_valid := family_counts.size() == 5 and family_counts.size() == expected_family_counts.size()
+	for family in expected_family_counts:
+		if int(family_counts.get(family, -1)) != int(expected_family_counts.get(family, -2)): family_census_valid = false
+	return {
+		"passed": identity_count == 45 and expected_identities == 45 and core_failure_case_count == 360 and cascade_signature_count == 180 and family_census_valid and family_counts.values().all(func(value): return int(value) > 0),
+		"identity_count": identity_count,
+		"core_failure_case_count": core_failure_case_count,
+		"cascade_signature_count": cascade_signature_count,
+		"family_counts": family_counts,
+		"family_census_valid": family_census_valid,
+		"minimum_retained_circulation": minimum_retained_circulation,
+	}
+
+
 func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	organism["physiology_clock"] = float(organism.get("physiology_clock", 0.0)) - delta
 	if float(organism["physiology_clock"]) <= 0.0:
@@ -756,7 +824,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -805,6 +873,8 @@ func _run_motion_smoke() -> void:
 			var failure: Dictionary = system_core_failures.get(system_name, {})
 			if int(failure.get("core_cells", 0)) <= 0 or float(failure.get("remaining_capacity", 1.0)) > 0.000001: all_system_core_failures_verified = false
 		if not all_system_core_failures_verified: errors.append("physiology system core failures")
+		full_identity_failure_matrix = _diagnostic_full_identity_failure_matrix()
+		if not bool(full_identity_failure_matrix.get("passed", false)): errors.append("full identity physiology failure matrix")
 		selected_motion = EXPECTED_MOTIONS.find("locomote"); selected_facing = 2; motion_epoch = 0.0; simulation_time = 0.25
 		_apply_motion_force(organisms[0], 1.0 / 60.0)
 		for velocity in organisms[0]["velocity"]: actuation_velocity += velocity.length()
@@ -839,13 +909,14 @@ func _run_motion_smoke() -> void:
 			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
 	if not plant_polyp_verified: errors.append("plant polyp fate")
 	var report := {
-		"format": "nullvector-cellular-motion-godot-smoke-v7", "passed": errors.is_empty(), "errors": errors,
+		"format": "nullvector-cellular-motion-godot-smoke-v8", "passed": errors.is_empty(), "errors": errors,
 		"engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""),
 		"physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""),
 		"organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0),
 		"physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0),
 		"trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified,
 		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
+		"full_identity_failure_matrix": full_identity_failure_matrix,
 		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "local_perfusion_verified": local_perfusion_verified, "progressive_chain_verified": progressive_chain_verified,
 		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,
 		"plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count,

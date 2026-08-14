@@ -18,7 +18,7 @@ from .safety import require_disk_floor
 
 FORMAT = "nullvector-cellular-neuromuscular-native-catalog-v7"
 DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_motion/v7"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_motion/v11"
 
 
 def _source_registry() -> dict[str, str]:

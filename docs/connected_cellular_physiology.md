@@ -48,7 +48,7 @@ The native projection is built with:
 
 ```powershell
 python -m forge.cellular_physiology_sync `
-  --destination game/generated/cellular_physiology/v6 `
+  --destination game/generated/cellular_physiology/v10 `
   --report outputs/cellular_physiology_sync_v4_2.json
 ```
 
@@ -63,9 +63,13 @@ its graded living motor-system route, so crushing one tract progressively
 weakens its downstream appendage and severing it can make that appendage go
 limp without freezing an intact limb. Wound clotting also requires local
 circulatory and immune delivery at that pixel; a detached fragment cannot
-borrow the main body's global capacity. The headless native smoke destroys the brain
-core of a diagnostic offspring and proves that neural/locomotor capacity reaches
-zero while circulation remains functional. It also proves member-restricted
+borrow the main body's global capacity. The headless native smoke now executes
+all eight organ-core failures on every one of the 45 organisms: 360 failure
+cases plus 180 explicit heart, respiratory, digestive, and neural cascade
+signatures. It requires the exact source census across all five families
+(11 humanoids, 10 animalians, 9 plantlikes, 8 anomalies, and 7 machines) and
+proves that non-circulatory brain, lung, and gut injuries retain a living
+circulation while their actual dependent capacities fail. It also proves member-restricted
 routing and progressive root-to-tip appendage coordinates. Python is not
 required at runtime.
 
