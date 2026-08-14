@@ -483,6 +483,8 @@ def test_codec_deterministic_cpu_init_training_checkpoint_and_provenance(tmp_pat
 
 
 def test_six_theme_smoke_bank_builds_and_replays_exactly(tmp_path: Path) -> None:
+    import torch
+
     from forge.map_topology_neural.smoke import assert_exact_smoke_replay, build_smoke
 
     output = tmp_path / "smoke"
@@ -491,5 +493,25 @@ def test_six_theme_smoke_bank_builds_and_replays_exactly(tmp_path: Path) -> None
     assert report["theme_count"] == 6
     assert report["artifact_array_count_compared"] == 72
     assert report["checkpoint_step"] == 2
+    assert report["codec_decode_logits_exact"]
+    assert report["codec_decode_decisions_exact"]
     assert (output / "topology_repair_contact_sheet.png").is_file()
     assert assert_exact_smoke_replay(output) == report
+    manifest = json.loads((output / "smoke_manifest.json").read_text())
+    assert manifest["format"] == "nullvector-neural-map-topology-smoke-v2"
+    assert manifest["codec"]["decode_execution"] == {
+        "device": "cpu",
+        "dtype": "float32",
+        "torch_num_threads": 1,
+        "mkldnn_enabled": False,
+        "deterministic_algorithms": True,
+        "update_ema": False,
+    }
+
+    # Ambient worker/thread choices cannot change the canonical replay.
+    previous_threads = torch.get_num_threads()
+    try:
+        torch.set_num_threads(2 if previous_threads != 2 else 3)
+        assert assert_exact_smoke_replay(output) == report
+    finally:
+        torch.set_num_threads(previous_threads)

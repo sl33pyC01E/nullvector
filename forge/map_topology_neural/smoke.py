@@ -37,7 +37,7 @@ from .provenance import compiler_source_sha256, source_manifest, source_sha256
 from .render import contact_sheet_png_bytes
 
 
-SMOKE_FORMAT = "nullvector-neural-map-topology-smoke-v1"
+SMOKE_FORMAT = "nullvector-neural-map-topology-smoke-v2"
 SMOKE_MANIFEST = "smoke_manifest.json"
 SMOKE_REPLAY = "replay_report.json"
 CONTACT_SHEET = "topology_repair_contact_sheet.png"
@@ -106,16 +106,57 @@ def _corrupt_sample(sample: object) -> tuple[object, dict[str, int]]:
     return raw, changed
 
 
-def _decode_sha256(model: object, batch: dict[str, torch.Tensor]) -> str:
-    getattr(model, "eval")()
-    with torch.no_grad():
-        output = model(batch, update_ema=False)
-    arrays = {
-        name: tensor.detach().cpu().numpy().astype(np.float32, copy=False)
-        for name, tensor in output["logits"].items()
-    }
-    arrays["indices"] = output["indices"].detach().cpu().numpy().astype(np.int64, copy=False)
-    return named_arrays_sha256(arrays)
+DECODE_EXECUTION_CONTRACT = {
+    "device": "cpu",
+    "dtype": "float32",
+    "torch_num_threads": 1,
+    "mkldnn_enabled": False,
+    "deterministic_algorithms": True,
+    "update_ema": False,
+}
+
+
+def _decode_hashes(model: object, batch: dict[str, torch.Tensor]) -> dict[str, str]:
+    """Hash a canonical CPU decode, independent of ambient thread settings.
+
+    Raw float logits are sensitive to legal CPU reduction/kernel choices.  The
+    smoke contract therefore pins single-thread, non-MKLDNN execution instead
+    of accidentally binding replay to the process that happened to build it.
+    The categorical decision hash is recorded separately so semantic replay is
+    explicit rather than inferred from a raw float digest.
+    """
+
+    if any(value.device.type != "cpu" for value in batch.values()):
+        raise ValueError("Canonical topology decode accepts CPU tensors only.")
+    previous_threads = torch.get_num_threads()
+    previous_deterministic = torch.are_deterministic_algorithms_enabled()
+    previous_warn_only = torch.is_deterministic_algorithms_warn_only_enabled()
+    was_training = bool(getattr(model, "training"))
+    try:
+        torch.set_num_threads(int(DECODE_EXECUTION_CONTRACT["torch_num_threads"]))
+        torch.use_deterministic_algorithms(True)
+        getattr(model, "eval")()
+        with torch.no_grad(), torch.backends.mkldnn.flags(enabled=False):
+            output = model(batch, update_ema=False)
+        logits = {
+            name: tensor.detach().cpu().contiguous().numpy().astype(np.float32, copy=False)
+            for name, tensor in output["logits"].items()
+        }
+        indices = output["indices"].detach().cpu().contiguous().numpy().astype(np.int64, copy=False)
+        decisions = {
+            name: np.argmax(value, axis=1).astype(np.uint8, copy=False)
+            for name, value in logits.items()
+        }
+        logits["indices"] = indices
+        decisions["indices"] = indices
+        return {
+            "logits_sha256": named_arrays_sha256(logits),
+            "decisions_sha256": named_arrays_sha256(decisions),
+        }
+    finally:
+        getattr(model, "train")(was_training)
+        torch.use_deterministic_algorithms(previous_deterministic, warn_only=previous_warn_only)
+        torch.set_num_threads(previous_threads)
 
 
 def build_smoke(
@@ -286,7 +327,7 @@ def build_smoke(
         loaded_model, _, _ = load_codec_checkpoint(
             checkpoint_path, expected_corpus_sha256=FROZEN_CORPUS_SHA256
         )
-        decode_hash = _decode_sha256(loaded_model, batch)
+        decode_hashes = _decode_hashes(loaded_model, batch)
         manifest_core: dict[str, object] = {
             "format": SMOKE_FORMAT,
             "authority": "foundation_only_representation_codec_and_deterministic_compiler",
@@ -341,7 +382,9 @@ def build_smoke(
                 "ema_state_sha256": sidecar["ema_state_sha256"],
                 "metrics": CODEC_METRICS,
                 "metrics_sha256": file_sha256(metrics_path),
-                "decode_sha256": decode_hash,
+                "decode_execution": dict(DECODE_EXECUTION_CONTRACT),
+                "decode_logits_sha256": decode_hashes["logits_sha256"],
+                "decode_decisions_sha256": decode_hashes["decisions_sha256"],
             },
             "gates": {
                 "all_six_themes": True,
@@ -468,10 +511,15 @@ def assert_exact_smoke_replay(output: Path, *, write_report: bool = False) -> di
     if sidecar["ema_state_sha256"] != codec["ema_state_sha256"]:
         raise ValueError("Neural topology codec EMA identity drifted.")
     batch = collate_topology_tensors(tensors)
-    if _decode_sha256(model, batch) != codec["decode_sha256"]:
-        raise ValueError("Neural topology codec exact decode replay drifted.")
+    if codec.get("decode_execution") != DECODE_EXECUTION_CONTRACT:
+        raise ValueError("Neural topology codec decode execution contract drifted.")
+    replay_hashes = _decode_hashes(model, batch)
+    if replay_hashes["logits_sha256"] != codec["decode_logits_sha256"]:
+        raise ValueError("Neural topology codec exact canonical-logit replay drifted.")
+    if replay_hashes["decisions_sha256"] != codec["decode_decisions_sha256"]:
+        raise ValueError("Neural topology codec exact categorical-decision replay drifted.")
     report: dict[str, object] = {
-        "format": "nullvector-neural-map-topology-smoke-replay-v1",
+        "format": "nullvector-neural-map-topology-smoke-replay-v2",
         "passed": True,
         "smoke_identity_sha256": manifest["smoke_identity_sha256"],
         "manifest_sha256": file_sha256(manifest_path),
@@ -484,7 +532,8 @@ def assert_exact_smoke_replay(output: Path, *, write_report: bool = False) -> di
         "contact_sheet_exact_bytes": True,
         "checkpoint_bounded_safe_load": True,
         "checkpoint_step": payload["step"],
-        "codec_decode_exact": True,
+        "codec_decode_logits_exact": True,
+        "codec_decode_decisions_exact": True,
         "cpu_only": True,
     }
     if write_report:

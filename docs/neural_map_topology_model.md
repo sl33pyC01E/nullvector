@@ -289,7 +289,11 @@ checkpoint contains model, model EMA, optimizer, dedicated training-generator,
 and CPU RNG state plus source, tensor-contract, and frozen-corpus hashes. Loading
 uses `weights_only=True`, CPU mapping, pre-load file hashes, strict sidecar
 schema, and recursive tensor/container byte bounds. It is explicitly
-`representation_only_not_generative`.
+`representation_only_not_generative`. Decode replay pins one CPU thread,
+float32, disabled MKLDNN, deterministic algorithms, and no EMA mutation. This
+prevents ambient thread-pool or legal CPU-kernel choices from changing the raw
+logit digest. A second digest covers categorical decisions and latent indices,
+so semantic decode identity is independently explicit.
 
 The adversarial test surface covers illegal categorical IDs, disconnected
 mission points, one-cell corridors, route hazards, open boundaries, forged and
@@ -299,12 +303,15 @@ dtype/shape drift, root-manifest drift, checkpoint provenance, exact pad/crop at
 
 ### Frozen smoke artifact
 
-The visually inspected CPU foundation bank is
-`outputs/map_topology_neural_smoke_v1`. It contains 42 files totaling 1,130,172
-bytes. Publication recorded 205.866 GiB free against the 100 GiB floor.
+The current visually inspected CPU foundation bank is
+`outputs/map_topology_neural_smoke_v2`. It contains 42 files totaling 1,130,537
+bytes. Publication left 120.234 GiB free against the 100 GiB floor. The original
+v1 bank is preserved as historical evidence; its raw-logit hash accidentally
+depended on ambient CPU thread/kernel selection and is not the current replay
+authority.
 
 - source SHA-256:
-  `fa08eb4c8ed837e5d46e75d7e2ed95aa963675db8adf1714fae8bc6d244b0ca8`
+  `9501b2549b7306454b75e3392224cdc67dfc9a6acab6c4dc2a8b5967c693f343`
 - compiler source / tensor contract SHA-256:
   `0ac826b17c8379c7b12933bd4a3e4d0aa4209689d7d3a726ce8a4867e6f43dad` /
   `f0fb16a48fedb94e6cb90abd8f66f997da874bc1938f016b36954f7da5fd6f45`
@@ -313,21 +320,23 @@ bytes. Publication recorded 205.866 GiB free against the 100 GiB floor.
 - frozen corpus manifest file SHA-256:
   `fd5ee2e88725262f23ef1943e34aad7f19c1b0886100f43298f93226de2ccbaf`
 - smoke manifest file SHA-256:
-  `b3e4628fb67877b5231011ac7a24d6222283e2fd4f6c7397c4de3d19a847e576`
+  `5c985fb07ad3546906506332f52692a40a83103eff3550c1c76724d79243bd0b`
 - smoke identity SHA-256:
-  `252108dfa163f7b609ed6f332acc6f883c06e0883afb1e9b6a1cb70b3a12f3d3`
+  `9e4f297fe56db1468730fea60ea7f68ff8ef9ad70c2d4d0bf1d7016bd8c6b60b`
 - contact-sheet SHA-256 (27,669 bytes):
   `89bc769e43c30c20859a0c2636e0a9b03b570f56cf8d2c26ec8af0f7dcc6abc3`
 - checkpoint file SHA-256:
-  `f840781a447b307eb35ef53cada54a36780a4ba1317ddd1444084d282e0fe71f`
+  `050f0f1d50b6e3bbb1d1798f107c1f67fdc8d25ccc13d43c0c6a011749116e23`
 - model / EMA state SHA-256:
-  `019eb279abeb812ae02cb2781af7f574afaac187b61e87227983f0671d5d574c` /
-  `6aabf0f4fd73a5faf45a25b075a2e55f509551ffa0843b12198042101f42a91f`
-- exact codec decode SHA-256:
-  `f88f7fc4a2d41c5733f495a600bf1b62c2f3b84aabbf37ef8dde37bdc3699443`
+  `39c2919aa3b58b74f047dbb5a5d8a8837bdaef2ac764afc25496781a61fbc70c` /
+  `e6c9b58d65f9e55886098ca20daaed38260f7b1e1992c2b9f68218a78169a109`
+- exact canonical logit / categorical-decision SHA-256:
+  `ad35e864c4d4ca497e2145984e9675b8aedf0df2fa20bda60d47570f8e41db85` /
+  `c2eff01ee7841a348326af8f6095990c7d9f4b0f49aa23b222ac21742194839e`
 
 Exact replay compared 72 raw/compiled arrays and 3,496 ordered ledger entries
 across six themes, reproduced the contact sheet byte for byte, safely loaded the
 two-step CPU checkpoint, and reproduced the codec decode identity. The focused
-suite contains 23 tests; the combined topology-foundation, authoritative map,
-and map-quality run passed 63 tests.
+suite contains 23 tests, including replay under a changed ambient thread count.
+The combined topology-foundation, authoritative map, and map-quality run passed
+63 tests.
