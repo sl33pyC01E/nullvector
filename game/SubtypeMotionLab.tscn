@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://scripts/subtype_motion_lab.gd" type="Script" id="1_subtype"]
+
+[node name="SubtypeMotionLab" type="Node2D"]
+script = ExtResource("1_subtype")

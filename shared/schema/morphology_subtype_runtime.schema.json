@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://nullvector.local/schema/morphology_subtype_runtime.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "neural_output", "source_kind", "compiler", "authority", "layout", "layers", "motions", "facings", "counts", "identities", "runtime_contract", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-native-morphology-subtype-runtime-v1"}, "status": {"const": "ready"}, "neural_output": {"const": false}, "source_kind": {"const": "procedural-subtype-reference"},
+    "compiler": {"type": "object"}, "authority": {"type": "object"},
+    "layout": {"type": "object", "additionalProperties": false, "required": ["cell_size", "columns", "rows", "width", "height"], "properties": {"cell_size": {"const": 48}, "columns": {"const": 16}, "rows": {"const": 12}, "width": {"const": 768}, "height": {"const": 576}}},
+    "layers": {"const": ["composite", "semantic", "emission"]}, "motions": {"type": "array", "minItems": 13, "maxItems": 13}, "facings": {"type": "array", "minItems": 8, "maxItems": 8},
+    "counts": {"type": "object", "additionalProperties": false, "required": ["identity_count", "clip_count", "frame_count", "atlas_count"], "properties": {"identity_count": {"const": 20}, "clip_count": {"const": 400}, "frame_count": {"const": 3620}, "atlas_count": {"const": 60}}},
+    "identities": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/identity"}},
+    "runtime_contract": {"type": "object", "additionalProperties": false, "required": ["native_nearest_filter", "loop_terminal_frame_excluded_from_playback", "all_actions_north_facing", "locomotion_has_eight_facings", "procedural_reference_labeled", "python_runtime_required"], "properties": {"native_nearest_filter": {"const": true}, "loop_terminal_frame_excluded_from_playback": {"const": true}, "all_actions_north_facing": {"const": true}, "locomotion_has_eight_facings": {"const": true}, "procedural_reference_labeled": {"const": true}, "python_runtime_required": {"const": false}}}, "gates": {"type": "object", "minProperties": 5, "additionalProperties": {"const": true}}, "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}}},
+    "clip": {"type": "object", "additionalProperties": false, "required": ["motion", "facing", "start_cell", "frame_count", "fps", "loop", "clip_sha256"], "properties": {"motion": {"type": "string"}, "facing": {"type": "string"}, "start_cell": {"type": "integer", "minimum": 0, "maximum": 180}, "frame_count": {"type": "integer", "minimum": 3}, "fps": {"type": "integer", "minimum": 1}, "loop": {"type": "boolean"}, "clip_sha256": {"$ref": "#/$defs/sha"}}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["subtype_id", "family_id", "family", "variant", "subtype", "seed", "specimen_semantic_sha256", "clip_count", "frame_count", "clips", "atlases"], "properties": {"subtype_id": {"type": "integer", "minimum": 0, "maximum": 19}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "family": {"type": "string"}, "variant": {"type": "integer", "minimum": 0, "maximum": 3}, "subtype": {"type": "string"}, "seed": {"type": "integer", "minimum": 0}, "specimen_semantic_sha256": {"$ref": "#/$defs/sha"}, "clip_count": {"const": 20}, "frame_count": {"const": 181}, "clips": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/clip"}}, "atlases": {"type": "object", "additionalProperties": false, "required": ["composite", "semantic", "emission"], "properties": {"composite": {"$ref": "#/$defs/artifact"}, "semantic": {"$ref": "#/$defs/artifact"}, "emission": {"$ref": "#/$defs/artifact"}}}}}
+  }
+}
