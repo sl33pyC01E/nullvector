@@ -37,3 +37,16 @@ respiratory, circulatory, or locomotor injury therefore degrades ecological
 movement through the same connected organ graph. Reproduction is gated by the
 family-specific suitability field and local carrying capacity, which prevents
 the earlier universal rapid-reproduction collapse.
+
+The native ecology exhibit now begins with one organism from every family and
+runs an independent deterministic behavior state for each. A healthy mobile
+organism uses the original family-specific locomotion clip while approaching a
+resource, then commits to a complete feeding/tool/field action nearby.
+Plantlike organisms alternate stomatal breathing and tropic sway; anomalies
+periodically cast field effects; machines perform extraction and diagnostic
+actions. The state selector also reads the connected physiology graph:
+injury produces a hit reflex, respiratory collapse produces distress, severed
+senses or partial neural/locomotor networks produce confusion, and loss of the
+brain or heart removes intentional actuation and selects the terminal state.
+These are deterministic biological policies driving the existing authored
+motion bank, not a claim of a learned behavior model.

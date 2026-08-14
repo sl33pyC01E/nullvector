@@ -31,8 +31,9 @@ def test_motion_lab_loads_and_applies_connected_physiology() -> None:
 
 
 def test_godot_smoke_proves_brain_damage_cascade_and_runtime_census() -> None:
-    report = json.loads((ROOT / "outputs/cellular_physiology_motion_godot_report_v2.json").read_text(encoding="utf-8"))
+    report = json.loads((ROOT / "outputs/cellular_physiology_motion_godot_report_v4.json").read_text(encoding="utf-8"))
     assert report["passed"] is True
     assert (report["physiology_identity_count"], report["physiology_system_count"]) == (45, 8)
     assert report["physiology_core_damage_verified"] is True
+    assert report["all_system_core_failures_verified"] is True
     assert report["population_after_reproduction"] == 2

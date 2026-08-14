@@ -149,6 +149,15 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["motion_emission_pulse"] = 0.0
 	organism["motion_energy_spent"] = 0.0
 	organism["motion_neural_integrity"] = 1.0
+	organism["motion_autonomous"] = _uses_autonomous_motion()
+	organism["motion_index"] = selected_motion
+	organism["motion_facing_index"] = selected_facing
+	organism["motion_epoch"] = simulation_time
+	organism["motion_last_event_frame"] = -1
+	organism["motion_transition_count"] = 0
+	organism["motion_event_count"] = 0
+	organism["motion_behavior"] = "manual selection"
+	organism["motion_lock_until"] = 0.0
 	var physiology := _load_physiology_data(str(data.get("sample_id", "")))
 	if physiology.is_empty() or int(physiology.get("physical_cell_count", -1)) != organism["position"].size():
 		startup_errors.append("physiology identity " + str(data.get("sample_id", "?"))); return organism
@@ -194,18 +203,52 @@ func _filled_string_array(count: int, value: String) -> Array:
 	return result
 
 
-func _current_clip(family_id: int) -> Dictionary:
+func _uses_autonomous_motion() -> bool:
+	return false
+
+
+func _clip_for(family_id: int, motion_index: int) -> Dictionary:
 	var programs: Array = motion_catalog.get("programs", [])
 	if family_id < 0 or family_id >= programs.size(): return {}
 	var clips: Array = programs[family_id].get("clips", [])
-	return clips[selected_motion] if selected_motion >= 0 and selected_motion < clips.size() else {}
+	return clips[motion_index] if motion_index >= 0 and motion_index < clips.size() else {}
+
+
+func _current_clip(family_id: int) -> Dictionary:
+	return _clip_for(family_id, selected_motion)
+
+
+func _facing_index_from_vector(direction: Vector2) -> int:
+	if direction.length_squared() <= 0.000001: return 0
+	return posmod(int(round(Vector2.UP.angle_to(direction.normalized()) / (PI * 0.25))), EXPECTED_FACINGS.size())
+
+
+func _set_organism_motion(organism: Dictionary, motion_name: String, facing: Vector2 = Vector2.ZERO, behavior: String = "", hold_seconds: float = 0.0) -> void:
+	var motion_index := EXPECTED_MOTIONS.find(motion_name)
+	if motion_index < 0: return
+	var facing_index := int(organism.get("motion_facing_index", selected_facing))
+	if facing.length_squared() > 0.000001: facing_index = _facing_index_from_vector(facing)
+	var changed := motion_index != int(organism.get("motion_index", selected_motion)) or facing_index != int(organism.get("motion_facing_index", selected_facing))
+	if changed:
+		organism["motion_index"] = motion_index
+		organism["motion_facing_index"] = facing_index
+		organism["motion_epoch"] = simulation_time
+		organism["motion_last_event_frame"] = -1
+		organism["motion_transition_count"] = int(organism.get("motion_transition_count", 0)) + 1
+		organism["motion_lock_until"] = simulation_time + maxf(0.0, hold_seconds)
+	if not behavior.is_empty(): organism["motion_behavior"] = behavior
 
 
 func _current_frame(organism: Dictionary) -> Dictionary:
-	var clip := _current_clip(int(organism["data"].get("family_id", 0)))
+	var motion_index := int(organism.get("motion_index", selected_motion)) if bool(organism.get("motion_autonomous", false)) else selected_motion
+	var facing_index := int(organism.get("motion_facing_index", selected_facing)) if bool(organism.get("motion_autonomous", false)) else selected_facing
+	var epoch := float(organism.get("motion_epoch", motion_epoch)) if bool(organism.get("motion_autonomous", false)) else motion_epoch
+	var clip := _clip_for(int(organism["data"].get("family_id", 0)), motion_index)
 	if clip.is_empty(): return {}
-	var facings: Array = clip.get("facings", []); var facing: Dictionary = facings[selected_facing]
-	var frames: Array = facing.get("frames", []); var elapsed := maxf(0.0, simulation_time - motion_epoch)
+	var facings: Array = clip.get("facings", [])
+	if facing_index < 0 or facing_index >= facings.size(): return {}
+	var facing: Dictionary = facings[facing_index]
+	var frames: Array = facing.get("frames", []); var elapsed := maxf(0.0, simulation_time - epoch)
 	var playback_count: int = maxi(1, int(clip.get("frame_count", 1)) - (1 if bool(clip.get("loop", false)) else 0))
 	var frame_index := int(floor(elapsed * float(clip.get("fps", 1))))
 	frame_index = posmod(frame_index, playback_count) if bool(clip.get("loop", false)) else mini(playback_count - 1, frame_index)
@@ -301,6 +344,25 @@ func _compute_physiology_capacities(organism: Dictionary) -> Dictionary:
 	return result
 
 
+func _diagnostic_system_core_failures(organism: Dictionary) -> Dictionary:
+	var failures: Dictionary = {}
+	for system_id in range(SYSTEM_NAMES.size()):
+		var diagnostic: Dictionary = organism.duplicate(true)
+		var role_row: Array = diagnostic.get("physiology_role", [])[system_id]
+		var core_cells := 0
+		for index in range(role_row.size()):
+			if int(role_row[index]) == 1:
+				diagnostic["alive"][index] = false
+				diagnostic["health"][index] = 0.0
+				core_cells += 1
+		for bond_index in range(diagnostic["bond_ab"].size()):
+			var pair: Array = diagnostic["bond_ab"][bond_index]
+			if not diagnostic["alive"][int(pair[0])] or not diagnostic["alive"][int(pair[1])]: diagnostic["bond_alive"][bond_index] = false
+		var capacity := _compute_physiology_capacities(diagnostic)
+		failures[SYSTEM_NAMES[system_id]] = {"core_cells": core_cells, "remaining_capacity": float(capacity.get(SYSTEM_NAMES[system_id], 1.0)), "capacities": capacity}
+	return failures
+
+
 func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	organism["physiology_clock"] = float(organism.get("physiology_clock", 0.0)) - delta
 	if float(organism["physiology_clock"]) <= 0.0:
@@ -368,10 +430,13 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 	var alive_count := maxi(1, organism["alive"].count(true)); var energy_cost := work * 0.000015 / alive_count
 	for index in range(organism["energy"].size()):
 		if organism["alive"][index]: organism["energy"][index] = maxf(0.0, float(organism["energy"][index]) - energy_cost)
-	if int(state["frame_index"]) != last_event_frame:
-		last_event_frame = int(state["frame_index"])
+	var organism_last_frame := int(organism.get("motion_last_event_frame", -1))
+	if int(state["frame_index"]) != organism_last_frame:
+		organism["motion_last_event_frame"] = int(state["frame_index"])
 		for event in state["clip"].get("events", []):
-			if int(event.get("frame", -1)) == last_event_frame: _event("MOTOR EVENT // " + str(event.get("name", "?")).to_upper(), CYAN)
+			if int(event.get("frame", -1)) == int(state["frame_index"]):
+				organism["motion_event_count"] = int(organism.get("motion_event_count", 0)) + 1
+				if not bool(organism.get("motion_autonomous", false)) or organism == organisms[0]: _event("MOTOR EVENT // " + str(event.get("name", "?")).to_upper(), CYAN)
 
 
 func _break_bond(organism: Dictionary, bond_index: int) -> void:
@@ -512,6 +577,19 @@ func _select_facing(delta: int) -> void:
 
 func _refresh_motion_overlay() -> void:
 	if motion_label == null: return
+	if _uses_autonomous_motion():
+		var states: Dictionary = {}
+		for organism in organisms:
+			var index := int(organism.get("motion_index", 0)); var name := str(EXPECTED_MOTIONS[index]) if index >= 0 and index < EXPECTED_MOTIONS.size() else "?"
+			states[name] = int(states.get(name, 0)) + 1
+		var state_labels: Array[String] = []
+		for name in states: state_labels.append("%s:%d" % [str(name).to_upper(), int(states[name])])
+		state_labels.sort()
+		motion_label.text = "AUTONOMOUS // " + "  ".join(state_labels)
+		if organisms.is_empty(): driver_label.text = "PER-ORGANISM MOTION // ORGAN CAPACITY GATED"; return
+		var first_capacity: Dictionary = organisms[0].get("physiology_capacities", {})
+		driver_label.text = "%s // BRAIN %3d  HEART %3d  LUNG %3d  LIMB %3d" % [str(organisms[0].get("motion_behavior", "?")).to_upper(), int(float(first_capacity.get("neural", 0.0)) * 100.0), int(float(first_capacity.get("circulation", 0.0)) * 100.0), int(float(first_capacity.get("respiration", 0.0)) * 100.0), int(float(first_capacity.get("locomotion", 0.0)) * 100.0)]
+		return
 	var clip := _current_clip(int(organisms[0]["data"].get("family_id", 0))) if not organisms.is_empty() else {}
 	motion_label.text = "%s // %s // %s" % [str(EXPECTED_MOTIONS[selected_motion]).to_upper(), str(EXPECTED_FACINGS[selected_facing]).to_upper(), "%d FPS" % int(clip.get("fps", 0))]
 	if organisms.is_empty(): driver_label.text = "W/S MOTION  ARROWS FACING  //  ORGAN TARGETS + LIVE SPRINGS"; return
@@ -577,10 +655,16 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
+		system_core_failures = _diagnostic_system_core_failures(organisms[0])
+		all_system_core_failures_verified = system_core_failures.size() == SYSTEM_NAMES.size()
+		for system_name in SYSTEM_NAMES:
+			var failure: Dictionary = system_core_failures.get(system_name, {})
+			if int(failure.get("core_cells", 0)) <= 0 or float(failure.get("remaining_capacity", 1.0)) > 0.000001: all_system_core_failures_verified = false
+		if not all_system_core_failures_verified: errors.append("physiology system core failures")
 		selected_motion = EXPECTED_MOTIONS.find("locomote"); selected_facing = 2; motion_epoch = 0.0; simulation_time = 0.25
 		_apply_motion_force(organisms[0], 1.0 / 60.0)
 		for velocity in organisms[0]["velocity"]: actuation_velocity += velocity.length()
@@ -614,7 +698,7 @@ func _run_motion_smoke() -> void:
 			_step_trauma_components(plant, float(plant["trauma_profile"].get("reconnect_window_seconds", 15.0)) + 0.1)
 			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
 	if not plant_polyp_verified: errors.append("plant polyp fate")
-	var report := {"format": "nullvector-cellular-motion-godot-smoke-v3", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
+	var report := {"format": "nullvector-cellular-motion-godot-smoke-v4", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "all_system_core_failures_verified": all_system_core_failures_verified, "system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)
 		if file != null: file.store_string(JSON.stringify(report, "  ", true) + "\n")

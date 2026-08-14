@@ -37,6 +37,26 @@ organ stops intentional motion.
 Motion costs cellular energy. Damage can still kill cells, tear appendages,
 break springs and spill internal fluid while a motion is active.
 
+The motion lab keeps its manual whole-scene selector for close inspection, but
+derived ecology scenes opt into per-organism motion state. Each organism owns
+its clip, facing, epoch, action lock, event cursor and behavior label. This
+restores the authored alternating appendage strokes in locomotion, the separate
+attack/cast/hit poses, and the low-amplitude breathing/wiggle loops without
+replacing the live cell body with a sprite. Non-loop actions are allowed to
+finish instead of being reset by the next ecology tick.
+
+Motor authority is physiological. The eight connected cell systems are heart
+and circulation, respiratory exchange, digestive tract, brain/neural network,
+sensory organs, locomotor tissue, reproductive tissue, and immune/repair
+tissue. Destroying a core or severing its conduits reduces that exact system's
+capacity. Heart failure starves every dependent system; respiratory failure
+depletes oxygen and then injures neural cells; gut failure blocks nutrient to
+energy conversion; brain damage removes sensing and locomotion; locomotor
+damage scales appendage force; immune damage suppresses clotting and healing;
+reproductive damage prevents offspring. The native smoke independently removes
+each system's physical core and requires all eight corresponding capacities to
+fall to zero.
+
 The additive trauma overlay now gives those injuries persistent wound state:
 open bonds clot, recent tears attract weakly toward their matching endpoint,
 successful reconnection leaves scar tissue, and expired fragments become

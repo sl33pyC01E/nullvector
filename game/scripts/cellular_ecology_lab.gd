@@ -18,6 +18,7 @@ func _ready() -> void:
 	ecology_catalog = _load_json(ecology_catalog_path)
 	_validate_ecology_catalog()
 	super()
+	_seed_ecology_population()
 	_build_ecology_overlay()
 	_reset_ecology_resources()
 	_refresh_ecology_overlay()
@@ -25,6 +26,27 @@ func _ready() -> void:
 		status_label.text = "FAIL-CLOSED // " + ", ".join(startup_errors)
 		status_label.modulate = Color("#ff526d")
 	if "--cellular-ecology-smoke" in OS.get_cmdline_user_args(): call_deferred("_run_ecology_smoke")
+
+
+func _uses_autonomous_motion() -> bool:
+	return true
+
+
+func _seed_ecology_population() -> void:
+	var present: Dictionary = {}
+	for organism in organisms: present[str(int(organism["data"].get("family_id", -1)))] = true
+	var positions := [Vector2(620, 230), Vector2(760, 390), Vector2(885, 225), Vector2(1010, 390), Vector2(1130, 235)]
+	for family_id in range(5):
+		if present.has(str(family_id)): continue
+		var species_index := -1
+		for index in range(catalog.get("species", []).size()):
+			if int(catalog.get("species", [])[index].get("family_id", -1)) == family_id: species_index = index; break
+		if species_index < 0: startup_errors.append("ecology family species %d" % family_id); continue
+		var data := _load_species_data(species_index)
+		if data.is_empty(): startup_errors.append("ecology family runtime %d" % family_id); continue
+		var organism := _create_organism(data, positions[family_id], 0, 0); organisms.append(organism)
+		_event("ECOLOGY BIRTH // FAMILY %d // %s" % [family_id, str(data.get("sample_id", "?"))], ECOLOGY_COLORS[family_id])
+	if organisms.size() != 5: startup_errors.append("ecology initial family population")
 
 
 func _validate_ecology_catalog() -> void:
@@ -128,11 +150,7 @@ func _step_ecology_motility(organism: Dictionary, delta: float) -> void:
 	var family := int(organism["data"].get("family_id", 0)); if family == 2: return
 	var capacity: Dictionary = organism.get("physiology_capacities", {}); var motor := float(capacity.get("locomotion", 0.0)) * float(capacity.get("neural", 0.0))
 	if motor <= 0.08: return
-	var center := _organism_center(organism); var target: Dictionary = {}; var best := -1e20
-	for food in foods:
-		if float(food.get("amount", 0.0)) <= 0.01: continue
-		var affinity := _resource_affinity(organism, food); var distance := center.distance_to(food["position"]); var score := affinity * minf(1.0, float(food["amount"]) / maxf(1.0, float(food.get("capacity", 20.0)))) - distance / 720.0
-		if score > best: best = score; target = food
+	var center := _organism_center(organism); var target := _best_ecology_resource(organism)
 	if target.is_empty(): return
 	var difference: Vector2 = target["position"] - center; if difference.length() < 9.0: return
 	var speed: float = [20.0, 31.0, 0.0, 17.0, 23.0][family]; var impulse: Vector2 = difference.normalized() * speed * motor * delta
@@ -141,7 +159,97 @@ func _step_ecology_motility(organism: Dictionary, delta: float) -> void:
 	organism["ecology_target_id"] = int(target.get("ecology_id", -1)); organism["ecology_motive_impulse"] = float(organism.get("ecology_motive_impulse", 0.0)) + impulse.length()
 
 
+func _best_ecology_resource(organism: Dictionary) -> Dictionary:
+	var center := _organism_center(organism); var target: Dictionary = {}; var best := -1e20
+	for food in foods:
+		if float(food.get("amount", 0.0)) <= 0.01: continue
+		var affinity := _resource_affinity(organism, food); var distance := center.distance_to(food["position"]); var score := affinity * minf(1.0, float(food["amount"]) / maxf(1.0, float(food.get("capacity", 20.0)))) - distance / 720.0
+		if score > best: best = score; target = food
+	return target
+
+
+func _organism_health_fraction(organism: Dictionary) -> float:
+	return clampf(_sum_float(organism.get("health", [])) / maxf(0.001, _sum_float(organism.get("max_health", []))), 0.0, 1.0)
+
+
+func _organism_mean_energy(organism: Dictionary) -> float:
+	var alive_count := 0; var total := 0.0
+	for index in range(organism.get("alive", []).size()):
+		if organism["alive"][index]: alive_count += 1; total += float(organism["energy"][index])
+	return total / maxf(1.0, float(alive_count))
+
+
+func _step_ecology_behavior(organism: Dictionary, delta: float) -> void:
+	var capacity: Dictionary = organism.get("physiology_capacities", {})
+	var family := int(organism["data"].get("family_id", 0)); var center := _organism_center(organism)
+	var health := _organism_health_fraction(organism); var previous_health := float(organism.get("ecology_health_snapshot", health))
+	var intake := float(organism.get("ecology_resource_intake", 0.0)); var previous_intake := float(organism.get("ecology_intake_snapshot", intake))
+	var recently_hurt := previous_health - health > 0.0005; var recently_fed := intake - previous_intake > 0.0005
+	var neural := float(capacity.get("neural", 0.0)); var circulation := float(capacity.get("circulation", 0.0)); var respiration := float(capacity.get("respiration", 0.0))
+	var digestion := float(capacity.get("digestion", 0.0)); var sensory := float(capacity.get("sensory", 0.0)); var locomotion := float(capacity.get("locomotion", 0.0)); var immune := float(capacity.get("immune", 0.0))
+	var target := _best_ecology_resource(organism); var facing := Vector2.UP; var target_distance := INF
+	if not target.is_empty():
+		var target_position: Vector2 = target["position"]
+		facing = target_position - center; target_distance = facing.length()
+	var seed_phase := float(posmod(int(organism["data"].get("seed", 0)) + family * 97, 997)) / 997.0
+	var behavior_phase := fmod(simulation_time * 0.34 + seed_phase, 1.0)
+	var energy := _organism_mean_energy(organism); var motion := "idle_breathe"; var behavior := "resting metabolism"; var hold := 0.0
+	var locked: bool = simulation_time < float(organism.get("motion_lock_until", 0.0))
+	var action_ready: bool = simulation_time >= float(organism.get("ecology_next_action_time", 0.0))
+	var catastrophic: bool = circulation < 0.10 or neural < 0.10 or organism["alive"].count(true) < maxi(2, int(organism["alive"].size() * 0.24))
+	if catastrophic:
+		motion = "death"; behavior = "organ cascade // brain or heart offline"; hold = 0.75
+	elif locked:
+		motion = str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))]); behavior = str(organism.get("motion_behavior", "committed action"))
+	elif recently_hurt:
+		motion = "hit"; behavior = "injury reflex // connected nerves"; hold = 0.36
+	elif neural < 0.38 or locomotion < 0.34:
+		motion = "confused"; behavior = "motor network impaired"
+	elif respiration < 0.34:
+		motion = "fear"; behavior = "respiratory distress"
+	elif sensory < 0.32:
+		motion = "confused"; behavior = "sensory disconnect"
+	elif digestion < 0.30 and family in [0, 1]:
+		motion = "fear"; behavior = "digestive failure // seeking food"
+	elif immune < 0.26 and health < 0.88:
+		motion = "sleep"; behavior = "wound recovery impaired"
+	elif family == 2:
+		if recently_fed: motion = "joy"; behavior = "photosynthetic uptake"; hold = 0.50
+		elif behavior_phase < 0.52: motion = "idle_breathe"; behavior = "stomata breathing"
+		else: motion = "idle_wiggle"; behavior = "tropic growth sway"
+	elif not target.is_empty() and target_distance > 24.0:
+		motion = "locomote"; behavior = "resource pursuit"; _step_ecology_motility(organism, delta)
+	elif not target.is_empty():
+		if not action_ready:
+			motion = "idle_wiggle" if family in [0, 3, 4] else "idle_breathe"; behavior = "action recovery // maintaining contact"
+		elif family == 0:
+			motion = "taunt" if behavior_phase < 0.48 else "cast"; behavior = "tool use // resource processing"; hold = 0.55
+		elif family == 1:
+			motion = "attack"; behavior = "feeding strike"; hold = 0.45
+		elif family == 3:
+			motion = "cast"; behavior = "field transduction"; hold = 0.60
+		else:
+			motion = "attack" if behavior_phase < 0.55 else "cast"; behavior = "ranged extraction utility"; hold = 0.52
+		if action_ready: organism["ecology_next_action_time"] = simulation_time + [1.55, 1.20, 1.80, 1.75, 1.40][family] + seed_phase * 0.35
+	elif energy < 0.24:
+		motion = "sleep"; behavior = "energy conservation"
+	elif family == 3 and behavior_phase > 0.68 and action_ready:
+		motion = "cast"; behavior = "spontaneous anomaly field"; hold = 0.58
+		organism["ecology_next_action_time"] = simulation_time + 2.1 + seed_phase * 0.4
+	elif family == 4 and behavior_phase > 0.70 and action_ready:
+		motion = "taunt"; behavior = "machine self diagnostic"; hold = 0.48
+		organism["ecology_next_action_time"] = simulation_time + 1.8 + seed_phase * 0.35
+	elif behavior_phase < 0.48:
+		motion = "idle_breathe"; behavior = "homeostatic breathing"
+	else:
+		motion = "idle_wiggle"; behavior = "sensory scanning"
+	_set_organism_motion(organism, motion, facing, behavior, hold)
+	organism["ecology_health_snapshot"] = health; organism["ecology_intake_snapshot"] = intake
+	organism["ecology_failure_state"] = {"circulation": circulation, "respiration": respiration, "digestion": digestion, "neural": neural, "sensory": sensory, "locomotion": locomotion, "immune": immune}
+
+
 func _step_organism(organism: Dictionary, delta: float) -> void:
+	_step_ecology_behavior(organism, delta)
 	super(organism, delta)
 	var center := _organism_center(organism); var toxicity := _field("toxicity", center); var temperature := _field("temperature", center); var family := int(organism["data"].get("family_id", 0))
 	var toxicity_tolerance: float = [0.48, 0.42, 0.56, 0.90, 0.72][family]; var temperature_band: float = [0.32, 0.28, 0.36, 0.48, 0.44][family]
@@ -161,7 +269,6 @@ func _step_organism(organism: Dictionary, delta: float) -> void:
 		if recipients > 0:
 			for index in range(organism["alive"].size()):
 				if organism["alive"][index] and _is_resource_cell(organism, index): organism["energy"][index] = float(organism["energy"][index]) + passive_gain * delta / recipients
-	_step_ecology_motility(organism, delta)
 
 
 func _can_reproduce(organism: Dictionary) -> bool:
@@ -211,6 +318,7 @@ func _draw() -> void:
 
 func _run_ecology_smoke() -> void:
 	var errors: Array[String] = startup_errors.duplicate(); var resource_count := 0; var field_cells := 0; var differentiated_metabolism_verified := false; var motive_impulse := 0.0
+	var family_census: Dictionary = {}; var behavior_census: Dictionary = {}; var motion_census: Dictionary = {}; var autonomous_motion_verified := true; var organ_capacity_motion_gate_verified := false; var action_cycle_verified := false
 	for record in ecology_catalog.get("maps", []):
 		resource_count += record.get("resource_nodes", []).size()
 		for values in record.get("fields_u8", {}).values(): field_cells += values.size()
@@ -222,10 +330,41 @@ func _run_ecology_smoke() -> void:
 	var animal := {"data": {"family_id": 1}}; var machine := {"data": {"family_id": 4}}; var animal_node := {"family_id": 1}; var machine_node := {"family_id": 4}
 	differentiated_metabolism_verified = _resource_affinity(animal, animal_node) > _resource_affinity(animal, machine_node) and _resource_affinity(machine, machine_node) > _resource_affinity(machine, animal_node)
 	if not differentiated_metabolism_verified: errors.append("differentiated metabolism")
+	var diagnostic_foods: Array = []
+	for organism in organisms:
+		var family := int(organism["data"].get("family_id", -1)); family_census[str(family)] = int(family_census.get(str(family), 0)) + 1
+		autonomous_motion_verified = autonomous_motion_verified and bool(organism.get("motion_autonomous", false))
+		var directions := [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP, Vector2(1, 1).normalized()]
+		diagnostic_foods.append({"position": _organism_center(organism) + directions[clampi(family, 0, 4)] * 18.0, "amount": 50.0, "capacity": 50.0, "regrowth": 0.0, "ecology_id": 9000 + family, "family_id": family})
+	for food in diagnostic_foods: foods.append(food)
+	simulation_time = 0.9
+	for organism in organisms:
+		_step_ecology_behavior(organism, 1.0 / 30.0)
+		var motion_name := str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))]); motion_census[motion_name] = int(motion_census.get(motion_name, 0)) + 1
+		var behavior_name := str(organism.get("motion_behavior", "?")); behavior_census[behavior_name] = int(behavior_census.get(behavior_name, 0)) + 1
+		motive_impulse += float(organism.get("ecology_motive_impulse", 0.0))
+	if family_census.size() != 5 or family_census.values().any(func(value): return int(value) != 1): errors.append("initial family census")
+	if not autonomous_motion_verified: errors.append("autonomous motion flags")
+	if motion_census.size() < 3 or behavior_census.size() < 5: errors.append("family behavior diversity")
+	for organism in organisms:
+		if int(organism["data"].get("family_id", -1)) != 1: continue
+		var initial_motion := str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))])
+		simulation_time = 1.6; _step_ecology_behavior(organism, 1.0 / 30.0); var recovery_motion := str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))])
+		simulation_time = 3.0; _step_ecology_behavior(organism, 1.0 / 30.0); var replay_motion := str(EXPECTED_MOTIONS[int(organism.get("motion_index", 0))])
+		action_cycle_verified = initial_motion == "attack" and recovery_motion.begins_with("idle_") and replay_motion == "attack" and int(organism.get("motion_transition_count", 0)) >= 3
+	if not action_cycle_verified: errors.append("action recovery cycle")
 	if not organisms.is_empty():
-		_step_ecology_motility(organisms[0], 1.0 / 30.0); motive_impulse = float(organisms[0].get("ecology_motive_impulse", 0.0))
-		if motive_impulse <= 0.0: errors.append("resource seeking")
-	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v2", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
+		var diagnostic: Dictionary = organisms[0].duplicate(true); var neural_roles: Array = diagnostic.get("physiology_role", [])[3]
+		for index in range(neural_roles.size()):
+			if int(neural_roles[index]) == 1: diagnostic["alive"][index] = false; diagnostic["health"][index] = 0.0
+		for bond_index in range(diagnostic["bond_ab"].size()):
+			var pair: Array = diagnostic["bond_ab"][bond_index]
+			if not diagnostic["alive"][int(pair[0])] or not diagnostic["alive"][int(pair[1])]: diagnostic["bond_alive"][bond_index] = false
+		diagnostic["physiology_capacities"] = _compute_physiology_capacities(diagnostic)
+		_step_ecology_behavior(diagnostic, 1.0 / 30.0)
+		organ_capacity_motion_gate_verified = float(diagnostic["physiology_capacities"].get("neural", 1.0)) == 0.0 and str(EXPECTED_MOTIONS[int(diagnostic.get("motion_index", 0))]) == "death"
+		if not organ_capacity_motion_gate_verified: errors.append("organ capacity motion gate")
+	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v3", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "family_census": family_census, "motion_census": motion_census, "behavior_census": behavior_census, "autonomous_motion_verified": autonomous_motion_verified, "action_cycle_verified": action_cycle_verified, "organ_capacity_motion_gate_verified": organ_capacity_motion_gate_verified, "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
 	var report_path := "res://../outputs/cellular_ecology_godot_report.json"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--cellular-ecology-report="): report_path = argument.trim_prefix("--cellular-ecology-report=")
