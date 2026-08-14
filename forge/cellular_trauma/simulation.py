@@ -38,6 +38,7 @@ class TraumaState:
 
     def _physiology_state(self) -> PhysiologyState:
         state = PhysiologyState(self.anatomy, self.physiology); state.health = self.health.copy(); state.max_health = self.max_health.copy(); state.alive = self.alive.copy(); state.bond_alive = self.bond_alive.copy(); state.energy = self.energy
+        state.fluid = self.fluid.copy(); state.fluid_reference = self.anatomy["fluid_initial"].astype(np.float32).copy()
         return state
 
     def capacities(self) -> dict[str, float]: return self._physiology_state().capacities()

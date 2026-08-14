@@ -1,11 +1,11 @@
 extends "res://scripts/cellular_motion_lab.gd"
 
-const ECOLOGY_FORMAT := "nullvector-cellular-ecology-native-catalog-v2"
+const ECOLOGY_FORMAT := "nullvector-cellular-ecology-native-catalog-v3"
 const ECOLOGY_ORIGIN := Vector2(505.0, 99.0)
 const ECOLOGY_CELL := 12.0
 const ECOLOGY_COLORS := [Color("#3fe0ff"), Color("#ff8746"), Color("#6eff56"), Color("#db53ff"), Color("#aabfe1")]
 
-@export_file("*.json") var ecology_catalog_path := "res://generated/cellular_ecology/v2/ecology_catalog.json"
+@export_file("*.json") var ecology_catalog_path := "res://generated/cellular_ecology/v3/ecology_catalog.json"
 
 var ecology_catalog: Dictionary = {}
 var ecology_map_index := 0
@@ -364,7 +364,7 @@ func _run_ecology_smoke() -> void:
 		_step_ecology_behavior(diagnostic, 1.0 / 30.0)
 		organ_capacity_motion_gate_verified = float(diagnostic["physiology_capacities"].get("neural", 1.0)) == 0.0 and str(EXPECTED_MOTIONS[int(diagnostic.get("motion_index", 0))]) == "death"
 		if not organ_capacity_motion_gate_verified: errors.append("organ capacity motion gate")
-	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v4", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "family_census": family_census, "motion_census": motion_census, "behavior_census": behavior_census, "autonomous_motion_verified": autonomous_motion_verified, "action_cycle_verified": action_cycle_verified, "organ_capacity_motion_gate_verified": organ_capacity_motion_gate_verified, "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
+	var report := {"format": "nullvector-cellular-ecology-godot-smoke-v5", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ecology_bundle_id": ecology_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "map_count": ecology_catalog.get("map_count", 0), "resource_node_count": resource_count, "field_cell_count": field_cells, "organism_count": organisms.size(), "family_census": family_census, "motion_census": motion_census, "behavior_census": behavior_census, "autonomous_motion_verified": autonomous_motion_verified, "action_cycle_verified": action_cycle_verified, "organ_capacity_motion_gate_verified": organ_capacity_motion_gate_verified, "ecological_damage_accumulator": ecology_damage_accumulator, "differentiated_metabolism_verified": differentiated_metabolism_verified, "motive_impulse": motive_impulse, "python_runtime_required": false}
 	var report_path := "res://../outputs/cellular_ecology_godot_report.json"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--cellular-ecology-report="): report_path = argument.trim_prefix("--cellular-ecology-report=")

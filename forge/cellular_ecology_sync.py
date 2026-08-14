@@ -20,9 +20,9 @@ from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-cellular-ecology-native-catalog-v2"
+FORMAT = "nullvector-cellular-ecology-native-catalog-v3"
 DEFAULT_SOURCE = DEFAULT_OUTPUT / "cellular_ecology_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ecology/v2"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_ecology/v3"
 
 
 def _source_registry() -> dict[str, str]:
@@ -54,13 +54,13 @@ def project_runtime(source_manifest: Path) -> dict[str, bytes]:
     registry = _source_registry(); dependencies = {}
     for name, relative in {
         "organism": "game/generated/cellular_symmetry/v1/catalog.json",
-        "motion": "game/generated/cellular_motion/v6/motion_catalog.json",
-        "physiology": "game/generated/cellular_physiology/v5/catalog.json",
-        "trauma": "game/generated/cellular_trauma/v2/catalog.json",
+        "motion": "game/generated/cellular_motion/v7/motion_catalog.json",
+        "physiology": "game/generated/cellular_physiology/v6/catalog.json",
+        "trauma": "game/generated/cellular_trauma/v3/catalog.json",
     }.items():
         path = PROJECT_ROOT / relative; data = json.loads(path.read_text(encoding="utf-8")); dependencies[name] = {"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path), "bundle_id": data["bundle_id"]}
     catalog: dict[str, object] = {
-        "format": FORMAT, "status": "ready", "bundle_version": 2,
+        "format": FORMAT, "status": "ready", "bundle_version": 3,
         "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"],
         "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)),
         "map_count": 6, "resource_node_count": source["resource_node_count"], "family_vocab": source["family_vocab"],

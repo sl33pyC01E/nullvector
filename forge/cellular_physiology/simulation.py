@@ -16,6 +16,8 @@ class PhysiologyState:
         self.cell_count = len(anatomy["position_xy"])
         self.health = anatomy["max_health"].astype(np.float32).copy()
         self.max_health = self.health.copy()
+        self.fluid = anatomy["fluid_initial"].astype(np.float32).copy()
+        self.fluid_reference = self.fluid.copy()
         self.alive = np.ones(self.cell_count, dtype=bool)
         self.bond_ab = anatomy["bond_ab"].astype(np.int32).copy()
         self.bond_alive = np.ones(len(self.bond_ab), dtype=bool)
@@ -64,19 +66,25 @@ class PhysiologyState:
         """Return widest-path delivery, restricted to each declared system graph."""
         result: dict[str, np.ndarray] = {}
         viability = np.divide(self.health, self.max_health, out=np.zeros_like(self.health), where=self.max_health > 0)
+        perfusion = np.divide(
+            self.fluid, self.fluid_reference,
+            out=np.ones_like(self.fluid), where=self.fluid_reference > 1e-8,
+        )
+        perfusion = np.clip(perfusion, 0.0, 1.0)
         for system_id, name in enumerate(SYSTEM_NAMES):
             members = self.weights[system_id] > 0
             cores = (self.roles[system_id] == 1) & self.alive & members
+            node_viability = np.minimum(viability, perfusion) if name == "circulation" else viability
             signal = np.zeros(self.cell_count, dtype=np.float32)
             queue: deque[int] = deque()
             for index in map(int, np.flatnonzero(cores)):
-                signal[index] = np.float32(max(0.0, min(1.0, float(viability[index])))); queue.append(index)
+                signal[index] = np.float32(max(0.0, min(1.0, float(node_viability[index])))); queue.append(index)
             while queue:
                 current = queue.popleft(); current_signal = float(signal[current])
                 for neighbor, bond_index in self._adjacency[current]:
                     if not self.bond_alive[bond_index] or not self.alive[neighbor] or not members[neighbor]:
                         continue
-                    candidate = min(current_signal, max(0.0, min(1.0, float(viability[neighbor]))))
+                    candidate = min(current_signal, max(0.0, min(1.0, float(node_viability[neighbor]))))
                     if candidate <= float(signal[neighbor]) + 1e-7:
                         continue
                     signal[neighbor] = np.float32(candidate); queue.append(neighbor)

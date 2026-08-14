@@ -111,6 +111,11 @@ show this continuum from healthy system color through weak red, and clotting
 uses local circulation and immune delivery rather than intact whole-body
 counters.
 
+That circulation signal is perfusion-aware: leaking a limb's blood, sap,
+ichor, or coolant now weakens its authored action amplitude even while its
+cells and motor tract remain physically connected. Refilled intact vessels can
+recover the motion; continued hemorrhage or a cut route drives it toward zero.
+
 The compiler contact sheet is
 `outputs/cellular_motion_v2/cellular_motion_contact_sheet.png`. It shows one
 family representative at the principal event pose for every motion. The native

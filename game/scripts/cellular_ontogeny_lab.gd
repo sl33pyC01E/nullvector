@@ -1,10 +1,10 @@
 extends "res://scripts/cellular_ecology_lab.gd"
 
-const ONTOGENY_FORMAT := "nullvector-cellular-ontogeny-native-catalog-v2"
+const ONTOGENY_FORMAT := "nullvector-cellular-ontogeny-native-catalog-v3"
 const STAGE_NAMES := ["ZYGOTE", "GASTRULA", "ORGAN PRIMORDIA", "LARVAL", "JUVENILE", "ADULT"]
 const LINEAGE_COLORS := [Color("#000000"), Color("#4ad5ff"), Color("#ff638f"), Color("#ffb744"), Color("#c764ff"), Color("#68ff7e")]
 
-@export_file("*.json") var ontogeny_catalog_path := "res://generated/cellular_ontogeny/v2/ontogeny_catalog.json"
+@export_file("*.json") var ontogeny_catalog_path := "res://generated/cellular_ontogeny/v3/ontogeny_catalog.json"
 
 var ontogeny_catalog: Dictionary = {}
 var ontogeny_programs: Dictionary = {}
@@ -144,7 +144,7 @@ func _run_ontogeny_smoke() -> void:
 		var organism := organisms[0]; var initial: int = organism["alive"].count(true); _force_stage(true); var adult: int = organism["alive"].count(true)
 		if initial < 1 or initial >= adult: errors.append("development growth")
 		if adult != organism["alive"].size(): errors.append("adult cell exactness")
-	var report := {"format": "nullvector-cellular-ontogeny-godot-smoke-v2", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ontogeny_bundle_id": ontogeny_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "program_count": ontogeny_catalog.get("program_count", 0), "cell_count": cells, "bond_count": bonds, "zygote_cell_count": organisms[0]["ontogeny_program"].get("stages", [])[0].get("cell_count", 0) if not organisms.is_empty() else 0, "adult_cell_count": organisms[0]["alive"].count(true) if not organisms.is_empty() else 0, "python_runtime_required": false}
+	var report := {"format": "nullvector-cellular-ontogeny-godot-smoke-v3", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "ontogeny_bundle_id": ontogeny_catalog.get("bundle_id", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "program_count": ontogeny_catalog.get("program_count", 0), "cell_count": cells, "bond_count": bonds, "zygote_cell_count": organisms[0]["ontogeny_program"].get("stages", [])[0].get("cell_count", 0) if not organisms.is_empty() else 0, "adult_cell_count": organisms[0]["alive"].count(true) if not organisms.is_empty() else 0, "python_runtime_required": false}
 	var report_path := "res://../outputs/cellular_ontogeny_godot_report.json"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--cellular-ontogeny-report="): report_path = argument.trim_prefix("--cellular-ontogeny-report=")

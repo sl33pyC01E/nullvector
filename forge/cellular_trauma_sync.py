@@ -19,10 +19,10 @@ from .multifield_style_motion.hashing import canonical_json_bytes, sha256_bytes
 from .safety import require_disk_floor
 
 
-FORMAT = "nullvector-cellular-trauma-runtime-v2"
-CATALOG_FORMAT = "nullvector-cellular-trauma-native-catalog-v2"
-DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_trauma_v2/cellular_trauma_manifest.json"
-DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_trauma/v2"
+FORMAT = "nullvector-cellular-trauma-runtime-v3"
+CATALOG_FORMAT = "nullvector-cellular-trauma-native-catalog-v3"
+DEFAULT_SOURCE = PROJECT_ROOT / "outputs/cellular_trauma_v3/cellular_trauma_manifest.json"
+DEFAULT_DESTINATION = PROJECT_ROOT / "game/generated/cellular_trauma/v3"
 
 
 def _source_registry() -> dict[str, str]:
@@ -41,7 +41,7 @@ def project_runtime(source_manifest: Path = DEFAULT_SOURCE) -> dict[str, bytes]:
         runtime = {"format": FORMAT, "sample_id": record["sample_id"], "source_anatomy_sha256": record["source_anatomy_sha256"], "source_physiology_sha256": record["source_physiology_sha256"], "profile": record["profile"], "arrays": {name: arrays[name].astype(int).tolist() if arrays[name].dtype == np.uint8 else [round(float(value), 7) for value in arrays[name]] for name in sorted(arrays)}}
         relative = f"identities/{record['sample_id']}.json"; payload = canonical_json_bytes(runtime); files[relative] = payload; identities.append({"sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"], "runtime": {"path": relative, "bytes": len(payload), "sha256": sha256_bytes(payload)}})
     contact = (source_manifest.parent / source["contact_sheet"]["path"]).read_bytes(); files["cellular_trauma_contact_sheet.png"] = contact; registry = _source_registry()
-    catalog: dict[str, object] = {"format": CATALOG_FORMAT, "status": "ready", "bundle_version": 2, "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"], "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)), "identity_count": 45, "total_cells": source["total_cells"], "total_bonds": source["total_bonds"], "identities": identities, "contact_sheet": {"path": "cellular_trauma_contact_sheet.png", "bytes": len(contact), "sha256": sha256_bytes(contact)}, "runtime_contract": source["runtime_contract"], "validation": validation}
+    catalog: dict[str, object] = {"format": CATALOG_FORMAT, "status": "ready", "bundle_version": 3, "source_manifest_sha256": sha256_file(source_manifest), "source_semantic_sha256": source["semantic_sha256"], "sync_source_manifest": registry, "sync_source_sha256": sha256_bytes(canonical_json_bytes(registry)), "identity_count": 45, "total_cells": source["total_cells"], "total_bonds": source["total_bonds"], "identities": identities, "contact_sheet": {"path": "cellular_trauma_contact_sheet.png", "bytes": len(contact), "sha256": sha256_bytes(contact)}, "runtime_contract": source["runtime_contract"], "validation": validation}
     catalog["bundle_id"] = sha256_bytes(canonical_json_bytes(catalog)); files["catalog.json"] = canonical_json_bytes(catalog); return files
 
 

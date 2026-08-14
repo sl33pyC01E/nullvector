@@ -1,22 +1,22 @@
 extends "res://scripts/cellular_organism_lab.gd"
 
-const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v6"
+const MOTION_FORMAT := "nullvector-cellular-neuromuscular-native-catalog-v7"
 const EXPECTED_MOTIONS := ["idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear", "confused", "sleep", "taunt", "attack", "cast", "hit", "death"]
 const EXPECTED_FACINGS := ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
 const EXPECTED_DRIVERS := ["body_bob", "body_sway", "body_squash", "head_tilt", "appendage_left", "appendage_right", "locomotor_left", "locomotor_right", "auxiliary", "weapon_recoil", "sensory_focus", "emission_pulse", "propulsion", "pain_spasm"]
-const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v5"
-const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v3"
-const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v2"
-const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v2"
+const PHYSIOLOGY_FORMAT := "nullvector-connected-cellular-physiology-native-catalog-v6"
+const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-runtime-v4"
+const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v3"
+const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v3"
 const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]
 const MOTION_VIEW_NAMES := ["PHENOTYPE", "ORGANS", "FLUID / PRESSURE", "HEALTH", "TISSUE", "SYSTEM NETWORK"]
 const SYSTEM_COLORS := [Color("#ff4d67"), Color("#51d9ff"), Color("#ffb347"), Color("#b879ff"), Color("#ffe761"), Color("#69ff91"), Color("#ff70c8"), Color("#70e8c1")]
 
-@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v6/motion_catalog.json"
-@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v5/catalog.json"
-@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v5/"
-@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v2/catalog.json"
-@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v2/"
+@export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v7/motion_catalog.json"
+@export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v6/catalog.json"
+@export_dir var physiology_asset_root := "res://generated/cellular_physiology/v6/"
+@export_file("*.json") var trauma_catalog_path := "res://generated/cellular_trauma/v3/catalog.json"
+@export_dir var trauma_asset_root := "res://generated/cellular_trauma/v3/"
 
 var motion_catalog: Dictionary = {}
 var motion_identities: Dictionary = {}
@@ -322,13 +322,23 @@ func _channel_integrities(organism: Dictionary, reachable: Dictionary) -> Dictio
 	return result
 
 
-func _physiology_reachable(organism: Dictionary, role_row: Array) -> Dictionary:
+func _physiology_cell_viability(organism: Dictionary, index: int, system_id: int) -> float:
+	if not organism["alive"][index]: return 0.0
+	var viability := clampf(float(organism["health"][index]) / maxf(0.0001, float(organism["max_health"][index])), 0.0, 1.0)
+	if system_id == 0:
+		var baseline: Array = organism.get("fluid_baseline", []); var fluid: Array = organism.get("fluid", [])
+		if index < baseline.size() and index < fluid.size() and float(baseline[index]) > 0.000001:
+			viability = minf(viability, clampf(float(fluid[index]) / float(baseline[index]), 0.0, 1.0))
+	return viability
+
+
+func _physiology_reachable(organism: Dictionary, role_row: Array, system_id := -1) -> Dictionary:
 	# Values are graded widest-path delivery, not booleans. A wounded conduit can
 	# remain connected while transmitting less service to its downstream cells.
 	var reachable: Dictionary = {}; var queue: Array[int] = []
 	for index in range(mini(role_row.size(), organism["alive"].size())):
 		if int(role_row[index]) != 1 or not organism["alive"][index]: continue
-		var viability := clampf(float(organism["health"][index]) / maxf(0.0001, float(organism["max_health"][index])), 0.0, 1.0)
+		var viability := _physiology_cell_viability(organism, index, system_id)
 		if viability > 0.0: reachable[str(index)] = viability; queue.append(index)
 	var cursor := 0
 	while cursor < queue.size():
@@ -336,7 +346,7 @@ func _physiology_reachable(organism: Dictionary, role_row: Array) -> Dictionary:
 		for edge in organism.get("motion_neighbors", [])[current]:
 			var neighbor := int(edge[0]); var bond_index := int(edge[1])
 			if not organism["bond_alive"][bond_index] or not organism["alive"][neighbor] or int(role_row[neighbor]) <= 0: continue
-			var viability := clampf(float(organism["health"][neighbor]) / maxf(0.0001, float(organism["max_health"][neighbor])), 0.0, 1.0)
+			var viability := _physiology_cell_viability(organism, neighbor, system_id)
 			var candidate := minf(current_signal, viability); var key := str(neighbor)
 			if candidate > float(reachable.get(key, 0.0)) + 0.0000001:
 				reachable[key] = candidate; queue.append(neighbor)
@@ -345,7 +355,8 @@ func _physiology_reachable(organism: Dictionary, role_row: Array) -> Dictionary:
 
 func _physiology_networks(organism: Dictionary) -> Array:
 	var result: Array = []
-	for role_row in organism.get("physiology_role", []): result.append(_physiology_reachable(organism, role_row))
+	var rows: Array = organism.get("physiology_role", [])
+	for system_id in range(rows.size()): result.append(_physiology_reachable(organism, rows[system_id], system_id))
 	return result
 
 
@@ -354,14 +365,14 @@ func _compute_physiology_capacities(organism: Dictionary) -> Dictionary:
 	if roles.size() != SYSTEM_NAMES.size() or weights.size() != SYSTEM_NAMES.size(): return {}
 	var raw: Dictionary = {}
 	for system_id in range(SYSTEM_NAMES.size()):
-		var reachable := _physiology_reachable(organism, roles[system_id]); var total := 0.0; var surviving := 0.0; var connected := 0.0; var core_total := 0.0; var core_alive := 0.0
+		var reachable := _physiology_reachable(organism, roles[system_id], system_id); var total := 0.0; var surviving := 0.0; var connected := 0.0; var core_total := 0.0; var core_alive := 0.0
 		for index in range(organism["alive"].size()):
 			var weight := float(weights[system_id][index]); var role := int(roles[system_id][index])
 			if weight <= 0.0: continue
 			total += weight
 			if role == 1: core_total += weight
 			if organism["alive"][index]:
-				var viability := clampf(float(organism["health"][index]) / maxf(0.0001, float(organism["max_health"][index])), 0.0, 1.0)
+				var viability := _physiology_cell_viability(organism, index, system_id)
 				surviving += weight * viability
 				connected += weight * float(reachable.get(str(index), 0.0))
 				if role == 1: core_alive += weight * viability
@@ -443,7 +454,7 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 	var rest_local: Array = organism["motion_rest_local"]; var attachments: Dictionary = organism["motion_attachment_by_organ"]; var channels: Dictionary = organism["motion_channel_by_organ"]
 	var chain_depth: Array = organism.get("motion_chain_depth", [])
 	var networks: Array = organism.get("physiology_network_reachable", [])
-	var motor_reachable: Dictionary = networks[5] if networks.size() > 5 else {}
+	var motor_reachable: Dictionary = networks[5] if networks.size() > 5 else {}; var circulation_reachable: Dictionary = networks[0] if networks.size() > 0 else {}
 	var squash := float(drivers.get("body_squash", 0.0)); var work := 0.0
 	for index in range(organism["position"].size()):
 		if not organism["alive"][index] or not reachable.has(str(index)): continue
@@ -452,7 +463,7 @@ func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 		local += Vector2(float(drivers.get("body_sway", 0.0)) * 6.5, float(drivers.get("body_bob", 0.0)) * 8.0)
 		var organ_key := str(int(organism["organ_id"][index])); var channel := str(channels.get(organ_key, "chassis")); var amount := _channel_driver(channel, drivers)
 		var channel_gain := float(channel_integrity.get(channel, 1.0))
-		if channel != "chassis": channel_gain *= float(motor_reachable.get(str(index), 0.0))
+		if channel != "chassis": channel_gain *= float(motor_reachable.get(str(index), 0.0)) * sqrt(maxf(0.0, float(circulation_reachable.get(str(index), 0.0))))
 		if absf(amount) > 0.00001 and channel != "chassis" and attachments.has(organ_key):
 			var attachment: Dictionary = attachments[organ_key]; var root_cell := int(attachment.get("root_cell", -1))
 			if root_cell < 0 or not organism["alive"][root_cell] or not reachable.has(str(root_cell)): continue
@@ -605,7 +616,7 @@ func _draw_organism(organism: Dictionary) -> void:
 func _draw_physiology_network(organism: Dictionary) -> void:
 	var roles: Array = organism.get("physiology_role", [])
 	if selected_system < 0 or selected_system >= roles.size(): return
-	var role_row: Array = roles[selected_system]; var reachable := _physiology_reachable(organism, role_row)
+	var role_row: Array = roles[selected_system]; var reachable := _physiology_reachable(organism, role_row, selected_system)
 	organism["physiology_view_reachable"] = reachable
 	var color: Color = SYSTEM_COLORS[selected_system]
 	for bond_index in range(organism["bond_ab"].size()):
@@ -745,7 +756,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -761,9 +772,17 @@ func _run_motion_smoke() -> void:
 			if int(motor_roles[index]) == 3: graded_cell = index; break
 		if graded_cell >= 0:
 			graded_diagnostic["health"][graded_cell] = float(graded_diagnostic["max_health"][graded_cell]) * 0.37
-			var graded_network := _physiology_reachable(graded_diagnostic, motor_roles); var graded_capacity := _compute_physiology_capacities(graded_diagnostic)
+			var graded_network := _physiology_reachable(graded_diagnostic, motor_roles, 5); var graded_capacity := _compute_physiology_capacities(graded_diagnostic)
 			graded_local_delivery_verified = absf(float(graded_network.get(str(graded_cell), 0.0)) - 0.37) < 0.0001 and float(graded_capacity.get("locomotion", 1.0)) < float(baseline_capacity.get("locomotion", 0.0)) and float(graded_capacity.get("locomotion", 0.0)) > 0.0
 		if not graded_local_delivery_verified: errors.append("graded local physiology")
+		var perfusion_diagnostic: Dictionary = organisms[0].duplicate(true); var circulation_roles: Array = perfusion_diagnostic.get("physiology_role", [])[0]; var perfusion_cell := -1
+		for index in range(circulation_roles.size()):
+			if int(circulation_roles[index]) == 2 and float(perfusion_diagnostic.get("fluid_baseline", [])[index]) > 0.0: perfusion_cell = index; break
+		if perfusion_cell >= 0:
+			perfusion_diagnostic["fluid"][perfusion_cell] = float(perfusion_diagnostic["fluid_baseline"][perfusion_cell]) * 0.22
+			var perfusion_network := _physiology_reachable(perfusion_diagnostic, circulation_roles, 0); var perfusion_capacity := _compute_physiology_capacities(perfusion_diagnostic)
+			local_perfusion_verified = absf(float(perfusion_network.get(str(perfusion_cell), 0.0)) - 0.22) < 0.0001 and float(perfusion_capacity.get("circulation", 1.0)) < float(baseline_capacity.get("circulation", 0.0)) and float(perfusion_capacity.get("circulation", 0.0)) > 0.0
+		if not local_perfusion_verified: errors.append("local fluid perfusion")
 		var depths: Array = organisms[0].get("motion_chain_depth", [])
 		progressive_chain_verified = depths.any(func(value): return float(value) > 0.15 and float(value) < 0.85) and depths.any(func(value): return float(value) > 0.90)
 		if not progressive_chain_verified: errors.append("progressive appendage chains")
@@ -771,7 +790,7 @@ func _run_motion_smoke() -> void:
 		view_mode = 5
 		for system_id in range(SYSTEM_NAMES.size()):
 			selected_system = system_id; var role_row: Array = organisms[0].get("physiology_role", [])[system_id]
-			organisms[0]["physiology_view_reachable"] = _physiology_reachable(organisms[0], role_row)
+			organisms[0]["physiology_view_reachable"] = _physiology_reachable(organisms[0], role_row, system_id)
 			for index in range(role_row.size()):
 				if int(role_row[index]) > 0:
 					var view_color := _cell_color(organisms[0], index)
@@ -820,14 +839,14 @@ func _run_motion_smoke() -> void:
 			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
 	if not plant_polyp_verified: errors.append("plant polyp fate")
 	var report := {
-		"format": "nullvector-cellular-motion-godot-smoke-v6", "passed": errors.is_empty(), "errors": errors,
+		"format": "nullvector-cellular-motion-godot-smoke-v7", "passed": errors.is_empty(), "errors": errors,
 		"engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""),
 		"physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""),
 		"organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0),
 		"physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0),
 		"trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified,
 		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
-		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "progressive_chain_verified": progressive_chain_verified,
+		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "local_perfusion_verified": local_perfusion_verified, "progressive_chain_verified": progressive_chain_verified,
 		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,
 		"plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count,
 		"event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity,

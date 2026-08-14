@@ -7,10 +7,10 @@ from typing import Final
 from ..config import PROJECT_ROOT
 
 
-FORMAT: Final[str] = "nullvector-cellular-trauma-bank-v2"
-ARRAY_FORMAT: Final[str] = "nullvector-cellular-trauma-arrays-v2"
-DEFAULT_SOURCE: Final[Path] = PROJECT_ROOT / "outputs/cellular_physiology_v2/cellular_physiology_manifest.json"
-DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_trauma_v2"
+FORMAT: Final[str] = "nullvector-cellular-trauma-bank-v3"
+ARRAY_FORMAT: Final[str] = "nullvector-cellular-trauma-arrays-v3"
+DEFAULT_SOURCE: Final[Path] = PROJECT_ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
+DEFAULT_OUTPUT: Final[Path] = PROJECT_ROOT / "outputs/cellular_trauma_v3"
 SCHEMA_PATH: Final[Path] = PROJECT_ROOT / "shared/schema/cellular_trauma_bank.schema.json"
 
 HEAL_CLASS_NAMES: Final[tuple[str, ...]] = (
@@ -38,7 +38,7 @@ SOURCE_FILES: Final[tuple[str, ...]] = (
 
 
 def source_sha256() -> str:
-    digest = hashlib.sha256(b"nullvector-cellular-trauma-source-v2\0")
+    digest = hashlib.sha256(b"nullvector-cellular-trauma-source-v3\0")
     for relative in SOURCE_FILES:
         path = PROJECT_ROOT / relative
         if not path.is_file(): raise FileNotFoundError(relative)

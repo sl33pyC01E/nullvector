@@ -12,8 +12,8 @@ from forge.cellular_trauma import TraumaState, compile_trauma, replay_bank, vali
 
 ROOT = Path(__file__).resolve().parents[1]
 ANATOMY = ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-PHYSIOLOGY = ROOT / "outputs/cellular_physiology_v2/cellular_physiology_manifest.json"
-BANK = ROOT / "outputs/cellular_trauma_v2/cellular_trauma_manifest.json"
+PHYSIOLOGY = ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
+BANK = ROOT / "outputs/cellular_trauma_v3/cellular_trauma_manifest.json"
 
 
 def _identity(family_id: int):

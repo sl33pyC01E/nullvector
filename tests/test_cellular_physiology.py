@@ -13,7 +13,7 @@ from forge.cellular_physiology.contract import SYSTEM_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-BANK = ROOT / "outputs/cellular_physiology_v2/cellular_physiology_manifest.json"
+BANK = ROOT / "outputs/cellular_physiology_v3/cellular_physiology_manifest.json"
 
 
 def _representative(family_id: int = 0):
@@ -126,6 +126,18 @@ def test_partial_motor_cell_injury_produces_graded_delivery_before_death() -> No
     delivery = state.network_delivery()["locomotion"]
     assert np.isclose(delivery[effector], 0.37, atol=1e-6)
     assert 0.0 < state.capacities()["locomotion"] < baseline
+
+
+def test_local_fluid_loss_reduces_perfusion_without_killing_the_vessel() -> None:
+    _, arrays, overlay, _ = _representative(0)
+    state = PhysiologyState(arrays, overlay)
+    circulation_id = SYSTEM_NAMES.index("circulation")
+    conduit = int(np.flatnonzero(overlay["system_role"][circulation_id] == 2)[0])
+    baseline = state.capacities()["circulation"]
+    state.fluid[conduit] = state.fluid_reference[conduit] * np.float32(0.22)
+    delivery = state.network_delivery()["circulation"]
+    assert state.alive[conduit] and np.isclose(delivery[conduit], 0.22, atol=1e-6)
+    assert 0.0 < state.capacities()["circulation"] < baseline
 
 
 def test_published_physiology_bank_is_hash_closed_and_exactly_replayable() -> None:

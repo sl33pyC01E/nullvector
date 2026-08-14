@@ -226,6 +226,7 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 		"health": arrays.get("max_health", []).duplicate(),
 		"max_health": arrays.get("max_health", []).duplicate(),
 		"fluid": arrays.get("fluid_initial", []).duplicate(),
+		"fluid_baseline": arrays.get("fluid_initial", []).duplicate(),
 		"fluid_capacity": arrays.get("fluid_capacity", []).duplicate(),
 		"nutrient": arrays.get("nutrient_initial", []).duplicate(),
 		"energy": arrays.get("energy_initial", []).duplicate(),

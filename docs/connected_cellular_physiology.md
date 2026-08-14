@@ -38,9 +38,9 @@ Build, validate, and replay without CUDA:
 ```powershell
 python -m forge.cellular_physiology build
 python -m forge.cellular_physiology validate `
-  outputs/cellular_physiology_v2/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v3/cellular_physiology_manifest.json
 python -m forge.cellular_physiology replay `
-  outputs/cellular_physiology_v2/cellular_physiology_manifest.json
+  outputs/cellular_physiology_v3/cellular_physiology_manifest.json
 ```
 
 The deterministic `PhysiologyState` is the reference capacity/damage model.
@@ -48,7 +48,7 @@ The native projection is built with:
 
 ```powershell
 python -m forge.cellular_physiology_sync `
-  --destination game/generated/cellular_physiology/v5 `
+  --destination game/generated/cellular_physiology/v6 `
   --report outputs/cellular_physiology_sync_v4_2.json
 ```
 
@@ -68,3 +68,11 @@ core of a diagnostic offspring and proves that neural/locomotor capacity reaches
 zero while circulation remains functional. It also proves member-restricted
 routing and progressive root-to-tip appendage coordinates. Python is not
 required at runtime.
+
+Physiology v3 also makes internal fluid authoritative. Circulatory
+widest-path delivery is limited by each cell's blood, sap, phase ichor, or
+coolant relative to that organism's healthy baseline fill. A drained but still
+living vessel therefore transmits a graded perfusion signal; downstream organ
+capacity, appendage force, clotting, and repair decline before tissue death.
+Fluid diffusion can refill an intact route, while an open wound continues to
+lose pressure until local clotting seals it.
