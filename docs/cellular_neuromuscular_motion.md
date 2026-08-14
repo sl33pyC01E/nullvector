@@ -107,3 +107,18 @@ The compiler contact sheet is
 `outputs/cellular_motion_v2/cellular_motion_contact_sheet.png`. It shows one
 family representative at the principal event pose for every motion. The native
 lab is the authority for continuous in-between spring deformation.
+
+Semantic collapse is audited separately so a clip cannot pass merely because
+its frame count and numeric bounds are valid:
+
+```powershell
+python -m forge.cellular_motion_quality build
+python -m forge.cellular_motion_quality validate `
+  outputs/cellular_motion_quality_v1/motion_quality_report.json
+```
+
+The audit covers all 65 family/motion programs and records active-driver count,
+body/appendage/locomotor/expression excursion, temporal energy, event-pose
+displacement, exact loop closure, paired gait anti-phase, and distinct
+family-specific trajectory hashes. A flattened action or rigid locomotion
+curve therefore fails closed before it reaches the native runtime.

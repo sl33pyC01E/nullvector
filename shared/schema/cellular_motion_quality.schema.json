@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_motion_quality.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "compiler", "source", "active_driver_threshold", "driver_vocab", "motion_vocab", "driver_groups", "family_count", "motion_count", "record_count", "records", "aggregate", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-cellular-motion-quality-audit-v1"},
+    "status": {"const": "passed"},
+    "compiler": {"type": "object", "additionalProperties": false, "required": ["source_sha256", "python_runtime_required"], "properties": {"source_sha256": {"$ref": "#/$defs/sha"}, "python_runtime_required": {"const": false}}},
+    "source": {"type": "object", "additionalProperties": false, "required": ["manifest", "manifest_sha256", "semantic_sha256", "validation"], "properties": {"manifest": {"type": "string", "pattern": "^[^\\\\]+$"}, "manifest_sha256": {"$ref": "#/$defs/sha"}, "semantic_sha256": {"$ref": "#/$defs/sha"}, "validation": {"type": "object"}}},
+    "active_driver_threshold": {"const": 0.05},
+    "driver_vocab": {"type": "array", "minItems": 14, "maxItems": 14, "uniqueItems": true, "items": {"type": "string"}},
+    "motion_vocab": {"type": "array", "minItems": 13, "maxItems": 13, "uniqueItems": true, "items": {"type": "string"}},
+    "driver_groups": {"type": "object", "minProperties": 4},
+    "family_count": {"const": 5}, "motion_count": {"const": 13}, "record_count": {"const": 65},
+    "records": {"type": "array", "minItems": 65, "maxItems": 65, "items": {"$ref": "#/$defs/record"}},
+    "aggregate": {"type": "object", "additionalProperties": false, "required": ["minimum_active_driver_count", "minimum_temporal_energy", "minimum_action_appendage_excursion", "minimum_locomotor_excursion", "maximum_locomotor_antiphase_correlation", "distinct_family_trajectories_by_motion"], "properties": {"minimum_active_driver_count": {"type": "integer", "minimum": 4}, "minimum_temporal_energy": {"type": "number", "exclusiveMinimum": 0}, "minimum_action_appendage_excursion": {"type": "number", "minimum": 0.5}, "minimum_locomotor_excursion": {"type": "number", "minimum": 1.0}, "maximum_locomotor_antiphase_correlation": {"type": "number", "maximum": -0.95}, "distinct_family_trajectories_by_motion": {"type": "object", "minProperties": 13, "additionalProperties": {"const": 5}}}},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "record": {"type": "object", "additionalProperties": false, "required": ["family", "family_id", "motion", "frame_count", "fps", "loop", "active_driver_count", "driver_ranges", "group_excursion", "temporal_energy", "maximum_pose_excursion", "locomotor_antiphase_correlation", "event_excursions", "trajectory_sha256", "loop_endpoint_exact", "facings_share_driver_curve"], "properties": {"family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]}, "family_id": {"type": "integer", "minimum": 0, "maximum": 4}, "motion": {"type": "string"}, "frame_count": {"type": "integer", "minimum": 7}, "fps": {"type": "integer", "minimum": 1}, "loop": {"type": "boolean"}, "active_driver_count": {"type": "integer", "minimum": 1, "maximum": 14}, "driver_ranges": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"type": "number", "minimum": 0}}, "group_excursion": {"type": "object", "additionalProperties": false, "required": ["body", "appendage", "locomotor", "expression"], "properties": {"body": {"type": "number", "minimum": 0}, "appendage": {"type": "number", "minimum": 0}, "locomotor": {"type": "number", "minimum": 0}, "expression": {"type": "number", "minimum": 0}}}, "temporal_energy": {"type": "number", "minimum": 0}, "maximum_pose_excursion": {"type": "number", "minimum": 0}, "locomotor_antiphase_correlation": {"type": "number", "minimum": -1, "maximum": 1}, "event_excursions": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["name", "frame", "driver_l2_from_first"], "properties": {"name": {"type": "string"}, "frame": {"type": "integer", "minimum": 0}, "driver_l2_from_first": {"type": "number", "minimum": 0}}}}, "trajectory_sha256": {"$ref": "#/$defs/sha"}, "loop_endpoint_exact": {"const": true}, "facings_share_driver_curve": {"const": true}}}
+  }
+}
