@@ -169,8 +169,12 @@ func _create_organism(data: Dictionary, center: Vector2, generation: int, mutati
 	organism["physiology_weight"] = physiology.get("system_weight", []).duplicate(true)
 	organism["physiology_systems"] = physiology.get("systems", []).duplicate(true)
 	organism["physiology_capacities"] = {"circulation": 1.0, "respiration": 1.0, "digestion": 1.0, "neural": 1.0, "sensory": 1.0, "locomotion": 1.0, "reproduction": 1.0, "immune": 1.0}
+	organism["physiology_raw_capacities"] = organism["physiology_capacities"].duplicate(true)
+	organism["physiology_functional_capacities"] = {"circulation": 1.0, "respiration": 1.0, "digestion": 1.0, "neural": 1.0, "sensory": 1.0, "locomotion": 1.0, "reproduction": 1.0, "immune": 1.0, "consciousness": 1.0, "oxygen_support": 1.0, "energy_support": 1.0}
 	organism["physiology_network_reachable"] = []
 	organism["physiology_oxygen"] = 1.0; organism["physiology_clock"] = 0.0
+	organism["homeostasis_shock"] = 0.0; organism["homeostasis_incapacitated"] = false
+	organism["homeostasis_neural_failure_time"] = 0.0; organism["homeostasis_perfusion_failure_time"] = 0.0
 	organism["physiology_base_digestion"] = float(organism["genome"].get("digestion_efficiency", 0.7))
 	organism["physiology_base_regeneration"] = float(organism["genome"].get("tissue_regeneration_rate", 0.01))
 	var trauma := _load_trauma_data(str(data.get("sample_id", "")))
@@ -378,6 +382,7 @@ func _compute_physiology_capacities(organism: Dictionary) -> Dictionary:
 				if role == 1: core_alive += weight * viability
 		var core_fraction := core_alive / maxf(0.0001, core_total); var survival := surviving / maxf(0.0001, total); var connected_fraction := connected / maxf(0.0001, total)
 		raw[SYSTEM_NAMES[system_id]] = clampf(pow(core_fraction, 1.55) * (0.25 * survival + 0.75 * connected_fraction), 0.0, 1.0)
+	organism["physiology_raw_capacities"] = raw.duplicate(true)
 	var result: Dictionary = {}
 	result["circulation"] = float(raw.get("circulation", 0.0))
 	result["respiration"] = float(raw.get("respiration", 0.0)) * pow(float(result["circulation"]), 0.45)
@@ -388,6 +393,75 @@ func _compute_physiology_capacities(organism: Dictionary) -> Dictionary:
 	result["reproduction"] = float(raw.get("reproduction", 0.0)) * pow(float(result["circulation"]), 0.45) * pow(float(result["respiration"]), 0.45) * pow(float(result["digestion"]), 0.45)
 	result["immune"] = float(raw.get("immune", 0.0)) * pow(float(result["circulation"]), 0.45) * pow(float(result["digestion"]), 0.45)
 	return result
+
+
+func _compute_homeostasis_capacities(organism: Dictionary) -> Dictionary:
+	# Structural organ survival remains the sealed v3 authority. Functional
+	# capacity additionally passes through oxygen, cellular energy, and shock so
+	# respiratory loss has a reserve window instead of erasing cognition at t=0.
+	var raw: Dictionary = organism.get("physiology_raw_capacities", {})
+	if raw.is_empty():
+		_compute_physiology_capacities(organism); raw = organism.get("physiology_raw_capacities", {})
+	var circulation := float(raw.get("circulation", 0.0))
+	var respiration := float(raw.get("respiration", 0.0)) * pow(circulation, 0.45)
+	var digestion := float(raw.get("digestion", 0.0)) * pow(circulation, 0.45)
+	var neural_structure := float(raw.get("neural", 0.0)) * pow(circulation, 0.45)
+	var alive_count := 0; var energy_total := 0.0
+	for index in range(organism.get("alive", []).size()):
+		if organism["alive"][index]: alive_count += 1; energy_total += float(organism.get("energy", [])[index])
+	var mean_energy := energy_total / maxf(1.0, float(alive_count))
+	var oxygen_support := clampf(float(organism.get("physiology_oxygen", 1.0)) / 0.22, 0.0, 1.0)
+	var energy_support := clampf(mean_energy / 0.18, 0.0, 1.0)
+	var shock := clampf(float(organism.get("homeostasis_shock", 0.0)), 0.0, 1.0)
+	var consciousness := neural_structure * pow(oxygen_support, 0.8) * (1.0 - 0.65 * shock)
+	return {
+		"circulation": circulation, "respiration": respiration, "digestion": digestion,
+		"neural": neural_structure, "sensory": float(raw.get("sensory", 0.0)) * pow(consciousness, 0.55),
+		"locomotion": float(raw.get("locomotion", 0.0)) * pow(consciousness, 0.65) * pow(circulation, 0.25) * pow(energy_support, 0.5),
+		"reproduction": float(raw.get("reproduction", 0.0)) * pow(circulation, 0.35) * pow(digestion, 0.5) * energy_support,
+		"immune": float(raw.get("immune", 0.0)) * pow(circulation, 0.55) * pow(digestion, 0.25) * pow(energy_support, 0.35),
+		"consciousness": clampf(consciousness, 0.0, 1.0), "oxygen_support": oxygen_support, "energy_support": energy_support,
+	}
+
+
+func _diagnostic_homeostasis_lesion(organism: Dictionary, system_id: int, seconds: float) -> Dictionary:
+	var diagnostic: Dictionary = organism.duplicate(true); var roles: Array = diagnostic.get("physiology_role", [])[system_id]
+	for index in range(roles.size()):
+		if int(roles[index]) == 1: diagnostic["alive"][index] = false; diagnostic["health"][index] = 0.0
+	for bond_index in range(diagnostic["bond_ab"].size()):
+		var pair: Array = diagnostic["bond_ab"][bond_index]
+		if not diagnostic["alive"][int(pair[0])] or not diagnostic["alive"][int(pair[1])]: diagnostic["bond_alive"][bond_index] = false
+	diagnostic["physiology_oxygen"] = 1.0; diagnostic["homeostasis_shock"] = 0.0
+	var structural := _compute_physiology_capacities(diagnostic); var functional := _compute_homeostasis_capacities(diagnostic); var initial := functional.duplicate(true)
+	var elapsed := 0.0; var time_to_incapacitation := -1.0; var dt := 0.1
+	while elapsed < seconds:
+		var oxygen := float(diagnostic.get("physiology_oxygen", 1.0))
+		oxygen += 0.62 * float(structural.get("respiration", 0.0)) * pow(float(structural.get("circulation", 0.0)), 0.35) * dt
+		oxygen -= (0.11 + 0.09 * float(functional.get("locomotion", 0.0))) * dt
+		diagnostic["physiology_oxygen"] = clampf(oxygen, 0.0, 1.0)
+		var shock_target := maxf(0.0, 1.0 - float(structural.get("circulation", 0.0))) * 0.78 + maxf(0.0, 0.18 - oxygen) * 1.2
+		diagnostic["homeostasis_shock"] = lerpf(float(diagnostic.get("homeostasis_shock", 0.0)), clampf(shock_target, 0.0, 1.0), minf(1.0, dt * 2.4))
+		functional = _compute_homeostasis_capacities(diagnostic); elapsed += dt
+		if time_to_incapacitation < 0.0 and float(functional.get("consciousness", 0.0)) < 0.14: time_to_incapacitation = elapsed
+	return {"system": SYSTEM_NAMES[system_id], "initial": initial, "final": functional, "final_oxygen": float(diagnostic.get("physiology_oxygen", 0.0)), "time_to_incapacitation": time_to_incapacitation}
+
+
+func _diagnostic_homeostasis_matrix(organism: Dictionary) -> Dictionary:
+	var heart := _diagnostic_homeostasis_lesion(organism, 0, 10.0)
+	var lung := _diagnostic_homeostasis_lesion(organism, 1, 20.0)
+	var gut := _diagnostic_homeostasis_lesion(organism, 2, 2.0)
+	var brain := _diagnostic_homeostasis_lesion(organism, 3, 2.0)
+	var passed := (
+		float(heart["initial"].get("circulation", 1.0)) == 0.0
+		and float(lung["initial"].get("consciousness", 0.0)) > 0.5
+		and float(lung.get("time_to_incapacitation", -1.0)) > 0.0
+		and float(lung.get("final_oxygen", 1.0)) < 0.14
+		and float(gut["initial"].get("reproduction", 1.0)) == 0.0
+		and float(gut["initial"].get("circulation", 0.0)) > 0.5
+		and float(brain["initial"].get("consciousness", 1.0)) == 0.0
+		and float(brain["initial"].get("circulation", 0.0)) > 0.5
+	)
+	return {"passed": passed, "heart": heart, "respiratory": lung, "digestive": gut, "brain": brain}
 
 
 func _diagnostic_system_core_failures(organism: Dictionary) -> Dictionary:
@@ -482,17 +556,25 @@ func _prepare_physiology(organism: Dictionary, delta: float) -> void:
 	if float(organism["physiology_clock"]) <= 0.0:
 		var capacities := _compute_physiology_capacities(organism)
 		if not capacities.is_empty(): organism["physiology_capacities"] = capacities
+		organism["physiology_functional_capacities"] = _compute_homeostasis_capacities(organism)
 		organism["physiology_network_reachable"] = _physiology_networks(organism)
 		organism["physiology_clock"] = 0.10
 	var capacity: Dictionary = organism.get("physiology_capacities", {})
-	organism["genome"]["digestion_efficiency"] = float(organism.get("physiology_base_digestion", 0.7)) * float(capacity.get("digestion", 0.0))
-	organism["genome"]["tissue_regeneration_rate"] = float(organism.get("physiology_base_regeneration", 0.01)) * float(capacity.get("immune", 0.0)) * float(capacity.get("circulation", 0.0))
+	var functional: Dictionary = organism.get("physiology_functional_capacities", capacity)
+	organism["genome"]["digestion_efficiency"] = float(organism.get("physiology_base_digestion", 0.7)) * float(functional.get("digestion", 0.0))
+	organism["genome"]["tissue_regeneration_rate"] = float(organism.get("physiology_base_regeneration", 0.01)) * float(functional.get("immune", 0.0)) * float(functional.get("circulation", 0.0))
 
 
 func _advance_physiology(organism: Dictionary, delta: float) -> void:
-	var capacity: Dictionary = organism.get("physiology_capacities", {}); var oxygen := float(organism.get("physiology_oxygen", 1.0))
+	var capacity: Dictionary = organism.get("physiology_capacities", {}); var functional: Dictionary = organism.get("physiology_functional_capacities", capacity); var oxygen := float(organism.get("physiology_oxygen", 1.0))
 	oxygen += 0.65 * float(capacity.get("respiration", 0.0)) * float(capacity.get("circulation", 0.0)) * delta
-	oxygen -= (0.08 + 0.12 * float(capacity.get("locomotion", 0.0))) * delta; oxygen = clampf(oxygen, 0.0, 1.0); organism["physiology_oxygen"] = oxygen
+	oxygen -= (0.08 + 0.12 * float(functional.get("locomotion", 0.0))) * delta; oxygen = clampf(oxygen, 0.0, 1.0); organism["physiology_oxygen"] = oxygen
+	var shock_target := maxf(0.0, 1.0 - float(capacity.get("circulation", 0.0))) * 0.78 + maxf(0.0, 0.18 - oxygen) * 1.2
+	organism["homeostasis_shock"] = lerpf(float(organism.get("homeostasis_shock", 0.0)), clampf(shock_target, 0.0, 1.0), minf(1.0, delta * (2.4 if shock_target > float(organism.get("homeostasis_shock", 0.0)) else 0.45)))
+	functional = _compute_homeostasis_capacities(organism); organism["physiology_functional_capacities"] = functional
+	organism["homeostasis_incapacitated"] = float(functional.get("consciousness", 0.0)) < 0.14 or float(functional.get("locomotion", 0.0)) < 0.08
+	organism["homeostasis_neural_failure_time"] = float(organism.get("homeostasis_neural_failure_time", 0.0)) + delta if float(functional.get("consciousness", 0.0)) < 0.08 else maxf(0.0, float(organism.get("homeostasis_neural_failure_time", 0.0)) - delta * 0.25)
+	organism["homeostasis_perfusion_failure_time"] = float(organism.get("homeostasis_perfusion_failure_time", 0.0)) + delta if float(capacity.get("circulation", 0.0)) < 0.06 else maxf(0.0, float(organism.get("homeostasis_perfusion_failure_time", 0.0)) - delta * 0.5)
 	if oxygen < 0.14:
 		var roles: Array = organism.get("physiology_role", []); var neural_row: Array = roles[3] if roles.size() > 3 else []
 		for index in range(mini(neural_row.size(), organism["alive"].size())):
@@ -502,12 +584,15 @@ func _advance_physiology(organism: Dictionary, delta: float) -> void:
 	if float(capacity.get("circulation", 0.0)) < 0.08:
 		for index in range(organism["alive"].size()):
 			if organism["alive"][index]: organism["health"][index] = float(organism["health"][index]) - 0.035 * delta
+	if float(organism.get("homeostasis_neural_failure_time", 0.0)) > 8.0:
+		for index in range(organism["alive"].size()):
+			if organism["alive"][index]: organism["health"][index] = float(organism["health"][index]) - 0.08 * delta
 
 
 func _apply_motion_force(organism: Dictionary, delta: float) -> void:
 	var reachable := _neural_reachable_cells(organism)
 	var channel_integrity := _channel_integrities(organism, reachable)
-	var physiology: Dictionary = organism.get("physiology_capacities", {})
+	var physiology: Dictionary = organism.get("physiology_functional_capacities", organism.get("physiology_capacities", {}))
 	var neural_integrity := float(channel_integrity.get("neural", 0.0)) * float(physiology.get("neural", 1.0))
 	var motor_integrity := neural_integrity * float(physiology.get("locomotion", 1.0)); organism["motion_neural_integrity"] = neural_integrity
 	if neural_integrity <= 0.08: return
@@ -647,7 +732,7 @@ func _step_trauma_components(organism: Dictionary, delta: float) -> void:
 
 
 func _step_trauma_after(organism: Dictionary, delta: float, previous_health: Array) -> void:
-	var capacity: Dictionary = organism.get("physiology_capacities", {}); var circulation := float(capacity.get("circulation", 0.0)); var immune := float(capacity.get("immune", 0.0)); var clot_rate := float(organism.get("trauma_profile", {}).get("clot_rate", 0.0))
+	var capacity: Dictionary = organism.get("physiology_functional_capacities", organism.get("physiology_capacities", {})); var circulation := float(capacity.get("circulation", 0.0)); var immune := float(capacity.get("immune", 0.0)); var clot_rate := float(organism.get("trauma_profile", {}).get("clot_rate", 0.0))
 	var networks: Array = organism.get("physiology_network_reachable", []); var circulation_delivery: Dictionary = networks[0] if networks.size() > 0 else {}; var immune_delivery: Dictionary = networks[7] if networks.size() > 7 else {}
 	for index in range(organism["alive"].size()):
 		if not organism["alive"][index]: continue
@@ -673,7 +758,8 @@ func _step_organism(organism: Dictionary, delta: float) -> void:
 
 
 func _can_reproduce(organism: Dictionary) -> bool:
-	return float(organism.get("physiology_capacities", {}).get("reproduction", 0.0)) >= 0.62 and super(organism)
+	var functional: Dictionary = organism.get("physiology_functional_capacities", organism.get("physiology_capacities", {}))
+	return not bool(organism.get("homeostasis_incapacitated", false)) and float(functional.get("reproduction", 0.0)) >= 0.62 and super(organism)
 
 
 func _draw_organism(organism: Dictionary) -> void:
@@ -753,16 +839,16 @@ func _refresh_motion_overlay() -> void:
 		state_labels.sort()
 		motion_label.text = "AUTONOMOUS // " + "  ".join(state_labels)
 		if organisms.is_empty(): driver_label.text = "PER-ORGANISM MOTION // ORGAN CAPACITY GATED"; return
-		var first_capacity: Dictionary = organisms[0].get("physiology_capacities", {})
-		driver_label.text = "%s // BRAIN %3d  HEART %3d  LUNG %3d  LIMB %3d" % [str(organisms[0].get("motion_behavior", "?")).to_upper(), int(float(first_capacity.get("neural", 0.0)) * 100.0), int(float(first_capacity.get("circulation", 0.0)) * 100.0), int(float(first_capacity.get("respiration", 0.0)) * 100.0), int(float(first_capacity.get("locomotion", 0.0)) * 100.0)]
+		var first_capacity: Dictionary = organisms[0].get("physiology_functional_capacities", organisms[0].get("physiology_capacities", {}))
+		driver_label.text = "%s // MIND %3d  HEART %3d  LUNG %3d  LIMB %3d  O2 %3d" % [str(organisms[0].get("motion_behavior", "?")).to_upper(), int(float(first_capacity.get("consciousness", 0.0)) * 100.0), int(float(first_capacity.get("circulation", 0.0)) * 100.0), int(float(first_capacity.get("respiration", 0.0)) * 100.0), int(float(first_capacity.get("locomotion", 0.0)) * 100.0), int(float(organisms[0].get("physiology_oxygen", 0.0)) * 100.0)]
 		if view_mode == 5: driver_label.text += " // %s %d" % [str(SYSTEM_NAMES[selected_system]).to_upper(), int(float(first_capacity.get(SYSTEM_NAMES[selected_system], 0.0)) * 100.0)]
 		return
 	var clip := _current_clip(int(organisms[0]["data"].get("family_id", 0))) if not organisms.is_empty() else {}
 	motion_label.text = "%s // %s // %s" % [str(EXPECTED_MOTIONS[selected_motion]).to_upper(), str(EXPECTED_FACINGS[selected_facing]).to_upper(), "%d FPS" % int(clip.get("fps", 0))]
 	if organisms.is_empty(): driver_label.text = "W/S MOTION  ARROWS FACING  //  ORGAN TARGETS + LIVE SPRINGS"; return
-	var capacity: Dictionary = organisms[0].get("physiology_capacities", {})
+	var capacity: Dictionary = organisms[0].get("physiology_functional_capacities", organisms[0].get("physiology_capacities", {}))
 	var scar_mean := _sum_float(organisms[0].get("trauma_scar", [])) / maxf(1.0, float(organisms[0]["alive"].size()))
-	driver_label.text = "BRAIN %3d  HEART %3d  LUNG %3d  GUT %3d  SCAR %2d  POLYP %d" % [int(float(capacity.get("neural", 0.0)) * 100.0), int(float(capacity.get("circulation", 0.0)) * 100.0), int(float(capacity.get("respiration", 0.0)) * 100.0), int(float(capacity.get("digestion", 0.0)) * 100.0), int(scar_mean * 100.0), int(organisms[0].get("trauma_polyps", 0))]
+	driver_label.text = "MIND %3d  HEART %3d  LUNG %3d  GUT %3d  O2 %3d  SHOCK %3d" % [int(float(capacity.get("consciousness", 0.0)) * 100.0), int(float(capacity.get("circulation", 0.0)) * 100.0), int(float(capacity.get("respiration", 0.0)) * 100.0), int(float(capacity.get("digestion", 0.0)) * 100.0), int(float(organisms[0].get("physiology_oxygen", 0.0)) * 100.0), int(float(organisms[0].get("homeostasis_shock", 0.0)) * 100.0)]
 	if view_mode == 5: driver_label.text += " // %s %d" % [str(SYSTEM_NAMES[selected_system]).to_upper(), int(float(capacity.get(SYSTEM_NAMES[selected_system], 0.0)) * 100.0)]
 
 
@@ -824,7 +910,7 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var full_identity_failure_matrix: Dictionary = {}; var homeostasis_matrix: Dictionary = {}; var system_view_verified := false; var member_routing_verified := false; var graded_local_delivery_verified := false; var local_perfusion_verified := false; var progressive_chain_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
@@ -873,6 +959,8 @@ func _run_motion_smoke() -> void:
 			var failure: Dictionary = system_core_failures.get(system_name, {})
 			if int(failure.get("core_cells", 0)) <= 0 or float(failure.get("remaining_capacity", 1.0)) > 0.000001: all_system_core_failures_verified = false
 		if not all_system_core_failures_verified: errors.append("physiology system core failures")
+		homeostasis_matrix = _diagnostic_homeostasis_matrix(organisms[0])
+		if not bool(homeostasis_matrix.get("passed", false)): errors.append("reserve-aware homeostasis matrix")
 		full_identity_failure_matrix = _diagnostic_full_identity_failure_matrix()
 		if not bool(full_identity_failure_matrix.get("passed", false)): errors.append("full identity physiology failure matrix")
 		selected_motion = EXPECTED_MOTIONS.find("locomote"); selected_facing = 2; motion_epoch = 0.0; simulation_time = 0.25
@@ -917,6 +1005,7 @@ func _run_motion_smoke() -> void:
 		"trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified,
 		"all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified,
 		"full_identity_failure_matrix": full_identity_failure_matrix,
+		"homeostasis_matrix": homeostasis_matrix, "reserve_aware_homeostasis_verified": bool(homeostasis_matrix.get("passed", false)),
 		"member_routing_verified": member_routing_verified, "graded_local_delivery_verified": graded_local_delivery_verified, "local_perfusion_verified": local_perfusion_verified, "progressive_chain_verified": progressive_chain_verified,
 		"system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified,
 		"plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count,

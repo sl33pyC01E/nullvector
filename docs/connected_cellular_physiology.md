@@ -80,3 +80,17 @@ living vessel therefore transmits a graded perfusion signal; downstream organ
 capacity, appendage force, clotting, and repair decline before tissue death.
 Fluid diffusion can refill an intact route, while an open wound continues to
 lose pressure until local clotting seals it.
+
+Native homeostasis adds reserves without weakening structural damage rules.
+The connected v3 organ graph still decides which heart, lung, gut, brain,
+sensory, motor, reproductive, and repair cells survive and remain reachable.
+Its raw capacities feed a functional state that also tracks oxygen, cellular
+energy, and circulatory shock. Brain-core loss therefore incapacitates at once;
+lung-core loss begins with intact consciousness but exhausts oxygen over time;
+gut-core loss immediately blocks reproductive energy while leaving circulation
+alive; and heart-core loss removes perfusion and accumulates shock. Functional
+locomotion drives the authored appendage animation, while functional digestion,
+immune delivery, circulation, and reproduction gate feeding conversion,
+healing/scarring, clotting, and offspring. The Godot smoke records and verifies
+this four-lesion time course in addition to the original 360 structural core
+failures.

@@ -28,6 +28,8 @@ def test_motion_lab_loads_and_applies_connected_physiology() -> None:
         "_advance_physiology", "physiology_oxygen", "physiology_base_digestion",
         "physiology_network_reachable", "motion_chain_depth", "graded local physiology",
         "local_circulation", "local_immune",
+        "_compute_homeostasis_capacities", "physiology_functional_capacities",
+        "_diagnostic_homeostasis_matrix", "homeostasis_incapacitated",
     ):
         assert feature in script
 
@@ -43,6 +45,17 @@ def test_godot_smoke_proves_all_identity_organ_cascades_and_runtime_census() -> 
     assert report["graded_local_delivery_verified"] is True
     assert report["local_perfusion_verified"] is True
     assert report["progressive_chain_verified"] is True
+    assert report["reserve_aware_homeostasis_verified"] is True
+    homeostasis = report["homeostasis_matrix"]
+    assert homeostasis["passed"] is True
+    assert homeostasis["heart"]["initial"]["circulation"] == 0.0
+    assert homeostasis["respiratory"]["initial"]["consciousness"] > 0.5
+    assert homeostasis["respiratory"]["time_to_incapacitation"] > 0.0
+    assert homeostasis["respiratory"]["final_oxygen"] < 0.14
+    assert homeostasis["digestive"]["initial"]["reproduction"] == 0.0
+    assert homeostasis["digestive"]["initial"]["circulation"] > 0.5
+    assert homeostasis["brain"]["initial"]["consciousness"] == 0.0
+    assert homeostasis["brain"]["initial"]["circulation"] > 0.5
     assert report["population_after_reproduction"] == 2
     matrix = report["full_identity_failure_matrix"]
     assert matrix["passed"] is True

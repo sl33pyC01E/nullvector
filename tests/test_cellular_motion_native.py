@@ -30,6 +30,8 @@ def test_native_scene_uses_live_organ_drivers_not_sprite_frames() -> None:
         "_channel_integrities", "_current_frame", "_set_organism_motion",
         "motion_last_event_frame", "_diagnostic_system_core_failures",
         "_draw_physiology_network", "SYSTEM NETWORK", "_select_system",
+        "_compute_homeostasis_capacities", "physiology_functional_capacities",
+        "_diagnostic_homeostasis_matrix",
     ):
         assert feature in script
     assert "AtlasTexture" not in script and "Sprite2D" not in script
@@ -50,6 +52,14 @@ def test_native_smoke_exhausts_motion_programs_and_actuates_damageable_body() ->
     assert report["local_perfusion_verified"] is True
     assert report["progressive_chain_verified"] is True
     assert report["full_identity_failure_matrix"]["passed"] is True
+    assert report["reserve_aware_homeostasis_verified"] is True
+    matrix = report["homeostasis_matrix"]
+    assert matrix["passed"] is True
+    assert matrix["respiratory"]["initial"]["consciousness"] > 0.5
+    assert matrix["respiratory"]["time_to_incapacitation"] > 0.0
+    assert matrix["respiratory"]["final_oxygen"] < 0.14
+    assert matrix["brain"]["initial"]["consciousness"] == 0.0
+    assert matrix["digestive"]["initial"]["reproduction"] == 0.0
     assert set(report["system_core_failures"]) == {
         "circulation", "respiration", "digestion", "neural", "sensory",
         "locomotion", "reproduction", "immune",

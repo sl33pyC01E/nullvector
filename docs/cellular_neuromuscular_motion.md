@@ -57,6 +57,17 @@ reproductive damage prevents offspring. The native smoke independently removes
 each system's physical core and requires all eight corresponding capacities to
 fall to zero.
 
+The sealed connected-organ capacity remains the structural authority, while a
+separate reserve-aware functional layer determines what the organism can do at
+this instant. A torn-out brain removes consciousness and deliberate motion
+immediately. A destroyed lung leaves a brief oxygen reserve, then progressively
+weakens perception and appendage actuation before incapacitation. A failed
+heart drives circulatory shock, a destroyed digestive core prevents feeding
+energy from supporting reproduction and repair, and low energy suppresses
+motion even when the relevant tissue is still physically connected. The same
+functional capacities now gate clotting, healing, locomotion, digestion, and
+reproduction instead of serving only as status-panel diagnostics.
+
 Cycle to `SYSTEM NETWORK` with `V`, then use `C` to inspect each system in
 place. Core cells are bright, effectors are pale-tipped, conduits use the
 system color, severed or unreachable members turn red, and system-member bonds
