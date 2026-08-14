@@ -103,6 +103,14 @@ appendage cells progressively instead of rotating each organ as a rigid card.
 Local motor-tract reachability gates those forces, so anatomical cuts are
 visible in the motion itself.
 
+Native physiology now carries the Python authority's graded widest-path
+signal rather than reducing every living conduit to a binary connection. A
+partially crushed nerve or motor cell weakens its downstream appendage before
+it dies; severance still reduces the signal to zero. System-network colors
+show this continuum from healthy system color through weak red, and clotting
+uses local circulation and immune delivery rather than intact whole-body
+counters.
+
 The compiler contact sheet is
 `outputs/cellular_motion_v2/cellular_motion_contact_sheet.png`. It shows one
 family representative at the principal event pose for every motion. The native

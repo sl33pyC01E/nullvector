@@ -116,6 +116,18 @@ def test_network_delivery_is_member_restricted_and_local() -> None:
     assert candidate.capacities()["locomotion"] < 1.0
 
 
+def test_partial_motor_cell_injury_produces_graded_delivery_before_death() -> None:
+    _, arrays, overlay, _ = _representative(0)
+    system_id = SYSTEM_NAMES.index("locomotion")
+    state = PhysiologyState(arrays, overlay)
+    effector = int(np.flatnonzero(overlay["system_role"][system_id] == 3)[0])
+    baseline = state.capacities()["locomotion"]
+    state.health[effector] = state.max_health[effector] * np.float32(0.37)
+    delivery = state.network_delivery()["locomotion"]
+    assert np.isclose(delivery[effector], 0.37, atol=1e-6)
+    assert 0.0 < state.capacities()["locomotion"] < baseline
+
+
 def test_published_physiology_bank_is_hash_closed_and_exactly_replayable() -> None:
     validation = validate_bank(BANK); replay = replay_bank(BANK)
     assert validation["passed"] is True and validation["identity_count"] == 45

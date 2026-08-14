@@ -117,7 +117,7 @@ def _build_files(source_manifest: Path) -> tuple[dict[str, bytes], dict[str, obj
         identities.append({"sample_id": record["sample_id"], "ordinal": record["ordinal"], "family": record["family"], "family_id": record["family_id"], "source_anatomy_sha256": record["anatomy_sha256"], "source_physiology_sha256": p_record["arrays_semantic_sha256"], "profile": profile, "arrays_semantic_sha256": _arrays_sha256(arrays), "arrays": artifact_record_from_bytes(relative, payload)})
     contact = _contact_sheet(anatomy_path.parent, source, source_manifest.parent, physiology_by_id); files["cellular_trauma_contact_sheet.png"] = contact
     manifest: dict[str, object] = {
-        "format": FORMAT, "status": "ready", "quality_tier": "connected-wound-clot-scar-fragment-fate-v1",
+        "format": FORMAT, "status": "ready", "quality_tier": "connected-wound-clot-scar-fragment-fate-local-delivery-v2",
         "compiler": {"source_sha256": source_sha256(), "python_runtime_required": False},
         "source": {"physiology_manifest": source_manifest.relative_to(PROJECT_ROOT).as_posix(), "physiology_manifest_sha256": sha256_file(source_manifest), "physiology_semantic_sha256": physiology["semantic_sha256"], "physiology_validation": physiology_validation, "anatomy_manifest_sha256": sha256_file(anatomy_path)},
         "array_format": ARRAY_FORMAT, "heal_class_vocab": list(HEAL_CLASS_NAMES), "identity_count": len(identities), "total_cells": total_cells, "total_bonds": total_bonds, "fragment_fate_counts": fate_counts, "identities": identities,

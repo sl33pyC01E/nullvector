@@ -48,7 +48,7 @@ The native projection is built with:
 
 ```powershell
 python -m forge.cellular_physiology_sync `
-  --destination game/generated/cellular_physiology/v4_2 `
+  --destination game/generated/cellular_physiology/v5 `
   --report outputs/cellular_physiology_sync_v4_2.json
 ```
 
@@ -59,8 +59,11 @@ circulation, and repair capacity; respiratory failure depletes oxygen and
 injures neural tissue; low circulation causes systemic damage; neural and
 locomotor capacity scale intentional spring forces; reproduction requires a
 functional reproductive system. Locomotor force is gated again at each cell by
-its living motor-system route, so severing one tract can make one appendage go
-limp without freezing an intact limb. The headless native smoke destroys the brain
+its graded living motor-system route, so crushing one tract progressively
+weakens its downstream appendage and severing it can make that appendage go
+limp without freezing an intact limb. Wound clotting also requires local
+circulatory and immune delivery at that pixel; a detached fragment cannot
+borrow the main body's global capacity. The headless native smoke destroys the brain
 core of a diagnostic offspring and proves that neural/locomotor capacity reaches
 zero while circulation remains functional. It also proves member-restricted
 routing and progressive root-to-tip appendage coordinates. Python is not

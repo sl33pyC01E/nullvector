@@ -20,7 +20,7 @@ def test_native_catalog_validates_when_present() -> None:
 
 def test_ecology_scene_uses_current_motion_physiology_and_trauma_bundles() -> None:
     scene = (ROOT / "game/CellularEcologyLab.tscn").read_text(encoding="utf-8"); script = (ROOT / "game/scripts/cellular_ecology_lab.gd").read_text(encoding="utf-8")
-    for path in ("cellular_motion/v4", "cellular_physiology/v3", "cellular_trauma/v1", "cellular_ecology/v1"):
+    for path in ("cellular_motion/v6", "cellular_physiology/v5", "cellular_trauma/v2", "cellular_ecology/v2"):
         assert path in scene
     for feature in (
         "_resource_affinity", "_is_resource_cell", "_step_ecology_motility",
@@ -31,8 +31,8 @@ def test_ecology_scene_uses_current_motion_physiology_and_trauma_bundles() -> No
 
 
 def test_godot_ecology_smoke_proves_differentiated_metabolism_and_resource_seeking() -> None:
-    report = json.loads((ROOT / "outputs/cellular_ecology_godot_report_v3.json").read_text(encoding="utf-8"))
-    assert report["format"] == "nullvector-cellular-ecology-godot-smoke-v3" and report["passed"] is True
+    report = json.loads((ROOT / "outputs/cellular_ecology_godot_report_v4.json").read_text(encoding="utf-8"))
+    assert report["format"] == "nullvector-cellular-ecology-godot-smoke-v4" and report["passed"] is True
     assert report["differentiated_metabolism_verified"] is True
     assert report["autonomous_motion_verified"] is True
     assert report["action_cycle_verified"] is True
