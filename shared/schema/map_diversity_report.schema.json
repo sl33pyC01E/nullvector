@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nullvector structural map diversity report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "audit_source_sha256", "schedule", "config", "feature_contract", "records", "aggregate", "gates", "report_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-map-structural-diversity-audit-v1"},
+    "status": {"const": "ready"},
+    "audit_source_sha256": {"$ref": "#/$defs/hash"},
+    "schedule": {"type": "object", "additionalProperties": false, "required": ["base_seed", "samples_per_theme", "themes"], "properties": {"base_seed": {"type": "string", "pattern": "^0x[0-9a-f]{16}$"}, "samples_per_theme": {"type": "integer", "minimum": 3, "maximum": 64}, "themes": {"const": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]}}},
+    "config": {"type": "object", "additionalProperties": {"type": "integer"}, "required": ["width", "height", "objective_count", "spawn_count", "min_start_exit_distance", "spawn_clearance_start", "spawn_clearance_objective", "spawn_clearance_hazard"]},
+    "feature_contract": {"type": "object", "additionalProperties": false, "required": ["names", "scalar_quantization_step", "spatial_quantization_step", "sha256"], "properties": {"names": {"type": "array", "minItems": 83, "maxItems": 83, "uniqueItems": true, "items": {"type": "string"}}, "scalar_quantization_step": {"const": 0.02}, "spatial_quantization_step": {"const": 0.125}, "sha256": {"$ref": "#/$defs/hash"}}},
+    "records": {"type": "array", "minItems": 18, "maxItems": 384, "items": {"$ref": "#/$defs/record"}},
+    "aggregate": {"type": "object", "required": ["map_count", "unique_semantic_count", "unique_coarse_topology_count", "semantic_unique_fraction", "coarse_topology_unique_fraction", "retained_feature_count", "leave_one_out_accuracy", "mean_true_theme_margin", "minimum_centroid_distance", "per_theme"]},
+    "gates": {"type": "object", "minProperties": 7, "additionalProperties": {"const": true}},
+    "report_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "record": {"type": "object", "additionalProperties": false, "required": ["map_id", "theme", "sample_index", "seed", "semantic_sha256", "coarse_topology_sha256", "feature_values", "validation_failure_count", "classification"], "properties": {"map_id": {"type": "string"}, "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]}, "sample_index": {"type": "integer", "minimum": 0}, "seed": {"type": "string", "pattern": "^0x[0-9a-f]{16}$"}, "semantic_sha256": {"$ref": "#/$defs/hash"}, "coarse_topology_sha256": {"$ref": "#/$defs/hash"}, "feature_values": {"type": "array", "minItems": 83, "maxItems": 83, "items": {"type": "number"}}, "validation_failure_count": {"const": 0}, "classification": {"type": "object", "additionalProperties": false, "required": ["predicted_theme", "correct", "true_theme_margin", "distances"], "properties": {"predicted_theme": {"type": "string"}, "correct": {"type": "boolean"}, "true_theme_margin": {"type": "number"}, "distances": {"type": "object", "minProperties": 6, "maxProperties": 6, "additionalProperties": {"type": "number"}}}}}}
+  }
+}

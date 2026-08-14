@@ -76,3 +76,9 @@ python -m forge.maps fuzz --count 500 --report outputs/maps_v2/fuzz_report.json
 ```
 
 Generation checks `forge.safety.require_disk_floor` before every batch and every atomic file write. A complete pack is staged in a unique directory and published by one rename. Existing valid packs are validated and reused by default; they are never overwritten or deleted. The fixed disk floor is 100 GiB free after planned writes.
+
+Byte uniqueness alone is not accepted as evidence of map variety. The
+additive structural audit in `forge.map_diversity` measures graph branching,
+cycles, corridor widths, coarse occupancy, hazards, elevation, zones, and
+theme separability across a fixed 48-map seed matrix. See
+`docs/map_structural_diversity.md`.
