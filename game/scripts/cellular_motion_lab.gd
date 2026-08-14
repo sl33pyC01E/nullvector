@@ -9,6 +9,8 @@ const PHYSIOLOGY_RUNTIME_FORMAT := "nullvector-connected-cellular-physiology-run
 const TRAUMA_FORMAT := "nullvector-cellular-trauma-native-catalog-v1"
 const TRAUMA_RUNTIME_FORMAT := "nullvector-cellular-trauma-runtime-v1"
 const SYSTEM_NAMES := ["circulation", "respiration", "digestion", "neural", "sensory", "locomotion", "reproduction", "immune"]
+const MOTION_VIEW_NAMES := ["PHENOTYPE", "ORGANS", "FLUID / PRESSURE", "HEALTH", "TISSUE", "SYSTEM NETWORK"]
+const SYSTEM_COLORS := [Color("#ff4d67"), Color("#51d9ff"), Color("#ffb347"), Color("#b879ff"), Color("#ffe761"), Color("#69ff91"), Color("#ff70c8"), Color("#70e8c1")]
 
 @export_file("*.json") var motion_catalog_path := "res://generated/cellular_motion/v4/motion_catalog.json"
 @export_file("*.json") var physiology_catalog_path := "res://generated/cellular_physiology/v3/catalog.json"
@@ -24,6 +26,7 @@ var trauma_catalog: Dictionary = {}
 var trauma_identities: Dictionary = {}
 var selected_motion := 0
 var selected_facing := 0
+var selected_system := 0
 var motion_epoch := 0.0
 var last_event_frame := -1
 var motion_label: Label
@@ -113,7 +116,7 @@ func _build_motion_overlay() -> void:
 	var panel := _panel(canvas, Rect2(850, 98, 384, 70))
 	motion_label = _label(panel, Vector2(12, 8), Vector2(360, 22), "MOTION", CYAN, 10)
 	driver_label = _label(panel, Vector2(12, 32), Vector2(360, 28), "DRIVERS", MUTED, 8)
-	controls_label.text += "\nW/S motion  Arrows facing"
+	controls_label.text += "\nW/S motion  Arrows facing  C system"
 
 
 func _create_organism(data: Dictionary, center: Vector2, generation: int, mutation_seed: int) -> Dictionary:
@@ -552,8 +555,37 @@ func _can_reproduce(organism: Dictionary) -> bool:
 	return float(organism.get("physiology_capacities", {}).get("reproduction", 0.0)) >= 0.62 and super(organism)
 
 
+func _draw_organism(organism: Dictionary) -> void:
+	if view_mode == 5: _draw_physiology_network(organism)
+	super(organism)
+
+
+func _draw_physiology_network(organism: Dictionary) -> void:
+	var roles: Array = organism.get("physiology_role", [])
+	if selected_system < 0 or selected_system >= roles.size(): return
+	var role_row: Array = roles[selected_system]; var reachable := _physiology_reachable(organism, role_row)
+	organism["physiology_view_reachable"] = reachable
+	var color: Color = SYSTEM_COLORS[selected_system]
+	for bond_index in range(organism["bond_ab"].size()):
+		var pair: Array = organism["bond_ab"][bond_index]; var a := int(pair[0]); var b := int(pair[1])
+		if int(role_row[a]) == 0 or int(role_row[b]) == 0: continue
+		var connected: bool = bool(organism["bond_alive"][bond_index]) and bool(organism["alive"][a]) and bool(organism["alive"][b])
+		var bond_color := Color(color.r, color.g, color.b, 0.42) if connected else Color(1.0, 0.16, 0.28, 0.72)
+		draw_line(organism["position"][a], organism["position"][b], bond_color, 1.35)
+
+
 func _cell_color(organism: Dictionary, index: int) -> Color:
-	var color: Color = super(organism, index)
+	var color: Color
+	if view_mode == 5:
+		var roles: Array = organism.get("physiology_role", []); var role := int(roles[selected_system][index]) if selected_system >= 0 and selected_system < roles.size() else 0
+		color = Color("#101b24")
+		if role > 0:
+			color = SYSTEM_COLORS[selected_system]
+			if role == 1: color = color.lerp(Color.WHITE, 0.68)
+			elif role == 3: color = color.lerp(Color("#fff2a8"), 0.38)
+			if not organism.get("physiology_view_reachable", {}).has(str(index)): color = color.lerp(Color("#ff274d"), 0.72)
+	else:
+		color = super(organism, index)
 	if int(organism["emission"][index]) > 0:
 		var pulse: float = clampf(float(organism.get("motion_emission_pulse", 0.0)), 0.0, 1.0)
 		color = color.lerp(Color.WHITE, pulse * 0.24)
@@ -575,6 +607,18 @@ func _select_facing(delta: int) -> void:
 	_event("FACING // " + str(EXPECTED_FACINGS[selected_facing]).to_upper(), LIME); _refresh_motion_overlay()
 
 
+func _select_system(delta: int) -> void:
+	selected_system = posmod(selected_system + delta, SYSTEM_NAMES.size())
+	_event("SYSTEM // " + str(SYSTEM_NAMES[selected_system]).to_upper(), SYSTEM_COLORS[selected_system])
+	_refresh_motion_overlay(); queue_redraw()
+
+
+func _cycle_view() -> void:
+	view_mode = (view_mode + 1) % MOTION_VIEW_NAMES.size()
+	view_label.text = "VIEW // " + MOTION_VIEW_NAMES[view_mode]
+	_refresh_motion_overlay(); queue_redraw()
+
+
 func _refresh_motion_overlay() -> void:
 	if motion_label == null: return
 	if _uses_autonomous_motion():
@@ -589,6 +633,7 @@ func _refresh_motion_overlay() -> void:
 		if organisms.is_empty(): driver_label.text = "PER-ORGANISM MOTION // ORGAN CAPACITY GATED"; return
 		var first_capacity: Dictionary = organisms[0].get("physiology_capacities", {})
 		driver_label.text = "%s // BRAIN %3d  HEART %3d  LUNG %3d  LIMB %3d" % [str(organisms[0].get("motion_behavior", "?")).to_upper(), int(float(first_capacity.get("neural", 0.0)) * 100.0), int(float(first_capacity.get("circulation", 0.0)) * 100.0), int(float(first_capacity.get("respiration", 0.0)) * 100.0), int(float(first_capacity.get("locomotion", 0.0)) * 100.0)]
+		if view_mode == 5: driver_label.text += " // %s %d" % [str(SYSTEM_NAMES[selected_system]).to_upper(), int(float(first_capacity.get(SYSTEM_NAMES[selected_system], 0.0)) * 100.0)]
 		return
 	var clip := _current_clip(int(organisms[0]["data"].get("family_id", 0))) if not organisms.is_empty() else {}
 	motion_label.text = "%s // %s // %s" % [str(EXPECTED_MOTIONS[selected_motion]).to_upper(), str(EXPECTED_FACINGS[selected_facing]).to_upper(), "%d FPS" % int(clip.get("fps", 0))]
@@ -596,6 +641,7 @@ func _refresh_motion_overlay() -> void:
 	var capacity: Dictionary = organisms[0].get("physiology_capacities", {})
 	var scar_mean := _sum_float(organisms[0].get("trauma_scar", [])) / maxf(1.0, float(organisms[0]["alive"].size()))
 	driver_label.text = "BRAIN %3d  HEART %3d  LUNG %3d  GUT %3d  SCAR %2d  POLYP %d" % [int(float(capacity.get("neural", 0.0)) * 100.0), int(float(capacity.get("circulation", 0.0)) * 100.0), int(float(capacity.get("respiration", 0.0)) * 100.0), int(float(capacity.get("digestion", 0.0)) * 100.0), int(scar_mean * 100.0), int(organisms[0].get("trauma_polyps", 0))]
+	if view_mode == 5: driver_label.text += " // %s %d" % [str(SYSTEM_NAMES[selected_system]).to_upper(), int(float(capacity.get(SYSTEM_NAMES[selected_system], 0.0)) * 100.0)]
 
 
 func _refresh_labels() -> void:
@@ -611,6 +657,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_S: _select_motion(1)
 			KEY_LEFT: _select_facing(-1)
 			KEY_RIGHT: _select_facing(1)
+			KEY_C: _select_system(1)
 
 
 func _diagnostic_detach_component(organism: Dictionary, minimum_cells: int) -> Array:
@@ -655,10 +702,23 @@ func _run_motion_smoke() -> void:
 				seen[key] = true; mapped_organs += 1
 		if seen.size() != int(identity.get("organ_count", -1)): errors.append("organ channel census")
 	if clip_count != 520 or frame_count != 4720: errors.append("motion totals")
-	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var trauma_reconnection_verified := false; var plant_polyp_verified := false
+	var actuation_velocity := 0.0; var trauma := {"killed": 0, "bonds": 0}; var population := organisms.size(); var physiology_core_damage_verified := false; var all_system_core_failures_verified := false; var system_core_failures: Dictionary = {}; var system_view_verified := false; var trauma_reconnection_verified := false; var plant_polyp_verified := false
 	if not organisms.is_empty():
 		var baseline_capacity := _compute_physiology_capacities(organisms[0])
 		if baseline_capacity.size() != 8 or baseline_capacity.values().any(func(value): return float(value) < 0.99): errors.append("physiology baseline")
+		var original_view := view_mode; var original_system := selected_system; var view_cells := 0
+		view_mode = 5
+		for system_id in range(SYSTEM_NAMES.size()):
+			selected_system = system_id; var role_row: Array = organisms[0].get("physiology_role", [])[system_id]
+			organisms[0]["physiology_view_reachable"] = _physiology_reachable(organisms[0], role_row)
+			for index in range(role_row.size()):
+				if int(role_row[index]) > 0:
+					var view_color := _cell_color(organisms[0], index)
+					if not is_finite(view_color.r + view_color.g + view_color.b): errors.append("system view color")
+					view_cells += 1
+		view_mode = original_view; selected_system = original_system
+		system_view_verified = view_cells > 0
+		if not system_view_verified: errors.append("system view membership")
 		system_core_failures = _diagnostic_system_core_failures(organisms[0])
 		all_system_core_failures_verified = system_core_failures.size() == SYSTEM_NAMES.size()
 		for system_name in SYSTEM_NAMES:
@@ -698,7 +758,7 @@ func _run_motion_smoke() -> void:
 			_step_trauma_components(plant, float(plant["trauma_profile"].get("reconnect_window_seconds", 15.0)) + 0.1)
 			plant_polyp_verified = detached.all(func(index): return str(plant["trauma_fragment_fate"][int(index)]) == "polyp")
 	if not plant_polyp_verified: errors.append("plant polyp fate")
-	var report := {"format": "nullvector-cellular-motion-godot-smoke-v4", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "all_system_core_failures_verified": all_system_core_failures_verified, "system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
+	var report := {"format": "nullvector-cellular-motion-godot-smoke-v4", "passed": errors.is_empty(), "errors": errors, "engine": Engine.get_version_info().get("string", ""), "motion_bundle_id": motion_catalog.get("bundle_id", ""), "physiology_bundle_id": physiology_catalog.get("bundle_id", ""), "trauma_bundle_id": trauma_catalog.get("bundle_id", ""), "organism_bundle_id": catalog.get("bundle_id", ""), "identity_count": motion_catalog.get("identity_count", 0), "physiology_identity_count": physiology_catalog.get("identity_count", 0), "physiology_system_count": physiology_catalog.get("system_count", 0), "trauma_identity_count": trauma_catalog.get("identity_count", 0), "physiology_core_damage_verified": physiology_core_damage_verified, "all_system_core_failures_verified": all_system_core_failures_verified, "system_view_verified": system_view_verified, "system_core_failures": system_core_failures, "trauma_reconnection_verified": trauma_reconnection_verified, "plant_polyp_verified": plant_polyp_verified, "clip_count": clip_count, "frame_count": frame_count, "event_count": event_count, "mapped_organs": mapped_organs, "actuation_velocity": actuation_velocity, "damage_killed": trauma["killed"], "damage_bonds": trauma["bonds"], "population_after_reproduction": population, "python_runtime_required": false}
 	if not report_path.is_empty():
 		var file := FileAccess.open(report_path, FileAccess.WRITE)
 		if file != null: file.store_string(JSON.stringify(report, "  ", true) + "\n")

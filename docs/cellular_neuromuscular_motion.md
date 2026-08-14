@@ -57,6 +57,13 @@ reproductive damage prevents offspring. The native smoke independently removes
 each system's physical core and requires all eight corresponding capacities to
 fall to zero.
 
+Cycle to `SYSTEM NETWORK` with `V`, then use `C` to inspect each system in
+place. Core cells are bright, effectors are pale-tipped, conduits use the
+system color, severed or unreachable members turn red, and system-member bonds
+are drawn over the ordinary body springs. The live overlay reports the selected
+network's remaining capacity, so a tear can be followed from broken conduit to
+lost function without leaving the simulation.
+
 The additive trauma overlay now gives those injuries persistent wound state:
 open bonds clot, recent tears attract weakly toward their matching endpoint,
 successful reconnection leaves scar tissue, and expired fragments become

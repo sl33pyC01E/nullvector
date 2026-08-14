@@ -29,6 +29,7 @@ def test_native_scene_uses_live_organ_drivers_not_sprite_frames() -> None:
         "_apply_motion_force", "_channel_driver", "_neural_reachable_cells",
         "_channel_integrities", "_current_frame", "_set_organism_motion",
         "motion_last_event_frame", "_diagnostic_system_core_failures",
+        "_draw_physiology_network", "SYSTEM NETWORK", "_select_system",
     ):
         assert feature in script
     assert "AtlasTexture" not in script and "Sprite2D" not in script
@@ -43,6 +44,7 @@ def test_native_smoke_exhausts_motion_programs_and_actuates_damageable_body() ->
     assert report["actuation_velocity"] > 100.0
     assert report["damage_killed"] > 0 and report["damage_bonds"] > 0
     assert report["all_system_core_failures_verified"] is True
+    assert report["system_view_verified"] is True
     assert set(report["system_core_failures"]) == {
         "circulation", "respiration", "digestion", "neural", "sensory",
         "locomotion", "reproduction", "immune",
