@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature_stage_neural_motion_rollout_smoke.schema.json",
+  "title": "NULLVECTOR prediction-fed cellular motion rollout smoke",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "source_sha256", "parent_model_source_sha256",
+    "teacher", "model", "training", "steps", "history", "checkpoint",
+    "diagnostics", "gates", "semantic_sha256"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-neural-motion-rollout-smoke-v1"},
+    "status": {"const": "passed"},
+    "source_sha256": {"$ref": "#/$defs/sha256"},
+    "parent_model_source_sha256": {"$ref": "#/$defs/sha256"},
+    "teacher": {"type": "object"},
+    "model": {"type": "object"},
+    "training": {"type": "object"},
+    "steps": {"type": "integer", "minimum": 2, "maximum": 16},
+    "history": {"type": "array", "minItems": 2, "maxItems": 16},
+    "checkpoint": {"type": "object"},
+    "diagnostics": {"type": "object"},
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_values_finite", "all_five_families", "prediction_fed_after_frame_zero",
+        "fixed_sequence_loss_improved", "outside_cells_exact_zero",
+        "appendage_motion_nonzero", "energy_ratio_positive", "gradient_nonzero"
+      ],
+      "properties": {
+        "all_values_finite": {"const": true},
+        "all_five_families": {"const": true},
+        "prediction_fed_after_frame_zero": {"const": true},
+        "fixed_sequence_loss_improved": {"const": true},
+        "outside_cells_exact_zero": {"const": true},
+        "appendage_motion_nonzero": {"const": true},
+        "energy_ratio_positive": {"const": true},
+        "gradient_nonzero": {"const": true}
+      }
+    },
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
