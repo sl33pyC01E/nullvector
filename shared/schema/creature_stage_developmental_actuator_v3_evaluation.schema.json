@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "production", "checkpoint", "teacher_semantic_sha256", "device", "specimens", "metrics", "gates", "contact_sheet", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-developmental-length-projected-evaluation-v3"},
+    "status": {"enum": ["passed", "failed-quality"]},
+    "source_sha256": {"$ref": "#/$defs/hash"},
+    "production": {"$ref": "#/$defs/authority"},
+    "checkpoint": {"type": "object", "additionalProperties": false, "required": ["path", "update", "sha256", "ema_state_sha256"], "properties": {"path": {"type": "string"}, "update": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/hash"}, "ema_state_sha256": {"$ref": "#/$defs/hash"}}},
+    "teacher_semantic_sha256": {"$ref": "#/$defs/hash"},
+    "device": {"type": "string"},
+    "specimens": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"type": "object"}},
+    "metrics": {"type": "object", "minProperties": 10},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"type": "boolean"}},
+    "contact_sheet": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "visually_inspected"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/hash"}, "visually_inspected": {"type": "boolean"}}},
+    "semantic_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authority": {"type": "object", "additionalProperties": false, "required": ["path", "semantic_sha256"], "properties": {"path": {"type": "string"}, "semantic_sha256": {"$ref": "#/$defs/hash"}}}
+  }
+}

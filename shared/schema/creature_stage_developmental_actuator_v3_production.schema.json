@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "source_sha256", "teacher", "prior", "v2_seed", "model", "projection", "training", "finetune_teacher_forcing", "seed", "total_updates", "segment_updates", "batch_size", "optimizer", "ema_decay", "precision", "minimum_free_vram_bytes", "minimum_free_disk_bytes", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-developmental-length-projected-production-v3"},
+    "source_sha256": {"$ref": "#/$defs/hash"},
+    "teacher": {"$ref": "#/$defs/authority"},
+    "prior": {"$ref": "#/$defs/authority"},
+    "v2_seed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "update", "ema_state_sha256", "contract_semantic_sha256"],
+      "properties": {"path": {"type": "string"}, "sha256": {"$ref": "#/$defs/hash"}, "update": {"const": 1200}, "ema_state_sha256": {"$ref": "#/$defs/hash"}, "contract_semantic_sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "model": {"type": "object", "minProperties": 11, "additionalProperties": {"type": ["integer", "number"]}},
+    "projection": {"type": "object", "additionalProperties": false, "required": ["iterations", "relaxation"], "properties": {"iterations": {"type": "integer", "minimum": 1, "maximum": 8}, "relaxation": {"type": "number", "minimum": 0.25, "maximum": 1.0}}},
+    "training": {"type": "object", "minProperties": 19, "additionalProperties": {"type": ["integer", "number"]}},
+    "finetune_teacher_forcing": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "number", "minimum": 0, "maximum": 0.1}, "end": {"const": 0.0}}},
+    "seed": {"type": "integer", "minimum": 0},
+    "total_updates": {"type": "integer", "minimum": 200, "maximum": 3000},
+    "segment_updates": {"type": "integer", "minimum": 25, "maximum": 100},
+    "batch_size": {"type": "integer", "minimum": 5, "maximum": 20},
+    "optimizer": {"type": "object", "additionalProperties": false, "required": ["name", "lr", "weight_decay", "warmup_updates", "gradient_clip"], "properties": {"name": {"const": "AdamW"}, "lr": {"type": "number", "exclusiveMinimum": 0}, "weight_decay": {"type": "number", "minimum": 0}, "warmup_updates": {"type": "integer", "minimum": 1}, "gradient_clip": {"type": "number", "exclusiveMinimum": 0}}},
+    "ema_decay": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+    "precision": {"const": "bf16-autocast-float32-loss"},
+    "minimum_free_vram_bytes": {"type": "integer", "minimum": 4294967296},
+    "minimum_free_disk_bytes": {"type": "integer", "minimum": 107374182400},
+    "semantic_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authority": {"type": "object", "additionalProperties": false, "required": ["path", "semantic_sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "semantic_sha256": {"$ref": "#/$defs/hash"}}}
+  }
+}
