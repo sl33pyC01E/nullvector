@@ -41,6 +41,12 @@ The native scaffold also emits strict 240-transition causal teacher rollouts.
 hash, state continuity, controls, organ conservation, physiology, and action
 coverage before they are admitted to neural training data.
 
+Playable morphology now includes four named chassis programs in each of the
+five families (20 total). A 160-specimen native audit verifies connectivity,
+vital organs, soft symmetry, 2.5D organ ordering, morphotype coverage, and
+within-family signature diversity. The labeled native contact sheet is written
+to `outputs/creature_stage_scaffold/morphology_contact2.png`.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical

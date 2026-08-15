@@ -77,6 +77,7 @@ var capture_frame_count := 0
 var trace_output_path := ""
 var trace_step := 0
 var trace_records: Array = []
+var morphology_gallery_mode := false
 
 var ui_layer: CanvasLayer
 var selection_overlay: Control
@@ -97,15 +98,24 @@ var population_label: Label
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	rng.seed = WORLD_SEED
+	var morphology_audit_path := _argument_value("--creature-stage-morphology-audit=")
+	if not morphology_audit_path.is_empty():
+		call_deferred("_run_morphology_audit", morphology_audit_path)
+		return
 	_build_world()
 	_build_camera()
 	_build_ui()
 	_spawn_initial_ecology()
 	var capture_path := _argument_value("--creature-stage-capture=")
+	var morphology_capture_path := _argument_value("--creature-stage-morphology-capture=")
 	var trace_path := _argument_value("--creature-stage-trace=")
 	if "--creature-stage-smoke" in OS.get_cmdline_user_args():
 		_start_as_family(0)
 		call_deferred("_run_smoke")
+	elif not morphology_capture_path.is_empty():
+		_setup_morphology_gallery()
+		capture_output_path = morphology_capture_path
+		set_process(true)
 	elif not capture_path.is_empty():
 		_start_as_family(0)
 		capture_output_path = capture_path
@@ -251,6 +261,39 @@ func _family_blurb(family_id: int) -> String:
 		"Phase / transmuter\nBlink, distort, feed on flux",
 		"Tool chassis / lithovore\nMine, shoot, construct",
 	][family_id]
+
+
+func _setup_morphology_gallery() -> void:
+	for record in entities:
+		var body: Node2D = record["body"]
+		if is_instance_valid(body):
+			body.queue_free()
+	entities.clear()
+	morphology_gallery_mode = true
+	neural_world.visible = false
+	selection_overlay.visible = false
+	ui_layer.visible = false
+	for family_id in range(5):
+		for morphotype_id in range(4):
+			var seed := 0x5A170000 + family_id * 0x1000 + morphotype_id
+			var blueprint := Neural.decode_morphology(family_id, seed, 0)
+			var body := Creature.new()
+			body.configure(blueprint)
+			body.position = Vector2(-480 + family_id * 240, -225 + morphotype_id * 150)
+			body.z_index = 5
+			add_child(body)
+			var label := Label.new()
+			label.position = body.position + Vector2(-98, 55)
+			label.size = Vector2(196, 20)
+			label.text = "%s // %s" % [str(blueprint["family"]).to_upper(), str(blueprint["morphotype"]).to_upper()]
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.add_theme_font_size_override("font_size", 9)
+			label.add_theme_color_override("font_color", Neural.FAMILY_COLORS[family_id])
+			label.z_index = 20
+			add_child(label)
+	camera.position = Vector2.ZERO
+	started = false
+	queue_redraw()
 
 
 func _start_as_family(family_id: int) -> void:
@@ -904,6 +947,12 @@ func _log_event(text: String) -> void:
 
 
 func _draw() -> void:
+	if morphology_gallery_mode:
+		draw_rect(Rect2(Vector2(-640, -360), VIEW_SIZE), Color("#061419"), true)
+		for x in range(-600, 601, 40):
+			draw_line(Vector2(x, -360), Vector2(x, 360), Color(0.12, 0.32, 0.34, 0.08), 1.0)
+		for y in range(-320, 321, 40):
+			draw_line(Vector2(-640, y), Vector2(640, y), Color(0.12, 0.32, 0.34, 0.08), 1.0)
 	for shot in projectiles:
 		var color: Color = shot["color"]
 		draw_line(shot["previous"], shot["pos"], Color(color, 0.35), float(shot["radius"]) * 1.8)
@@ -964,6 +1013,87 @@ func _meter(parent: Node, position_value: Vector2, size_value: Vector2, color: C
 	meter.add_theme_stylebox_override("fill", _panel_style(color, Color.TRANSPARENT))
 	parent.add_child(meter)
 	return meter
+
+
+func _run_morphology_audit(output_path: String) -> void:
+	var required_organs := [
+		["brain", "heart", "lung", "gut", "eye"],
+		["brain", "heart", "lung", "gut", "eye"],
+		["meristem", "vascular", "frond", "bulb", "photoreceptor"],
+		["phase_brain", "flux", "orbital", "transmuter", "singularity"],
+		["processor", "coolant_pump", "radiator", "battery", "optic"],
+	]
+	var specimens: Array = []
+	var failures: Array[String] = []
+	var family_summary: Dictionary = {}
+	for family_id in range(5):
+		var signatures: Dictionary = {}
+		var morphotypes: Dictionary = {}
+		var symmetry_sum := 0.0
+		var minimum_symmetry := 1.0
+		var maximum_cells := 0
+		var minimum_cells := 99999
+		for morphotype_id in range(4):
+			for sample in range(8):
+				var seed := 0x5A170000 + family_id * 0x1000 + sample * 4 + morphotype_id
+				var blueprint := Neural.decode_morphology(family_id, seed, 0)
+				var metrics: Dictionary = Neural.analyze_morphology(blueprint)
+				metrics["seed"] = seed
+				specimens.append(metrics)
+				signatures[str(metrics["signature"])] = true
+				morphotypes[str(metrics["morphotype"])] = true
+				symmetry_sum += float(metrics["symmetry"])
+				minimum_symmetry = minf(minimum_symmetry, float(metrics["symmetry"]))
+				maximum_cells = maxi(maximum_cells, int(metrics["cell_count"]))
+				minimum_cells = mini(minimum_cells, int(metrics["cell_count"]))
+				if int(metrics["morphotype_id"]) != morphotype_id:
+					failures.append("family%d seed%d morphotype mismatch" % [family_id, seed])
+				if float(metrics["connected_fraction"]) < 0.99999:
+					failures.append("family%d seed%d disconnected %.4f" % [family_id, seed, float(metrics["connected_fraction"])])
+				if not bool(metrics["vertical_ordered"]):
+					failures.append("family%d seed%d violates 2.5D organ order" % [family_id, seed])
+				if int(metrics["cell_count"]) < 70 or int(metrics["cell_count"]) > 500:
+					failures.append("family%d seed%d cell count %d" % [family_id, seed, int(metrics["cell_count"])])
+				if float(metrics["symmetry"]) < 0.48:
+					failures.append("family%d seed%d symmetry %.4f" % [family_id, seed, float(metrics["symmetry"])])
+				var organs: Array = metrics["organs"]
+				for required in required_organs[family_id]:
+					if required not in organs:
+						failures.append("family%d seed%d missing %s" % [family_id, seed, required])
+		family_summary[str(family_id)] = {
+			"family": Neural.FAMILIES[family_id],
+			"specimen_count": 32,
+			"morphotype_count": morphotypes.size(),
+			"unique_signature_count": signatures.size(),
+			"mean_symmetry": symmetry_sum / 32.0,
+			"minimum_symmetry": minimum_symmetry,
+			"cell_count_range": [minimum_cells, maximum_cells],
+		}
+		if morphotypes.size() != 4:
+			failures.append("family%d lacks all four morphotypes" % family_id)
+		if signatures.size() < 8:
+			failures.append("family%d signature diversity %d < 8" % [family_id, signatures.size()])
+	var report := {
+		"format": "nullvector-creature-stage-morphology-audit-v1",
+		"passed": failures.is_empty(),
+		"specimen_count": specimens.size(),
+		"family_count": 5,
+		"morphotypes_per_family": 4,
+		"family_summary": family_summary,
+		"failures": failures,
+		"specimens": specimens,
+	}
+	var absolute_path := output_path if output_path.is_absolute_path() else ProjectSettings.globalize_path(output_path)
+	DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir())
+	var handle := FileAccess.open(absolute_path, FileAccess.WRITE)
+	if handle == null:
+		push_error("Unable to write morphology audit: " + absolute_path)
+		get_tree().quit(1)
+		return
+	handle.store_string(JSON.stringify(report, "  ", false))
+	handle.close()
+	print("CREATURE_STAGE_MORPHOLOGY_%s specimens=%d failures=%d" % ["OK" if failures.is_empty() else "FAILED", specimens.size(), failures.size()])
+	get_tree().quit(0 if failures.is_empty() else 1)
 
 
 func _run_smoke() -> void:

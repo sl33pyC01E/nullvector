@@ -151,6 +151,23 @@ variation may cross boundaries, but validation measures family separability,
 appendage count, organ placement, chassis aspect, symmetry, topology, and
 locomotor/sensory vertical ordering.
 
+The first native scaffold exposes four named chassis programs per family:
+
+- humanoid: balanced, longarm, sixlimb, crowned;
+- animalian: quadruped, crawler, longtail, horned;
+- plantlike: treeform, rosette, runner, twin-stem;
+- anomaly: triad, cross, pentad, halo;
+- machine: tracked, walker, hover, crab.
+
+These are structural curricula, not final content categories. Continuous genes
+still vary proportion, tissue, repair, metabolism, fertility, bonds, and soft
+asymmetry inside each program. The native morphology audit covers 160 seeded
+specimens and fails on missing morphotypes, low family-local signature
+diversity, disconnected cells, missing vital organs, invalid cell counts,
+weak bilateral/radial structure, or sensory tissue below locomotive tissue.
+The current bank has 14–28 distinct metric signatures per family and replays
+byte-exactly.
+
 ## First playable loop
 
 1. Spawn as one of five neural organisms with distinct metabolism and tools.

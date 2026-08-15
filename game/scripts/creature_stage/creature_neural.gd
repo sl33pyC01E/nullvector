@@ -6,6 +6,13 @@ extends RefCounted
 ## remain the authority over morphology, sensing, and action.
 
 const FAMILIES := ["humanoid", "animalian", "plantlike", "anomaly", "machine"]
+const MORPHOTYPES := [
+	["balanced", "longarm", "sixlimb", "crowned"],
+	["quadruped", "crawler", "longtail", "horned"],
+	["treeform", "rosette", "runner", "twin_stem"],
+	["triad", "cross", "pentad", "halo"],
+	["tracked", "walker", "hover", "crab"],
+]
 const FAMILY_COLORS := [
 	Color("#4ce7ff"), Color("#ff6fb5"), Color("#9dff4f"),
 	Color("#b789ff"), Color("#ffb13b")
@@ -240,17 +247,28 @@ static func decode_morphology(family_id: int, seed: int, generation := 0) -> Dic
 	rng.seed = seed ^ (generation * 0x45D9F3B)
 	var cells: Array = []
 	var seen: Dictionary = {}
-	var asymmetry := rng.randf_range(-0.45, 0.45)
+	var morphotype_id: int = abs(seed ^ (generation * 0x9E37)) % 4
+	var asymmetry := rng.randf_range(-0.18, 0.18)
 	var width_gene := rng.randf_range(0.86, 1.18)
 	var height_gene := rng.randf_range(0.88, 1.16)
 	match family_id:
 		0: # Upright humanoid: crown, trunk, paired arms, separated legs.
-			_ellipse(cells, seen, Vector2(0, -7), Vector2(3.2 * width_gene, 2.8), "skin")
-			_ellipse(cells, seen, Vector2(0, -1), Vector2(3.7 * width_gene, 5.3 * height_gene), "skin")
-			_line(cells, seen, Vector2i(-3, -3), Vector2i(-8, 2), 1, "locomotor", "none", 0, -1)
-			_line(cells, seen, Vector2i(3, -3), Vector2i(8, 2), 1, "locomotor", "none", 1, 1)
-			_line(cells, seen, Vector2i(-2, 3), Vector2i(-3, 10), 1, "locomotor", "none", 2, -1)
-			_line(cells, seen, Vector2i(2, 3), Vector2i(3, 10), 1, "locomotor", "none", 3, 1)
+			var head_width: float = [3.2, 2.8, 3.5, 4.2][morphotype_id]
+			var trunk_width: float = [3.7, 3.2, 4.4, 3.5][morphotype_id]
+			var arm_reach: int = [8, 11, 8, 9][morphotype_id]
+			var leg_spread: int = [3, 3, 5, 4][morphotype_id]
+			_ellipse(cells, seen, Vector2(0, -7), Vector2(head_width * width_gene, 2.8), "skin")
+			_ellipse(cells, seen, Vector2(0, -1), Vector2(trunk_width * width_gene, 5.3 * height_gene), "skin")
+			_line(cells, seen, Vector2i(-3, -3), Vector2i(-arm_reach, 2), 1, "locomotor", "none", 0, -1)
+			_line(cells, seen, Vector2i(3, -3), Vector2i(arm_reach, 2), 1, "locomotor", "none", 1, 1)
+			_line(cells, seen, Vector2i(-2, 3), Vector2i(-leg_spread, 10), 1, "locomotor", "none", 2, -1)
+			_line(cells, seen, Vector2i(2, 3), Vector2i(leg_spread, 10), 1, "locomotor", "none", 3, 1)
+			if morphotype_id == 2:
+				_line(cells, seen, Vector2i(-3, 0), Vector2i(-7, 5), 1, "locomotor", "none", 6, -1)
+				_line(cells, seen, Vector2i(3, 0), Vector2i(7, 5), 1, "locomotor", "none", 7, 1)
+			elif morphotype_id == 3:
+				_line(cells, seen, Vector2i(-2, -8), Vector2i(-4, -11), 1, "sensor", "none", 6, -1)
+				_line(cells, seen, Vector2i(2, -8), Vector2i(4, -11), 1, "sensor", "none", 7, 1)
 			_ellipse(cells, seen, Vector2(0, -7), Vector2(1.8, 1.3), "neural", "brain")
 			_ellipse(cells, seen, Vector2(0, -2), Vector2(1.3, 1.5), "circulatory", "heart")
 			_ellipse(cells, seen, Vector2(-2, -1), Vector2(1.0, 1.5), "respiratory", "lung")
@@ -259,14 +277,24 @@ static func decode_morphology(family_id: int, seed: int, generation := 0) -> Dic
 			_append_cell(cells, seen, Vector2i(-1, -8), "sensor", "eye", 4, -1)
 			_append_cell(cells, seen, Vector2i(1, -8), "sensor", "eye", 5, 1)
 		1: # Animalian: broad body, four legs, muzzle/crown, tail.
-			_ellipse(cells, seen, Vector2(0, 0), Vector2(7.4 * width_gene, 4.8 * height_gene), "skin")
+			var body_width: float = [7.4, 9.2, 6.8, 8.0][morphotype_id]
+			var body_height: float = [4.8, 3.8, 5.1, 4.5][morphotype_id]
+			_ellipse(cells, seen, Vector2(0, 0), Vector2(body_width * width_gene, body_height * height_gene), "skin")
 			_ellipse(cells, seen, Vector2(0, -6), Vector2(4.5 * width_gene, 3.0), "skin")
-			for limb in range(4):
-				var side := -1 if limb % 2 == 0 else 1
-				var root_x := -5 if limb < 2 else 5
-				var foot_x := root_x + side * 2
-				_line(cells, seen, Vector2i(root_x, 2), Vector2i(foot_x, 9), 1, "locomotor", "none", limb, side)
-			_line(cells, seen, Vector2i(6, 0), Vector2i(11, 3 + roundi(asymmetry)), 1, "locomotor", "none", 4, 1)
+			var leg_pairs := 3 if morphotype_id == 1 else 2
+			var appendage_index := 0
+			for pair in range(leg_pairs):
+				var root_y := -1 + pair * 3
+				var root_x := roundi(body_width * 0.68)
+				_line(cells, seen, Vector2i(-root_x, root_y), Vector2i(-root_x - 2, 9 + pair), 1, "locomotor", "none", appendage_index, -1)
+				appendage_index += 1
+				_line(cells, seen, Vector2i(root_x, root_y), Vector2i(root_x + 2, 9 + pair), 1, "locomotor", "none", appendage_index, 1)
+				appendage_index += 1
+			var tail_reach := 15 if morphotype_id == 2 else 11
+			_line(cells, seen, Vector2i(roundi(body_width - 1.0), 0), Vector2i(tail_reach, 3 + roundi(asymmetry)), 1, "locomotor", "none", appendage_index, 1)
+			if morphotype_id == 3:
+				_line(cells, seen, Vector2i(-2, -7), Vector2i(-4, -11), 1, "weapon", "none", appendage_index + 1, -1)
+				_line(cells, seen, Vector2i(2, -7), Vector2i(4, -11), 1, "weapon", "none", appendage_index + 2, 1)
 			_ellipse(cells, seen, Vector2(0, -5), Vector2(2.0, 1.5), "neural", "brain")
 			_ellipse(cells, seen, Vector2(-1.5, -1), Vector2(1.4, 1.4), "circulatory", "heart")
 			_ellipse(cells, seen, Vector2(2, -1), Vector2(1.8, 1.4), "respiratory", "lung")
@@ -274,38 +302,75 @@ static func decode_morphology(family_id: int, seed: int, generation := 0) -> Dic
 			_append_cell(cells, seen, Vector2i(-2, -7), "sensor", "eye", 5, -1)
 			_append_cell(cells, seen, Vector2i(2, -7), "sensor", "eye", 6, 1)
 		2: # Plantlike: root plate, stem, crown/fronds, bulbs and runners.
-			_ellipse(cells, seen, Vector2(0, 4), Vector2(5.2 * width_gene, 3.6), "root", "root")
-			_line(cells, seen, Vector2i(0, 5), Vector2i(0, -7), 2, "structure", "stem")
+			var root_width: float = [5.2, 7.2, 5.8, 6.0][morphotype_id]
+			var stem_top: int = [-7, -5, -8, -9][morphotype_id]
+			_ellipse(cells, seen, Vector2(0, 4), Vector2(root_width * width_gene, 3.6), "root", "root")
+			_line(cells, seen, Vector2i(0, 5), Vector2i(0, stem_top), 2, "structure", "stem")
 			_ellipse(cells, seen, Vector2(0, -7), Vector2(3.3, 2.6), "storage", "bulb")
-			for branch in range(3):
+			var branch_pairs: int = [3, 4, 2, 4][morphotype_id]
+			for branch in range(branch_pairs):
 				var y := -2 - branch * 2
-				var reach := 5 + branch
+				var reach := (7 if morphotype_id == 1 else 5) + branch
 				_line(cells, seen, Vector2i(-1, y), Vector2i(-reach, y - 2), 1, "skin", "frond", branch * 2, -1)
 				_line(cells, seen, Vector2i(1, y), Vector2i(reach, y - 2), 1, "skin", "frond", branch * 2 + 1, 1)
-			_line(cells, seen, Vector2i(-3, 5), Vector2i(-10, 8), 1, "root", "runner", 6, -1)
-			_line(cells, seen, Vector2i(3, 5), Vector2i(10, 8), 1, "root", "runner", 7, 1)
+			var runner_reach := 14 if morphotype_id == 2 else 10
+			_line(cells, seen, Vector2i(-3, 5), Vector2i(-runner_reach, 8), 1, "root", "runner", branch_pairs * 2, -1)
+			_line(cells, seen, Vector2i(3, 5), Vector2i(runner_reach, 8), 1, "root", "runner", branch_pairs * 2 + 1, 1)
+			if morphotype_id == 2:
+				_line(cells, seen, Vector2i(-2, 6), Vector2i(-8, 12), 1, "root", "runner", branch_pairs * 2 + 2, -1)
+				_line(cells, seen, Vector2i(2, 6), Vector2i(8, 12), 1, "root", "runner", branch_pairs * 2 + 3, 1)
+			elif morphotype_id == 3:
+				_line(cells, seen, Vector2i(-2, 2), Vector2i(-3, -8), 1, "structure", "stem", branch_pairs * 2 + 2, -1)
+				_line(cells, seen, Vector2i(2, 2), Vector2i(3, -8), 1, "structure", "stem", branch_pairs * 2 + 3, 1)
+				_ellipse(cells, seen, Vector2(-3, -8), Vector2(2.0, 1.8), "storage", "bulb")
+				_ellipse(cells, seen, Vector2(3, -8), Vector2(2.0, 1.8), "storage", "bulb")
 			_ellipse(cells, seen, Vector2(0, -5), Vector2(1.4, 1.3), "neural", "meristem")
 			_ellipse(cells, seen, Vector2(0, 1), Vector2(1.5, 1.5), "circulatory", "vascular")
 			_ellipse(cells, seen, Vector2(0, -7), Vector2(1.2, 1.1), "sensor", "photoreceptor")
 		3: # Anomaly: central phase core, disconnected-looking orbital lobes.
-			_ellipse(cells, seen, Vector2(0, 0), Vector2(3.6, 4.6), "phase", "core")
-			for island in range(4):
-				var side := -1 if island % 2 == 0 else 1
-				var y := -5 if island < 2 else 5
-				var x := side * (6 + island / 2)
+			_ellipse(cells, seen, Vector2(0, 0), Vector2(3.6 * width_gene, 4.6 * height_gene), "phase", "core")
+			var island_count: int = [3, 4, 5, 6][morphotype_id]
+			var orbital_radius: float = [7.0, 7.4, 8.0, 9.0][morphotype_id]
+			for island in range(island_count):
+				var angle := -PI * 0.5 + TAU * float(island) / float(island_count)
+				var orbital: Vector2 = Vector2(cos(angle), sin(angle)) * orbital_radius
+				var x := roundi(orbital.x)
+				var y := roundi(orbital.y)
+				var side := signi(x)
 				_ellipse(cells, seen, Vector2(x, y), Vector2(2.2, 1.8), "phase", "orbital", island, side)
-				_line(cells, seen, Vector2i(signi(x) * 2, signi(y) * 2), Vector2i(x - signi(x) * 1, y - signi(y)), 0, "phase", "phase_bond", island, side)
+				_line(cells, seen, Vector2i(roundi(cos(angle) * 2.0), roundi(sin(angle) * 2.0)), Vector2i(roundi(cos(angle) * (orbital_radius - 1.0)), roundi(sin(angle) * (orbital_radius - 1.0))), 1, "phase", "phase_bond", island, side)
 			_ellipse(cells, seen, Vector2(0, 0), Vector2(1.4, 1.6), "neural", "phase_brain")
 			_append_cell(cells, seen, Vector2i(0, -3), "sensor", "singularity", 5, 0)
 			_append_cell(cells, seen, Vector2i(-2, 2), "circulatory", "flux")
 			_append_cell(cells, seen, Vector2i(2, 2), "digestive", "transmuter")
 		4: # Machine: armored box, lower tracks, mast and side hardpoints.
-			_ellipse(cells, seen, Vector2(0, 0), Vector2(6.0 * width_gene, 5.0 * height_gene), "armor")
-			_line(cells, seen, Vector2i(-5, 2), Vector2i(-5, 9), 2, "locomotor", "drive", 0, -1)
-			_line(cells, seen, Vector2i(5, 2), Vector2i(5, 9), 2, "locomotor", "drive", 1, 1)
+			var chassis_width: float = [6.0, 5.4, 7.6, 6.8][morphotype_id]
+			var chassis_height: float = [5.0, 5.8, 4.1, 4.7][morphotype_id]
+			_ellipse(cells, seen, Vector2(0, 0), Vector2(chassis_width * width_gene, chassis_height * height_gene), "armor")
+			if morphotype_id == 0:
+				_line(cells, seen, Vector2i(-5, 2), Vector2i(-5, 9), 2, "locomotor", "drive", 0, -1)
+				_line(cells, seen, Vector2i(5, 2), Vector2i(5, 9), 2, "locomotor", "drive", 1, 1)
+			elif morphotype_id == 1:
+				for leg in range(2):
+					var leg_y := 1 + leg * 3
+					_line(cells, seen, Vector2i(-4, leg_y), Vector2i(-7, 10 + leg), 1, "locomotor", "drive", leg * 2, -1)
+					_line(cells, seen, Vector2i(4, leg_y), Vector2i(7, 10 + leg), 1, "locomotor", "drive", leg * 2 + 1, 1)
+			elif morphotype_id == 2:
+				_ellipse(cells, seen, Vector2(-7, 5), Vector2(2.2, 2.2), "locomotor", "drive", 0, -1)
+				_ellipse(cells, seen, Vector2(7, 5), Vector2(2.2, 2.2), "locomotor", "drive", 1, 1)
+				_ellipse(cells, seen, Vector2(0, 7), Vector2(2.7, 1.7), "locomotor", "drive", 2, 0)
+				_line(cells, seen, Vector2i(-4, 3), Vector2i(-7, 5), 1, "locomotor", "drive", 0, -1)
+				_line(cells, seen, Vector2i(4, 3), Vector2i(7, 5), 1, "locomotor", "drive", 1, 1)
+				_line(cells, seen, Vector2i(0, 3), Vector2i(0, 7), 1, "locomotor", "drive", 2, 0)
+			else:
+				for leg in range(3):
+					var leg_y := -1 + leg * 3
+					_line(cells, seen, Vector2i(-5, leg_y), Vector2i(-10, 6 + leg * 2), 1, "locomotor", "drive", leg * 2, -1)
+					_line(cells, seen, Vector2i(5, leg_y), Vector2i(10, 6 + leg * 2), 1, "locomotor", "drive", leg * 2 + 1, 1)
 			_line(cells, seen, Vector2i(0, -3), Vector2i(0, -9), 1, "structure", "mast", 2, 0)
-			_line(cells, seen, Vector2i(-4, -2), Vector2i(-9, -3), 1, "weapon", "hardpoint", 3, -1)
-			_line(cells, seen, Vector2i(4, -2), Vector2i(9, -3), 1, "weapon", "hardpoint", 4, 1)
+			var hardpoint_reach := 12 if morphotype_id == 2 else 9
+			_line(cells, seen, Vector2i(-4, -2), Vector2i(-hardpoint_reach, -3), 1, "weapon", "hardpoint", 6, -1)
+			_line(cells, seen, Vector2i(4, -2), Vector2i(hardpoint_reach, -3), 1, "weapon", "hardpoint", 7, 1)
 			_ellipse(cells, seen, Vector2(0, -2), Vector2(1.8, 1.6), "neural", "processor")
 			_ellipse(cells, seen, Vector2(-2, 1), Vector2(1.3, 1.5), "circulatory", "coolant_pump")
 			_ellipse(cells, seen, Vector2(2, 1), Vector2(1.3, 1.5), "respiratory", "radiator")
@@ -325,17 +390,100 @@ static func decode_morphology(family_id: int, seed: int, generation := 0) -> Dic
 	return {
 		"family_id": family_id,
 		"family": FAMILIES[family_id],
+		"morphotype_id": morphotype_id,
+		"morphotype": MORPHOTYPES[family_id][morphotype_id],
 		"seed": seed,
 		"generation": generation,
 		"cells": cells,
 		"genes": {
 			"width": width_gene, "height": height_gene,
 			"asymmetry": asymmetry,
+			"symmetry": _symmetry_score(cells),
 			"repair": rng.randf_range(0.65, 1.35),
 			"metabolism": rng.randf_range(0.72, 1.28),
 			"fertility": rng.randf_range(0.65, 1.2),
 			"bond_strength": rng.randf_range(0.78, 1.3),
 		},
+	}
+
+
+static func _symmetry_score(cells: Array) -> float:
+	var occupied: Dictionary = {}
+	for cell in cells:
+		var grid: Vector2i = cell["grid"]
+		occupied["%d:%d" % [grid.x, grid.y]] = true
+	var mirrored := 0
+	for cell in cells:
+		var grid: Vector2i = cell["grid"]
+		if occupied.has("%d:%d" % [-grid.x, grid.y]):
+			mirrored += 1
+	return float(mirrored) / float(maxi(cells.size(), 1))
+
+
+static func analyze_morphology(blueprint: Dictionary) -> Dictionary:
+	var cells: Array = blueprint["cells"]
+	var occupied: Dictionary = {}
+	var appendages: Dictionary = {}
+	var organs: Dictionary = {}
+	var min_grid := Vector2i(999, 999)
+	var max_grid := Vector2i(-999, -999)
+	var sensory_y := 0.0
+	var sensory_count := 0
+	var locomotor_y := 0.0
+	var locomotor_count := 0
+	for cell in cells:
+		var grid: Vector2i = cell["grid"]
+		occupied["%d:%d" % [grid.x, grid.y]] = grid
+		min_grid.x = mini(min_grid.x, grid.x)
+		min_grid.y = mini(min_grid.y, grid.y)
+		max_grid.x = maxi(max_grid.x, grid.x)
+		max_grid.y = maxi(max_grid.y, grid.y)
+		var appendage := int(cell.get("appendage", -1))
+		if appendage >= 0:
+			appendages[appendage] = true
+		var organ := str(cell.get("organ", "none"))
+		if organ != "none":
+			organs[organ] = true
+		if str(cell.get("tissue", "")) == "sensor" or organ in ["eye", "photoreceptor", "singularity", "optic"]:
+			sensory_y += float(grid.y)
+			sensory_count += 1
+		if str(cell.get("tissue", "")) in ["locomotor", "root"] or (int(blueprint["family_id"]) == 3 and appendage >= 0):
+			locomotor_y += float(grid.y)
+			locomotor_count += 1
+	var queue: Array[Vector2i] = []
+	var visited: Dictionary = {}
+	if not cells.is_empty():
+		queue.append(cells[0]["grid"])
+	while not queue.is_empty():
+		var current: Vector2i = queue.pop_front()
+		var key := "%d:%d" % [current.x, current.y]
+		if visited.has(key):
+			continue
+		visited[key] = true
+		for direction in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var neighbor: Vector2i = current + direction
+			var neighbor_key := "%d:%d" % [neighbor.x, neighbor.y]
+			if occupied.has(neighbor_key) and not visited.has(neighbor_key):
+				queue.append(neighbor)
+	var sensory_mean := sensory_y / float(maxi(sensory_count, 1))
+	var locomotor_mean := locomotor_y / float(maxi(locomotor_count, 1))
+	return {
+		"family": blueprint["family"],
+		"family_id": blueprint["family_id"],
+		"morphotype": blueprint["morphotype"],
+		"morphotype_id": blueprint["morphotype_id"],
+		"cell_count": cells.size(),
+		"width": max_grid.x - min_grid.x + 1,
+		"height": max_grid.y - min_grid.y + 1,
+		"appendage_count": appendages.size(),
+		"organ_count": organs.size(),
+		"organs": organs.keys(),
+		"symmetry": _symmetry_score(cells),
+		"connected_fraction": float(visited.size()) / float(maxi(cells.size(), 1)),
+		"sensory_mean_y": sensory_mean,
+		"locomotor_mean_y": locomotor_mean,
+		"vertical_ordered": sensory_count > 0 and locomotor_count > 0 and sensory_mean < locomotor_mean,
+		"signature": "%dx%d:c%d:a%d:o%d" % [max_grid.x - min_grid.x + 1, max_grid.y - min_grid.y + 1, cells.size(), appendages.size(), organs.size()],
 	}
 
 
