@@ -23,3 +23,5 @@ The current bounded calibration is at `outputs/organism_raster_vae_v3/calibratio
 - promotion is explicitly disabled.
 
 The contact sheet was visually inspected. It is a viable direction and a large improvement over the first v3 calibration, but thin animal legs and the machine undercarriage still need work. A full run should wait for human approval of morphology v2. Likely next changes are appendage-aware latent tokens, stronger small-component recall, and temporal/identity palette consistency gates.
+
+The independent animated held-out showcase is at `outputs/organism_raster_vae_v3/animated_showcase_1200`. It decodes all 16 phases for one excluded identity per family. Every family has nonzero learned motion. Neural frame-change amplitude is 0.778–1.040× the corresponding target, showing mild smoothing but no frozen-frame or action-collapse failure.
