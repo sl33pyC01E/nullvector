@@ -35,12 +35,13 @@ state. The default configuration is intentionally substantial (tens of
 millions of parameters); focused tests use a smaller geometry only to prove
 shape, gradient, and contract behavior on CPU.
 
-The current milestone is corpus/model foundation. It deliberately does not
-claim trained motion quality or runtime authority. Before integration it still
-needs segmented CUDA training, family-balanced held-out evaluation, loop and
-event-pose gates, recurrent drift tests, ONNX export, and native Godot/WebGPU
-parity. Until those gates pass, the deterministic cellular motion bank remains
-the runtime authority.
+The current milestone includes the corpus, model, segmented trainer, and a
+strict recurrent held-out evaluator. It deliberately does not claim trained
+motion quality or runtime authority. Before integration it still needs a clear
+CUDA window for the declared training schedule, a checkpoint that passes the
+calibrated gates below, ONNX export, and native Godot/WebGPU parity. Until
+those gates pass, the deterministic cellular motion bank remains the runtime
+authority.
 
 Corpus loading is fail-closed: manifests must be bounded canonical JSON with no
 duplicate keys; every source and shard path must remain within its authority
@@ -49,13 +50,22 @@ features remain one-hot on occupied cells; and features/targets must be exactly
 zero outside the cellular chassis. Rehashing a malformed artifact does not make
 it acceptable.
 
-Build the full 45-identity corpus:
+Build the full 45-identity corpus. The default authority is additive
+`corpus_v2`; historical `corpus_v1` remains untouched. Corpus provenance hashes
+only the tensor-construction contract and implementation, so later package
+exports, trainers, or evaluators cannot invalidate unchanged verified shards:
 
 ```powershell
 python -m forge.neural_cell_motion build-corpus
 python -m forge.neural_cell_motion validate-corpus --replay
 python -m forge.neural_cell_motion model-info
 ```
+
+The published v2 corpus contains 45 identities and 42,480 frames. It was
+rebuilt from the v1 bytes only after every shard regenerated exactly, then
+exact-replayed again in isolated validators. Build recovery contained two
+native worker failures; final replay contained one retry. All three events are
+preserved in telemetry rather than erased by the successful retries.
 
 `build-corpus` is process-isolated by default: at most two CPU workers, three
 bounded attempts per identity, a ten-minute worker deadline, native-crash
@@ -115,7 +125,36 @@ python -m forge.neural_cell_motion prepare-production
 python -m forge.neural_cell_motion train-production
 ```
 
-The production runner is currently a training foundation, not runtime
-authority. A production launch must still add and calibrate held-out recurrent
-rollout, loop-closure, event-pose, and anti-collapse quality gates before a
-checkpoint can replace the authored cellular motion bank.
+## Held-out recurrent evaluation
+
+Every immutable training segment is evaluated in a fresh process. Evaluation
+feeds each prediction back as the next frame's recurrent state rather than
+teacher-forcing the authoritative preceding frame. It covers five held-out
+families, all 13 motions, all eight travel directions, 520 clips, and 4,720
+frames. Metrics are macro-averaged across families so a large chassis cannot
+dominate the quality result merely by containing more cells.
+
+The report binds the exact checkpoint bytes, model and EMA state hashes,
+training contract, corpus semantic identity, and a separate evaluation-source
+hash. Internal validation derives headline metrics independently from both
+family and frame-weighted motion breakdowns, rejecting fully rehashed nested
+metric tampering. It also checks response energy for displacement, activation,
+and emission, exact zero outside the chassis, bounded recurrent output,
+previous-frame baseline improvement, loop closure, action endpoints, and every
+family/motion metric.
+
+Non-final checkpoints evaluate validation only. The final checkpoint also
+evaluates the sealed test split and is promotion-eligible only when every gate
+passes on both splits:
+
+```powershell
+python -m forge.neural_cell_motion evaluate-production `
+  --output outputs/neural_cell_motion/production_v1 --step 12000
+python -m forge.neural_cell_motion validate-evaluation `
+  --output outputs/neural_cell_motion/production_v1 --step 12000
+```
+
+The production runner is still not runtime authority. A successful process and
+a low scalar loss are insufficient; only a final checkpoint with
+`promotion_eligible: true`, followed by ONNX export and runtime parity, may
+replace the authored cellular motion bank.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import hashlib
+import json
 from pathlib import Path
 from typing import Final
 
@@ -12,7 +13,7 @@ CORPUS_FORMAT: Final[str] = "nullvector-neural-cell-motion-corpus-v1"
 MODEL_FORMAT: Final[str] = "nullvector-neural-cell-motion-model-v1"
 DEFAULT_MOTION: Final[Path] = PROJECT_ROOT / "outputs/cellular_motion_v2/cellular_motion_manifest.json"
 DEFAULT_ANATOMY: Final[Path] = PROJECT_ROOT / "outputs/cellular_breeding_symmetry_v1/cellular_symmetry_manifest.json"
-DEFAULT_CORPUS: Final[Path] = PROJECT_ROOT / "outputs/neural_cell_motion/corpus_v1"
+DEFAULT_CORPUS: Final[Path] = PROJECT_ROOT / "outputs/neural_cell_motion/corpus_v2"
 SCHEMA_PATH: Final[Path] = PROJECT_ROOT / "shared/schema/neural_cell_motion_corpus.schema.json"
 GRID_SIZE: Final[int] = 48
 FEATURE_CHANNELS: Final[int] = 60
@@ -29,7 +30,6 @@ FEATURE_GROUPS: Final[dict[str, tuple[int, int]]] = {
 }
 TARGET_NAMES: Final[tuple[str, ...]] = ("delta_x", "delta_y", "motor_activation", "emission_activation")
 SOURCE_FILES: Final[tuple[str, ...]] = (
-    "forge/neural_cell_motion/__init__.py", "forge/neural_cell_motion/contract.py",
     "forge/neural_cell_motion/dataset.py", "forge/neural_cell_motion/worker.py",
     "forge/neural_cell_motion/supervisor.py", "shared/schema/neural_cell_motion_corpus.schema.json",
 )
@@ -71,7 +71,28 @@ def _hash_files(domain: bytes, files: tuple[str, ...]) -> str:
 
 
 def corpus_source_sha256() -> str:
-    return _hash_files(b"nullvector-neural-cell-motion-corpus-source-v1\0", SOURCE_FILES)
+    # Hash only corpus semantics and corpus implementation. Package exports and
+    # production/evaluation registries must never invalidate immutable tensor
+    # shards whose construction contract did not change.
+    contract = {
+        "format": CORPUS_FORMAT,
+        "motion_manifest": DEFAULT_MOTION.relative_to(PROJECT_ROOT).as_posix(),
+        "anatomy_manifest": DEFAULT_ANATOMY.relative_to(PROJECT_ROOT).as_posix(),
+        "grid_size": GRID_SIZE,
+        "feature_channels": FEATURE_CHANNELS,
+        "state_channels": STATE_CHANNELS,
+        "max_displacement": MAX_DISPLACEMENT,
+        "organ_channels": list(ORGAN_CHANNELS),
+        "feature_groups": {name: list(value) for name, value in FEATURE_GROUPS.items()},
+        "target_names": list(TARGET_NAMES),
+    }
+    digest = hashlib.sha256(b"nullvector-neural-cell-motion-corpus-source-v2\0")
+    digest.update(json.dumps(contract, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii") + b"\0")
+    for relative in SOURCE_FILES:
+        path = PROJECT_ROOT / relative
+        if not path.is_file(): raise FileNotFoundError(relative)
+        digest.update(relative.encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
 
 
 def model_source_sha256() -> str:

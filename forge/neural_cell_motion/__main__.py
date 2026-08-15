@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .contract import DEFAULT_CORPUS
 from .dataset import validate_corpus
+from .evaluation_report import evaluate_segment, validate_evaluation_report
 from .model import NeuralCellMotionUNet
 from .production import prepare_production, run_supervisor, sampler_report, train_segment
 from .supervisor import build_corpus_resilient, validate_corpus_resilient
@@ -21,6 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     prepare = commands.add_parser("prepare-production"); prepare.add_argument("--output", type=Path, default=None); prepare.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS); prepare.add_argument("--total-steps", type=int, default=12000); prepare.add_argument("--segment-steps", type=int, default=500); prepare.add_argument("--batch-size", type=int, default=10)
     train = commands.add_parser("train-production"); train.add_argument("--output", type=Path, default=None); train.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS); train.add_argument("--total-steps", type=int, default=12000); train.add_argument("--segment-steps", type=int, default=500); train.add_argument("--batch-size", type=int, default=10)
     segment = commands.add_parser("segment"); segment.add_argument("--output", type=Path, required=True); segment.add_argument("--end-step", type=int, required=True)
+    evaluate = commands.add_parser("evaluate-production"); evaluate.add_argument("--output", type=Path, required=True); evaluate.add_argument("--step", type=int, required=True)
+    verify_evaluation = commands.add_parser("validate-evaluation"); verify_evaluation.add_argument("--output", type=Path, required=True); verify_evaluation.add_argument("--step", type=int, required=True)
     sampler = commands.add_parser("sampler-report"); sampler.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS); sampler.add_argument("--batch-size", type=int, default=10); sampler.add_argument("--steps", type=int, default=100)
     commands.add_parser("model-info"); args = parser.parse_args(argv)
     if args.command == "build-corpus": result = build_corpus_resilient(args.output, identities_per_family=args.identities_per_family, workers=args.workers, max_attempts=args.max_attempts, timeout_seconds=args.timeout_seconds, recover_from=args.recover_from)
@@ -34,6 +37,8 @@ def main(argv: list[str] | None = None) -> int:
         from .production import DEFAULT_OUTPUT
         result = run_supervisor(args.output or DEFAULT_OUTPUT, corpus=args.corpus, total_steps=args.total_steps, segment_steps=args.segment_steps, batch_size=args.batch_size)
     elif args.command == "segment": result = train_segment(args.output, end_step=args.end_step)
+    elif args.command == "evaluate-production": result = evaluate_segment(args.output, step=args.step)
+    elif args.command == "validate-evaluation": result = validate_evaluation_report(args.output, step=args.step)
     elif args.command == "sampler-report": result = sampler_report(args.corpus, batch_size=args.batch_size, steps=args.steps)
     else:
         model = NeuralCellMotionUNet(); result = {"parameters": model.parameter_count, "config": model.config.to_dict()}

@@ -208,13 +208,23 @@ def _load_checkpoint(path: Path, contract: dict[str, Any], *, expected_step: int
     return payload
 
 
+def _checkpoint_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "passed": True,
+        "step": payload["step"],
+        "model_state_sha256": payload["model_state_sha256"],
+        "ema_state_sha256": payload["ema_state_sha256"],
+        "runtime": payload["runtime"],
+    }
+
+
 def train_segment(output: Path, *, end_step: int) -> dict[str, Any]:
     output = Path(output).resolve(); contract = _read_canonical_json(output / CONTRACT_NAME)
     if contract.get("source_sha256") != model_source_sha256() or contract.get("semantic_sha256") != _semantic({key: value for key, value in contract.items() if key != "semantic_sha256"}): raise ValueError("Neural motion training authority drifted.")
     segment_steps = contract["segment_steps"]
     if type(end_step) is not int or end_step % segment_steps or not segment_steps <= end_step <= contract["total_steps"]: raise ValueError("Neural motion segment endpoint drifted.")
     destination = output / checkpoint_name(end_step)
-    if destination.exists(): return _load_checkpoint(destination, contract, expected_step=end_step)
+    if destination.exists(): return _checkpoint_summary(_load_checkpoint(destination, contract, expected_step=end_step))
     previous_step = end_step - segment_steps; previous_path = output / checkpoint_name(previous_step) if previous_step else None
     if previous_path is not None and not previous_path.exists(): raise FileNotFoundError("Previous neural motion segment is missing.")
     if os.environ.get("CUBLAS_WORKSPACE_CONFIG") != ":4096:8" or not torch.cuda.is_available() or not torch.cuda.is_bf16_supported() or torch.cuda.mem_get_info(0)[0] < contract["minimum_free_vram_bytes"]:
@@ -240,7 +250,7 @@ def train_segment(output: Path, *, end_step: int) -> dict[str, Any]:
         history.append({"step": step + 1, **{name: round(float(value), 8) for name, value in pieces.items()}, "gradient_norm": round(float(gradient), 8), "lr": round(float(lr), 10)})
     elapsed = time.perf_counter() - started; model_state = {name: value.detach().cpu().clone() for name, value in model.state_dict().items()}; ema_state = {name: value.detach().cpu().clone() for name, value in ema.items()}
     payload = {"format": CHECKPOINT_FORMAT, "source_sha256": model_source_sha256(), "contract_semantic_sha256": contract["semantic_sha256"], "step": end_step, "model_state": model_state, "ema_state": ema_state, "optimizer_state": optimizer.state_dict(), "model_state_sha256": _state_sha256(model_state), "ema_state_sha256": _state_sha256(ema_state), "cpu_rng_state": torch.get_rng_state(), "cuda_rng_state": torch.cuda.get_rng_state(device), "history": history, "runtime": {"segment_seconds": round(elapsed, 6), "updates_per_second": round(segment_steps / elapsed, 6), "peak_allocated_bytes": int(torch.cuda.max_memory_allocated(device)), "peak_reserved_bytes": int(torch.cuda.max_memory_reserved(device)), "device": torch.cuda.get_device_name(device), "torch": str(torch.__version__)}}
-    _atomic_torch(destination, payload); return _load_checkpoint(destination, contract, expected_step=end_step)
+    _atomic_torch(destination, payload); return _checkpoint_summary(_load_checkpoint(destination, contract, expected_step=end_step))
 
 
 def _telemetry(output: Path) -> dict[str, Any]:
@@ -255,10 +265,12 @@ def _telemetry(output: Path) -> dict[str, Any]:
 
 
 def run_supervisor(output: Path = DEFAULT_OUTPUT, **schedule: Any) -> dict[str, Any]:
+    from .evaluation_report import evaluation_name, validate_evaluation_report
     output = Path(output).resolve(); contract = prepare_production(output, **schedule); telemetry = _telemetry(output); attempts: list[dict[str, Any]] = telemetry["attempts"]
     for end_step in range(contract["segment_steps"], contract["total_steps"] + 1, contract["segment_steps"]):
         checkpoint = output / checkpoint_name(end_step)
-        if checkpoint.exists(): _load_checkpoint(checkpoint, contract, expected_step=end_step); continue
+        report_path = output / evaluation_name(end_step)
+        if checkpoint.exists() and report_path.exists(): _load_checkpoint(checkpoint, contract, expected_step=end_step); validate_evaluation_report(output, step=end_step); continue
         prior = [row for row in attempts if row["end_step"] == end_step]; first_attempt = max((row["attempt"] for row in prior), default=0) + 1
         for attempt in range(first_attempt, contract["supervisor"]["max_attempts_per_segment"] + 1):
             require_disk_floor(output, floor_gb=100, planned_bytes=1024**3); env = os.environ.copy(); env.update({"CUBLAS_WORKSPACE_CONFIG": ":4096:8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1"}); started = time.perf_counter(); timed_out = False
@@ -268,13 +280,18 @@ def run_supervisor(output: Path = DEFAULT_OUTPUT, **schedule: Any) -> dict[str, 
                 timed_out = True; returncode = -1; stdout = error.stdout[-2000:] if isinstance(error.stdout, str) else ""; stderr = error.stderr[-4000:] if isinstance(error.stderr, str) else ""
             valid, validation_error = False, ""
             if returncode == 0:
-                try: _load_checkpoint(checkpoint, contract, expected_step=end_step); valid = True
+                try:
+                    _load_checkpoint(checkpoint, contract, expected_step=end_step)
+                    evaluation_process = subprocess.run([sys.executable, "-m", "forge.neural_cell_motion", "evaluate-production", "--output", str(output), "--step", str(end_step)], cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=contract["supervisor"]["segment_timeout_seconds"])
+                    stdout = (stdout + "\n" + evaluation_process.stdout)[-2000:]; stderr = (stderr + "\n" + evaluation_process.stderr)[-4000:]
+                    if evaluation_process.returncode != 0: returncode = evaluation_process.returncode
+                    else: validate_evaluation_report(output, step=end_step); valid = True
                 except Exception as error: validation_error = f"{type(error).__name__}: {error}"[:4000]
             attempts.append({"end_step": end_step, "attempt": attempt, "returncode": returncode, "seconds": round(time.perf_counter() - started, 6), "stdout_tail": stdout, "stderr_tail": stderr, "access_violation": returncode in ACCESS_VIOLATION_CODES, "timed_out": timed_out, "artifact_valid": valid, "validation_error": validation_error}); _validate_attempts(attempts); _atomic_bytes(output / TELEMETRY_NAME, canonical_json_bytes(_telemetry_payload(attempts)))
             if valid: break
         else: raise RuntimeError(f"Neural motion segment {end_step} exhausted bounded retries.")
-    final = _load_checkpoint(output / checkpoint_name(contract["total_steps"]), contract, expected_step=contract["total_steps"])
-    return {"passed": True, "step": final["step"], "model_state_sha256": final["model_state_sha256"], "ema_state_sha256": final["ema_state_sha256"], "attempt_count": len(attempts), "retry_count": len(attempts) - contract["total_steps"] // contract["segment_steps"]}
+    final = _load_checkpoint(output / checkpoint_name(contract["total_steps"]), contract, expected_step=contract["total_steps"]); evaluation = validate_evaluation_report(output, step=contract["total_steps"])
+    return {"passed": True, "promotion_eligible": evaluation["promotion_eligible"], "step": final["step"], "model_state_sha256": final["model_state_sha256"], "ema_state_sha256": final["ema_state_sha256"], "evaluation_semantic_sha256": evaluation["semantic_sha256"], "attempt_count": len(attempts), "retry_count": len(attempts) - contract["total_steps"] // contract["segment_steps"]}
 
 
 def sampler_report(corpus: Path = DEFAULT_CORPUS, *, batch_size: int = 10, steps: int = 100) -> dict[str, Any]:

@@ -10,8 +10,9 @@ import torch
 
 from forge.cellular_motion.compiler import _channels
 from forge.cellular_organism.compiler import _load_arrays
-from forge.neural_cell_motion.contract import FEATURE_CHANNELS, NeuralCellMotionConfig, ORGAN_CHANNELS
+from forge.neural_cell_motion.contract import DEFAULT_CORPUS, FEATURE_CHANNELS, MODEL_FILES, NeuralCellMotionConfig, ORGAN_CHANNELS, SOURCE_FILES, corpus_source_sha256
 from forge.neural_cell_motion.dataset import _build_shard, _selection_plan, _static_features, load_corpus_manifest, validate_corpus
+from forge.neural_cell_motion.evaluation import EVALUATION_SOURCE_FILES, acceptance_gates, evaluate_recurrent_split, validate_evaluation_result
 from forge.neural_cell_motion.model import NeuralCellMotionUNet, neural_motion_loss
 from forge.neural_cell_motion.production import (
     MotionBatchSampler,
@@ -99,6 +100,20 @@ def test_production_selection_uses_all_real_identities_and_family_local_splits()
     assert [ordinal for record, ordinal in selected if record["family_id"] == 4] == list(range(7))
 
 
+def test_corpus_provenance_is_decoupled_from_package_and_training_exports() -> None:
+    manifest = load_corpus_manifest(DEFAULT_CORPUS)
+    assert manifest["source_sha256"] == corpus_source_sha256()
+    assert "forge/neural_cell_motion/__init__.py" not in SOURCE_FILES
+    assert "forge/neural_cell_motion/contract.py" not in SOURCE_FILES
+    assert set(SOURCE_FILES) == {
+        "forge/neural_cell_motion/dataset.py", "forge/neural_cell_motion/worker.py",
+        "forge/neural_cell_motion/supervisor.py", "shared/schema/neural_cell_motion_corpus.schema.json",
+    }
+    assert "forge/neural_cell_motion/evaluation.py" not in MODEL_FILES
+    assert "forge/neural_cell_motion/evaluation_report.py" not in MODEL_FILES
+    assert {"forge/neural_cell_motion/evaluation.py", "forge/neural_cell_motion/evaluation_report.py"} <= set(EVALUATION_SOURCE_FILES)
+
+
 def test_resilient_supervisor_has_bounded_worker_and_native_failure_policy(tmp_path: Path) -> None:
     assert {0xC0000005, -1073741819, 0xC0000409, -1073740791} <= ACCESS_VIOLATION_CODES
     with pytest.raises(ValueError, match="worker policy"):
@@ -144,7 +159,7 @@ def test_npz_header_bounds_reject_rehashed_shape_forgery(tmp_path: Path, smoke_c
 
 
 def test_production_replay_authority_and_sampler_are_exact() -> None:
-    corpus = ROOT / "outputs/neural_cell_motion/corpus_v1"
+    corpus = DEFAULT_CORPUS
     replay = _replay_authority(corpus)
     assert replay["replay"] is True and replay["validated_identity_count"] == 45
     sampler = MotionBatchSampler(corpus, batch_size=10)
@@ -163,7 +178,7 @@ def test_production_replay_authority_and_sampler_are_exact() -> None:
 
 
 def test_production_schedule_is_bounded_and_resume_contract_is_immutable(tmp_path: Path) -> None:
-    corpus = ROOT / "outputs/neural_cell_motion/corpus_v1"; output = tmp_path / "production"
+    corpus = DEFAULT_CORPUS; output = tmp_path / "production"
     contract = prepare_production(output, corpus=corpus, total_steps=100, segment_steps=100, batch_size=10)
     assert contract["minimum_free_vram_bytes"] == 14 * 1024**3 and contract["supervisor"] == {"max_attempts_per_segment": 3, "segment_timeout_seconds": 1800}
     assert prepare_production(output, corpus=corpus, total_steps=100, segment_steps=100, batch_size=10) == contract
@@ -192,3 +207,46 @@ def test_production_telemetry_rejects_rehashed_duplicate_or_incoherent_rows(tmp_
     (output / "production_training_telemetry.json").write_bytes(canonical_json_bytes(impossible))
     with pytest.raises(ValueError, match="successful-attempt"):
         _telemetry(output)
+
+
+def test_recurrent_evaluator_rolls_heldout_families_and_binds_breakdowns() -> None:
+    corpus = DEFAULT_CORPUS
+    config = NeuralCellMotionConfig(base_channels=24, channel_multipliers=(1, 2, 3), blocks_per_level=1, condition_dim=96, attention_heads=4, dropout=0)
+    torch.manual_seed(0x4E434D); model = NeuralCellMotionUNet(config)
+    result = evaluate_recurrent_split(corpus, model, "validation", motion_names=("idle_breathe",), facing_ids=(0,))
+    assert result["identity_count"] == 5 and result["family_count"] == 5
+    assert result["clip_count"] == 5 and result["frame_count"] == 45
+    assert result["outside_support_max"] == 0 and result["output_abs_max"] <= 1
+    assert validate_evaluation_result(result, require_full=False) == result
+    with pytest.raises(ValueError, match="full authority matrix"):
+        acceptance_gates(result)
+
+
+def test_evaluation_rejects_rehashed_nested_metric_tamper() -> None:
+    corpus = DEFAULT_CORPUS
+    config = NeuralCellMotionConfig(base_channels=24, channel_multipliers=(1, 2, 3), blocks_per_level=1, condition_dim=96, attention_heads=4, dropout=0)
+    torch.manual_seed(0x4E434D); result = evaluate_recurrent_split(corpus, NeuralCellMotionUNet(config), "validation", motion_names=("idle_breathe",), facing_ids=(0,))
+    tampered = json.loads(json.dumps(result)); tampered["family_metrics"]["0"]["loss"] += .05
+    with pytest.raises(ValueError, match="not derivable"):
+        validate_evaluation_result(tampered, require_full=False)
+
+
+def test_full_evaluation_gates_reject_motion_energy_collapse() -> None:
+    from forge.cellular_motion.contract import MOTION_NAMES, MOTION_SPECS
+    metric = {"loss": .5, "displacement": .2, "activation": .2, "emission": .1, "coherence": .1, "temporal": .1, "outside": 0.0}
+    baseline = {**metric, "loss": .8}
+    evaluation = {
+        "format": "nullvector-neural-cell-motion-heldout-evaluation-v1", "split": "validation",
+        "identity_count": 5, "family_count": 5, "motion_count": 13, "facing_count": 8,
+        "clip_count": 520, "frame_count": 4720, "motion_names": list(MOTION_NAMES), "facing_ids": list(range(8)),
+        "metrics": dict(metric), "previous_frame_baseline": baseline,
+        "family_metrics": {str(family): dict(metric) for family in range(5)},
+        "motion_metrics": {name: dict(metric) for name in MOTION_NAMES},
+        "response_energy": {name: {"predicted": .2, "target": .2, "ratio": 1.0} for name in ("displacement", "activation", "emission")},
+        "loop_closure_mae": .1, "action_endpoint_mae": .1, "outside_support_max": 0.0, "output_abs_max": .8,
+    }
+    assert sum(MOTION_SPECS[name][0] for name in MOTION_NAMES) * 5 * 8 == evaluation["frame_count"]
+    assert all(acceptance_gates(evaluation).values())
+    collapsed = json.loads(json.dumps(evaluation)); collapsed["response_energy"]["displacement"] = {"predicted": 0.0, "target": .2, "ratio": 0.0}
+    gates = acceptance_gates(collapsed)
+    assert gates["displacement_response_not_collapsed"] is False and not all(gates.values())
