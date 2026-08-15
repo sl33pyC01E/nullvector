@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-actuator-smoke-v2.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "teacher", "parent", "prior", "model", "training", "steps", "coordinates", "history", "checkpoint", "diagnostics", "gates", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-developmental-actuator-smoke-v2"}, "status": {"const": "passed"},
+    "source_sha256": {"$ref": "#/$defs/sha256"}, "teacher": {"type": "object"}, "parent": {"type": "object"}, "prior": {"type": "object"},
+    "model": {"type": "object"}, "training": {"type": "object"},
+    "steps": {"type": "integer", "minimum": 4, "maximum": 24},
+    "coordinates": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "object"}},
+    "history": {"type": "array", "minItems": 4, "maxItems": 24, "items": {"type": "object"}},
+    "checkpoint": {"type": "object"}, "diagnostics": {"type": "object"},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"const": true}},
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

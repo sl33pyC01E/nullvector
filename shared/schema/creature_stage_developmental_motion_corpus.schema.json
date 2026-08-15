@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-motion-corpus-v2.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "developmental_source_sha256", "approval", "review", "contract", "specimens", "arrays", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-developmental-motion-corpus-v2"},
+    "status": {"enum": ["candidate", "approved"]},
+    "source_sha256": {"$ref": "#/$defs/sha256"},
+    "developmental_source_sha256": {"$ref": "#/$defs/sha256"},
+    "approval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "training_permitted", "scope"],
+      "properties": {
+        "status": {"const": "user-approved"},
+        "training_permitted": {"const": true},
+        "scope": {"const": "centered-grasper-morphology-and-locomotion-authority-v7"}
+      }
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "manifest_sha256", "source_sha256", "motion_semantic_sha256", "motion_frame_stream_sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "motion_semantic_sha256": {"$ref": "#/$defs/sha256"},
+        "motion_frame_stream_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "contract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["specimen_count", "frame_count", "fixed_hz", "motion", "loop", "max_cells", "max_nodes", "max_muscles", "muscle_features", "max_displacement"],
+      "properties": {
+        "specimen_count": {"const": 10}, "frame_count": {"const": 72},
+        "fixed_hz": {"const": 12}, "motion": {"const": "locomote"}, "loop": {"const": true},
+        "max_cells": {"const": 640}, "max_nodes": {"const": 64}, "max_muscles": {"const": 80},
+        "muscle_features": {"const": 10}, "max_displacement": {"const": 12.0}
+      }
+    },
+    "specimens": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/specimen"}},
+    "arrays": {
+      "type": "object", "additionalProperties": false, "required": ["artifact", "members"],
+      "properties": {
+        "artifact": {"$ref": "#/$defs/artifact"},
+        "members": {
+          "type": "object", "minProperties": 24, "additionalProperties": {"$ref": "#/$defs/member"}
+        }
+      }
+    },
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"},
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": {"path": {"$ref": "#/$defs/path"}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "member": {
+      "type": "object", "additionalProperties": false, "required": ["dtype", "shape", "sha256"],
+      "properties": {
+        "dtype": {"type": "string", "minLength": 2},
+        "shape": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "integer", "minimum": 1}},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "specimen": {
+      "type": "object", "additionalProperties": false,
+      "required": ["index", "genome_id", "genome", "identity_sha256", "family_id", "morphotype_id", "role", "cell_count", "node_count", "muscle_count", "loop_seam_max_abs", "maximum_edge_strain"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0, "maximum": 9},
+        "genome_id": {"type": "string", "minLength": 1}, "genome": {"type": "object"},
+        "identity_sha256": {"$ref": "#/$defs/sha256"},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "morphotype_id": {"type": "integer", "minimum": 0, "maximum": 17},
+        "role": {"enum": ["base-prior", "component-graft"]},
+        "cell_count": {"type": "integer", "minimum": 1, "maximum": 640},
+        "node_count": {"type": "integer", "minimum": 1, "maximum": 64},
+        "muscle_count": {"type": "integer", "minimum": 1, "maximum": 80},
+        "loop_seam_max_abs": {"type": "number", "minimum": 0},
+        "maximum_edge_strain": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

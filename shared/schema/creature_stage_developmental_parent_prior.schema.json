@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-parent-prior-v1.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "teacher", "parent", "contract", "array", "runtime", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-developmental-parent-prior-v1"}, "status": {"const": "passed"},
+    "source_sha256": {"$ref": "#/$defs/sha256"}, "teacher": {"type": "object"}, "parent": {"type": "object"},
+    "contract": {"type": "object"}, "array": {"type": "object"}, "runtime": {"type": "object"},
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-actuator-production-v1.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "source_sha256", "teacher", "parent", "prior", "model", "training", "seed", "total_updates", "segment_updates", "batch_size", "optimizer", "ema_decay", "precision", "minimum_free_vram_bytes", "minimum_free_disk_bytes", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-developmental-actuator-production-v1"},
+    "source_sha256": {"$ref": "#/$defs/sha256"}, "teacher": {"type": "object"}, "parent": {"type": "object"}, "prior": {"type": "object"},
+    "model": {"type": "object"}, "training": {"type": "object"}, "seed": {"type": "integer", "minimum": 0},
+    "total_updates": {"type": "integer", "minimum": 500, "maximum": 10000},
+    "segment_updates": {"type": "integer", "minimum": 50, "maximum": 500},
+    "batch_size": {"type": "integer", "minimum": 5, "maximum": 30, "multipleOf": 5},
+    "optimizer": {"type": "object"}, "ema_decay": {"type": "number", "minimum": 0.9, "maximum": 1.0},
+    "precision": {"const": "bf16-autocast-float32-loss"},
+    "minimum_free_vram_bytes": {"type": "integer", "minimum": 8589934592},
+    "minimum_free_disk_bytes": {"type": "integer", "minimum": 107374182400},
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}
