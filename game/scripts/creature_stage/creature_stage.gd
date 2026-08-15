@@ -28,6 +28,18 @@ const FAMILY_TRAITS := [
 	["phase_mouth", "nonlocal_lobe", "echo_memory"],
 	["rail_hardpoints", "coolant_recycler", "lithovore"],
 ]
+const MUTATION_SEQUENCE := [
+	{"id": "reinforced_bonds", "name": "REINFORCED BONDS"},
+	{"id": "efficient_metabolism", "name": "EFFICIENT METABOLISM"},
+	{"id": "regenerative_matrix", "name": "REGENERATIVE MATRIX"},
+	{"id": "locomotor_lattice", "name": "LOCOMOTOR LATTICE"},
+	{"id": "sensory_crown", "name": "SENSORY CROWN"},
+]
+const NEED_RESOURCE := {
+	"food": "biomass", "water": "fluid", "minerals": "mineral",
+	"medicine": "spore", "knowledge": "phase",
+}
+const BUILD_KINDS := ["shelter", "scent_den", "root_node", "phase_anchor", "sentry"]
 
 var rng := RandomNumberGenerator.new()
 var neural_world: Node2D
@@ -42,15 +54,24 @@ var particles: Array[Dictionary] = []
 var recent_events: Array[String] = []
 var essence := 0.0
 var construction_mass := 0.0
+var inventory := {"biomass": 0.0, "mineral": 0.0, "fluid": 0.0, "spore": 0.0, "phase": 0.0}
 var reputation: Dictionary = {}
 var discovered_societies: Dictionary = {}
+var discovered_biomes: Dictionary = {}
 var generation_count := 0
+var objective_stage := 0
+var delivered_total := 0.0
+var built_count := 0
+var mutation_rank := 0
+var upgrade_history: Array[String] = []
 var attack_cooldown := 0.0
 var utility_cooldown := 0.0
 var spawn_clock := 0.0
 var sim_time := 0.0
 var paused := false
 var started := false
+var capture_output_path := ""
+var capture_frame_count := 0
 
 var ui_layer: CanvasLayer
 var selection_overlay: Control
@@ -75,14 +96,44 @@ func _ready() -> void:
 	_build_camera()
 	_build_ui()
 	_spawn_initial_ecology()
+	var capture_path := _argument_value("--creature-stage-capture=")
 	if "--creature-stage-smoke" in OS.get_cmdline_user_args():
 		_start_as_family(0)
 		call_deferred("_run_smoke")
+	elif not capture_path.is_empty():
+		_start_as_family(0)
+		capture_output_path = capture_path
+		set_process(true)
+		construction_mass = 2.0
+		player.aim_command = Vector2(0.85, -0.52).normalized()
+		_try_build()
 	elif "--creature-stage-demo" in OS.get_cmdline_user_args():
 		_start_as_family(0)
 	else:
 		_show_selection()
 	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if capture_output_path.is_empty():
+		return
+	capture_frame_count += 1
+	if capture_frame_count < 2:
+		return
+	var absolute_path := capture_output_path if capture_output_path.is_absolute_path() else ProjectSettings.globalize_path(capture_output_path)
+	capture_output_path = ""
+	DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir())
+	var image := get_viewport().get_texture().get_image()
+	var error := image.save_png(absolute_path)
+	print("CREATURE_STAGE_CAPTURE_%s %s" % ["OK" if error == OK else "FAILED", absolute_path])
+	get_tree().quit(0 if error == OK else 1)
+
+
+func _argument_value(prefix: String) -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with(prefix):
+			return argument.trim_prefix(prefix)
+	return ""
 
 
 func _build_world() -> void:
@@ -145,7 +196,7 @@ func _build_ui() -> void:
 	context_label = _label(bottom, Vector2(16, 9), Vector2(513, 40), "", Color("#e7f8ff"), 9)
 	context_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	traits_label = _label(bottom, Vector2(16, 50), Vector2(513, 20), "", Color("#75dfff"), 8)
-	event_label = _label(bottom, Vector2(16, 74), Vector2(513, 20), "WASD MOVE  //  LMB ATTACK  //  E FEED/INTERACT  //  Q UTILITY  //  SPACE SPRINT", Color("#70889c"), 7)
+	event_label = _label(bottom, Vector2(16, 74), Vector2(513, 20), "WASD MOVE // LMB ATTACK // E USE // Q UTILITY // F BUILD // R MUTATE // SPACE SPRINT", Color("#70889c"), 7)
 
 	selection_overlay = Control.new()
 	selection_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -256,6 +307,8 @@ func _physics_process(delta: float) -> void:
 	_update_particles(delta)
 	neural_world.ensure_chunks(player.position)
 	neural_world.simulate_cohorts(delta)
+	discovered_biomes[neural_world.current_biome(player.position)] = true
+	_advance_objective()
 	_materialize_ecology(delta)
 	camera.position = player.position
 	_update_ui()
@@ -266,11 +319,12 @@ func _update_player(delta: float) -> void:
 	var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var aim: Vector2 = player.get_global_mouse_position() - player.position
 	var sprint: bool = Input.is_action_pressed("dash") and player.energy > 0.06
-	var speed := 128.0 * (1.55 if sprint else 1.0)
+	var speed := 128.0 * float(player.genes.get("locomotion", 1.0)) * (1.55 if sprint else 1.0)
 	var locomotor_factor := clampf(player.alive_fraction() * 1.15, 0.12, 1.0)
 	var target_velocity := move * speed * locomotor_factor
 	player_velocity = player_velocity.lerp(target_velocity, 1.0 - exp(-delta * 10.0))
 	player.position += player_velocity * delta
+	player.position += neural_world.structure_collision_force(player.position, player.body_radius, player_family)
 	if sprint and move.length_squared() > 0.1:
 		player.energy = maxf(0.0, player.energy - delta * 0.012)
 	var attack := 1.0 if Input.is_action_pressed("attack") else 0.0
@@ -328,6 +382,7 @@ func _update_entities(delta: float) -> void:
 		velocity = velocity.lerp(desired * speed, 1.0 - exp(-delta * 3.4))
 		velocity += _separation_force(body, family_id) * delta * 75.0
 		body.position += velocity * delta
+		body.position += neural_world.structure_collision_force(body.position, body.body_radius, family_id)
 		record["velocity"] = velocity
 		var aim := desired if desired.length_squared() > 0.01 else Vector2.UP
 		body.set_commands(desired, aim, outputs[2], outputs[3], outputs[5])
@@ -423,11 +478,16 @@ func _try_feed_or_interact(delta: float) -> void:
 		var society: Dictionary = neural_world.societies[city["society_id"]]
 		discovered_societies[city["society_id"]] = true
 		reputation[city["society_id"]] = float(reputation.get(city["society_id"], 0.0)) + delta * 0.2
-		if construction_mass >= 1.0:
-			construction_mass -= delta * 0.6
-			player.energy = minf(1.0, player.energy + delta * 0.18)
-			city["stores"]["mineral"] = float(city["stores"]["mineral"]) + delta * 0.6
-		context_label.text = "%s // %s tradition // needs %s // population %d // hold E to trade matter" % [society["name"], society["trait"], city["need"], city["population"]]
+		var needed_type := str(NEED_RESOURCE.get(str(city["need"]), "biomass"))
+		var carried := float(inventory.get(needed_type, 0.0))
+		if carried > 0.001:
+			var delivered := minf(carried, delta * 0.42)
+			inventory[needed_type] = carried - delivered
+			city["stores"][needed_type] = float(city["stores"].get(needed_type, 0.0)) + delivered
+			delivered_total += delivered
+			reputation[city["society_id"]] = float(reputation.get(city["society_id"], 0.0)) + delivered * 0.55
+			player.energy = minf(1.0, player.energy + delivered * 0.08)
+		context_label.text = "%s // %s tradition // needs %s // carrying %.2f // hold E to deliver" % [society["name"], society["trait"], needed_type, float(inventory.get(needed_type, 0.0))]
 		return
 	var accepted := _accepted_resources(player_family)
 	var resource: Dictionary = neural_world.nearest_resource(player.position, accepted, 54.0)
@@ -437,9 +497,79 @@ func _try_feed_or_interact(delta: float) -> void:
 	if amount <= 0.0:
 		return
 	player.energy = minf(1.0, player.energy + amount * 0.55)
+	var resource_type := str(resource["type"])
+	inventory[resource_type] = float(inventory.get(resource_type, 0.0)) + amount * 0.42
 	if str(resource["type"]) in ["mineral", "biomass"]:
 		construction_mass += amount * 0.7
 	essence += amount * (0.45 if str(resource["type"]) in ["spore", "phase"] else 0.08)
+
+
+func _try_build() -> void:
+	var cost := 1.25 + float(built_count) * 0.2
+	if construction_mass < cost:
+		_log_event("Construction requires %.1f matter." % cost)
+		return
+	var direction: Vector2 = player.aim_command if player.aim_command.length_squared() > 0.01 else Vector2.UP
+	var record: Dictionary = neural_world.build_structure(player.position + direction * 74.0, player_family, BUILD_KINDS[player_family], "player")
+	if record.is_empty():
+		_log_event("The local substrate rejects that construction site.")
+		return
+	construction_mass -= cost
+	built_count += 1
+	_log_event("Built %s from %.1f matter." % [str(record["kind"]).replace("_", " "), cost])
+
+
+func _try_mutate() -> void:
+	var cost := 3.0 + float(mutation_rank) * 1.25
+	if essence < cost:
+		_log_event("Mutation requires %.1f essence." % cost)
+		return
+	var upgrade: Dictionary = MUTATION_SEQUENCE[mutation_rank % MUTATION_SEQUENCE.size()]
+	essence -= cost
+	mutation_rank += 1
+	upgrade_history.append(str(upgrade["name"]))
+	player.apply_gene_upgrade(str(upgrade["id"]))
+	_log_event("Neural germline accepted: %s." % str(upgrade["name"]))
+
+
+func _advance_objective() -> void:
+	var previous := objective_stage
+	match objective_stage:
+		0:
+			var carried_total := 0.0
+			for type in inventory:
+				carried_total += float(inventory[type])
+			if carried_total >= 0.4:
+				objective_stage = 1
+		1:
+			if not discovered_societies.is_empty():
+				objective_stage = 2
+		2:
+			if delivered_total >= 0.5:
+				objective_stage = 3
+		3:
+			if built_count > 0:
+				objective_stage = 4
+		4:
+			if mutation_rank > 0:
+				objective_stage = 5
+		5:
+			if discovered_biomes.size() >= 3:
+				objective_stage = 6
+	if objective_stage != previous:
+		_log_event("Expedition stage %d complete." % (previous + 1))
+
+
+func _objective_text() -> String:
+	return [
+		"HARVEST // assimilate and carry 0.4 compatible matter",
+		"CONTACT // locate and enter a generated settlement",
+		"RECIPROCITY // deliver 0.5 of the settlement's requested resource",
+		"HABITAT // gather matter and press F to construct",
+		"GERMLINE // gather essence and press R to mutate",
+		"MIGRATION // discover three neural-field biomes",
+		"OPEN WORLD // form alliances, hunt, build, mutate, and migrate",
+	][mini(objective_stage, 6)]
 
 
 func _try_reproduce(record: Dictionary, body: Node2D) -> void:
@@ -600,10 +730,12 @@ func _update_ui() -> void:
 	energy_bar.value = float(state["energy"]) * 100.0
 	biome_label.text = "BIOME // " + neural_world.current_biome(player.position).to_upper()
 	population_label.text = "ACTIVE ECOLOGY // %d BODIES  //  EPOCH %d" % [entities.size() + 1, neural_world.simulation_epoch]
-	resource_label.text = "ESSENCE %.1f  //  MATTER %.1f  //  GEN %d" % [essence, construction_mass, generation_count]
+	resource_label.text = "ESS %.1f // MAT %.1f // BIO %.1f MIN %.1f FLU %.1f" % [essence, construction_mass, float(inventory["biomass"]), float(inventory["mineral"]), float(inventory["fluid"])]
 	var trait_names: Array[String] = []
 	for trait_id in player_traits:
 		trait_names.append(str(TRAITS[trait_id]["name"]).to_upper())
+	for upgrade in upgrade_history:
+		trait_names.append(upgrade)
 	traits_label.text = "TRAITS // " + "  ·  ".join(trait_names)
 	var nearest: Dictionary = neural_world.nearest_resource(player.position, _accepted_resources(player_family), 180.0)
 	var city: Dictionary = neural_world.nearest_settlement(player.position, 360.0)
@@ -614,10 +746,7 @@ func _update_ui() -> void:
 		context_label.text = "SENSED // %s at %.0fm // hold E nearby to assimilate" % [str(nearest["type"]).to_upper(), player.position.distance_to(nearest["pos"]) / 10.0]
 	else:
 		context_label.text = "SENSORY FIELD QUIET // migrate toward luminous substrate signals"
-	if discovered_societies.size() > 0:
-		objective_label.text = "OBJECTIVE // GROW ESSENCE TO 3.0 AND PRODUCE A MUTATED DESCENDANT"
-	if essence >= 3.0:
-		objective_label.text = "MUTATION READY // NEXT DESCENDANT INHERITS A POLICY AND BODY VARIANT"
+	objective_label.text = "OBJECTIVE %d/6 // %s" % [mini(objective_stage + 1, 6), _objective_text()]
 
 
 func _log_event(text: String) -> void:
@@ -648,6 +777,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().paused = paused
 		if event.keycode >= KEY_1 and event.keycode <= KEY_5 and not started:
 			_start_as_family(int(event.keycode - KEY_1))
+		if started and not paused and event.keycode == KEY_F:
+			_try_build()
+		if started and not paused and event.keycode == KEY_R:
+			_try_mutate()
 
 
 func _panel_style(background: Color, border: Color) -> StyleBoxFlat:
@@ -710,7 +843,15 @@ func _run_smoke() -> void:
 	var unique_shapes: Dictionary = {}
 	for family_id in family_signatures:
 		unique_shapes[str(family_signatures[family_id])] = true
-	var passed: bool = entities.size() >= 50 and spawn_failures.is_empty() and dead_count <= 4 and unique_shapes.size() == 5 and neural_world.societies.size() >= 1
+	construction_mass = 2.0
+	essence = 3.0
+	player.aim_command = Vector2.UP
+	_try_build()
+	_try_mutate()
+	var structure_pos: Vector2 = neural_world.structures[0]["pos"] if not neural_world.structures.is_empty() else Vector2.ZERO
+	var hostile_collision: float = neural_world.structure_collision_force(structure_pos + Vector2.RIGHT, 20.0, 1).length()
+	var friendly_collision: float = neural_world.structure_collision_force(structure_pos + Vector2.RIGHT, 20.0, 0).length()
+	var passed: bool = entities.size() >= 50 and spawn_failures.is_empty() and dead_count <= 4 and unique_shapes.size() == 5 and neural_world.societies.size() >= 1 and neural_world.structures.size() == 1 and mutation_rank == 1 and hostile_collision > 1.0 and friendly_collision < 0.001
 	print("CREATURE_STAGE_SMOKE_%s active=%d families=%s chunks=%d societies=%d spawn_failures=%s deaths=%d" % ["OK" if passed else "FAILED", entities.size(), str(family_counts), neural_world.chunks.size(), neural_world.societies.size(), str(spawn_failures), dead_count])
 	var report := {
 		"format": "nullvector-creature-stage-scaffold-smoke-v1",
@@ -722,6 +863,11 @@ func _run_smoke() -> void:
 		"unique_shape_count": unique_shapes.size(),
 		"active_chunks": neural_world.chunks.size(),
 		"society_count": neural_world.societies.size(),
+		"structure_count": neural_world.structures.size(),
+		"mutation_rank": mutation_rank,
+		"upgrade_history": upgrade_history,
+		"hostile_structure_collision": hostile_collision,
+		"friendly_structure_collision": friendly_collision,
 		"spawn_failures": spawn_failures,
 		"deaths_after_4_seconds": dead_count,
 		"player": player.status_snapshot(),

@@ -21,8 +21,10 @@ The scaffold currently provides five genuinely different cellular chassis,
 internal organs and capacities, cell damage and healing, appendage motion,
 ground-plane fluids, family-specific metabolism and actions, recurrent NPC
 controllers, resources, reproduction, 49 streamed exact chunks, distant
-ecology cohorts, and seeded settlements/societies. Bodies remain vertically
-aligned in 2.5D; appendages and aim move, but the chassis never flips.
+ecology cohorts, seeded settlements/societies, a six-stage expedition arc,
+resource delivery, live gene upgrades, and family-specific construction with
+broad collision hulls. Bodies remain vertically aligned in 2.5D; appendages
+and aim move, but the chassis never flips.
 
 The development sequence is deliberately staged:
 

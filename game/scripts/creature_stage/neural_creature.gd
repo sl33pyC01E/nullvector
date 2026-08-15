@@ -240,6 +240,24 @@ func heal(amount: float) -> void:
 			cell["health"] = minf(1.0, float(cell.get("health", 1.0)) + repair)
 
 
+func apply_gene_upgrade(upgrade_id: String) -> void:
+	match upgrade_id:
+		"reinforced_bonds":
+			genes["bond_strength"] = float(genes.get("bond_strength", 1.0)) * 1.18
+			heal(0.14)
+		"efficient_metabolism":
+			genes["metabolism"] = maxf(0.45, float(genes.get("metabolism", 1.0)) * 0.86)
+			energy = minf(1.0, energy + 0.18)
+		"regenerative_matrix":
+			genes["repair"] = float(genes.get("repair", 1.0)) * 1.28
+			heal(0.22)
+		"locomotor_lattice":
+			genes["locomotion"] = float(genes.get("locomotion", 1.0)) * 1.16
+		"sensory_crown":
+			genes["sense_range"] = float(genes.get("sense_range", 1.0)) * 1.22
+	queue_redraw()
+
+
 func _kill_cell(cell: Dictionary) -> void:
 	if not bool(cell.get("alive", true)):
 		return

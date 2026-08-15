@@ -21,6 +21,7 @@ const RESOURCE_COLORS := {
 var world_seed := 0
 var chunks: Dictionary = {}
 var societies: Dictionary = {}
+var structures: Array[Dictionary] = []
 var focus_position := Vector2.ZERO
 var simulation_epoch := 0
 var cohort_clock := 0.0
@@ -30,6 +31,7 @@ func configure(seed_value: int) -> void:
 	world_seed = seed_value
 	chunks.clear()
 	societies.clear()
+	structures.clear()
 	ensure_chunks(Vector2.ZERO)
 	queue_redraw()
 
@@ -267,6 +269,66 @@ func current_biome(position: Vector2) -> String:
 	return str(chunk.get("biome", "unresolved field"))
 
 
+func build_structure(position: Vector2, family_id: int, kind: String, owner_id: String) -> Dictionary:
+	var snapped := Vector2(roundf(position.x / 8.0) * 8.0, roundf(position.y / 8.0) * 8.0)
+	var radius: float = {
+		"shelter": 25.0,
+		"scent_den": 21.0,
+		"root_node": 27.0,
+		"phase_anchor": 23.0,
+		"sentry": 24.0,
+	}.get(kind, 22.0)
+	for structure in structures:
+		if snapped.distance_to(structure["pos"]) < radius + float(structure["radius"]) + 10.0:
+			return {}
+	var city: Dictionary = nearest_settlement(snapped, 100.0)
+	if not city.is_empty():
+		return {}
+	var record := {
+		"id": "built:%s:%d" % [owner_id, structures.size()],
+		"pos": snapped,
+		"radius": radius,
+		"family_id": family_id,
+		"kind": kind,
+		"owner_id": owner_id,
+		"integrity": 1.0,
+		"built_epoch": simulation_epoch,
+	}
+	structures.append(record)
+	queue_redraw()
+	return record
+
+
+func structure_collision_force(position: Vector2, body_radius: float, family_id: int) -> Vector2:
+	var force := Vector2.ZERO
+	for structure in structures:
+		if int(structure["family_id"]) == family_id:
+			continue
+		var delta := position - Vector2(structure["pos"])
+		var distance := delta.length()
+		var minimum := body_radius * 0.62 + float(structure["radius"])
+		if distance < minimum:
+			var structure_normal := delta / distance if distance > 0.001 else Vector2.RIGHT
+			force += structure_normal * (minimum - distance)
+	# Friendly traffic can pass through its own architecture. Foreign district
+	# hulls collide broadly, so a single decorative cell can never shear a body.
+	for coord in chunks:
+		var settlement: Dictionary = chunks[coord]["settlement"]
+		if settlement.is_empty():
+			continue
+		var society: Dictionary = societies.get(settlement["society_id"], {})
+		if int(society.get("founder_family", -1)) == family_id:
+			continue
+		for district in settlement["districts"]:
+			var delta := position - Vector2(district["pos"])
+			var distance := delta.length()
+			var minimum := body_radius * 0.55 + float(district["radius"])
+			if distance < minimum:
+				var district_normal := delta / distance if distance > 0.001 else Vector2.RIGHT
+				force += district_normal * (minimum - distance)
+	return force.limit_length(30.0)
+
+
 func _draw() -> void:
 	var center := world_to_chunk(focus_position)
 	for cy in range(center.y - ACTIVE_RADIUS, center.y + ACTIVE_RADIUS + 1):
@@ -275,6 +337,9 @@ func _draw() -> void:
 			if not chunks.has(coord):
 				continue
 			_draw_chunk(chunks[coord])
+	for structure in structures:
+		if Vector2(structure["pos"]).distance_to(focus_position) < CHUNK_SIZE * float(ACTIVE_RADIUS + 1):
+			_draw_structure(structure)
 
 
 func _draw_chunk(chunk: Dictionary) -> void:
@@ -328,3 +393,38 @@ func _draw_settlement(settlement: Dictionary) -> void:
 	draw_circle(center, 31.0, Color(color.darkened(0.65), 0.98))
 	draw_arc(center, 36.0, 0.0, TAU, 32, Color(color, 0.9), 2.0)
 	draw_string(ThemeDB.fallback_font, center + Vector2(-55, -47), str(society.get("name", "settlement")), HORIZONTAL_ALIGNMENT_CENTER, 110, 11, color.lightened(0.25))
+
+
+func _draw_structure(structure: Dictionary) -> void:
+	var pos: Vector2 = structure["pos"]
+	var radius := float(structure["radius"])
+	var family_id := int(structure["family_id"])
+	var color: Color = Neural.FAMILY_COLORS[family_id]
+	var kind := str(structure["kind"])
+	draw_circle(pos + Vector2(0, radius * 0.62), radius * 0.78, Color(0.0, 0.0, 0.0, 0.34))
+	match kind:
+		"root_node":
+			for arm in range(6):
+				var tip := pos + Vector2.from_angle(TAU * float(arm) / 6.0) * radius
+				draw_line(pos, tip, Color(color, 0.65), 5.0)
+			draw_circle(pos, radius * 0.48, color.darkened(0.45))
+		"phase_anchor":
+			draw_circle(pos, radius * 0.68, Color(color, 0.13))
+			draw_arc(pos, radius, -simulation_epoch * 0.03, TAU - simulation_epoch * 0.03, 6, color, 2.0)
+			draw_circle(pos, 4.0, color.lightened(0.25))
+		"sentry":
+			draw_rect(Rect2(pos - Vector2(radius * 0.58, radius * 0.48), Vector2(radius * 1.16, radius * 0.96)), color.darkened(0.58), true)
+			draw_arc(pos, radius * 0.76, 0.0, TAU, 8, color, 2.0)
+		"scent_den":
+			draw_arc(pos, radius, PI, TAU, 18, color, 5.0)
+			draw_circle(pos + Vector2(0, 4), radius * 0.48, color.darkened(0.68))
+		_:
+			draw_colored_polygon(PackedVector2Array([
+				pos + Vector2(0, -radius), pos + Vector2(radius, 0),
+				pos + Vector2(radius * 0.65, radius), pos + Vector2(-radius * 0.65, radius),
+				pos + Vector2(-radius, 0),
+			]), color.darkened(0.62))
+			draw_polyline(PackedVector2Array([
+				pos + Vector2(0, -radius), pos + Vector2(radius, 0), pos + Vector2(radius * 0.65, radius),
+				pos + Vector2(-radius * 0.65, radius), pos + Vector2(-radius, 0), pos + Vector2(0, -radius),
+			]), color, 2.0)
