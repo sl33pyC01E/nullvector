@@ -17,7 +17,8 @@ creature-stage prototype rather than the old wave arena. It is the first
 causal scaffold for a longer research program whose target is one recurrent,
 action-conditioned DiT world model with a continuous VAE viewport decoder.
 
-The scaffold currently provides five genuinely different cellular chassis,
+The scaffold currently provides twenty named cellular chassis across five
+genuinely different families,
 internal organs and capacities, cell damage and healing, appendage motion,
 ground-plane fluids, family-specific metabolism and actions, recurrent NPC
 controllers, resources, reproduction, 49 streamed exact chunks, distant
@@ -46,6 +47,30 @@ five families (20 total). A 160-specimen native audit verifies connectivity,
 vital organs, soft symmetry, 2.5D organ ordering, morphotype coverage, and
 within-family signature diversity. The labeled native contact sheet is written
 to `outputs/creature_stage_scaffold/morphology_contact2.png`.
+
+Layered cellular motion now has thirteen states: breathe, wiggle, locomote,
+joy, anger, fear, confused, sleep, taunt, attack, cast, hit, and death. Motion
+acts on appendage chains, sensors, organs, weapons, phase tissue, and the
+bounded corpse settle pose; it never rotates or flips the chassis. The native
+motion gate covers all 20 x 13 combinations for 72 fixed-rate frames, runs two
+identical bodies per clip, and rejects replay drift, non-finite motion, organ
+changes, collapsed action, excessive displacement, or explosive death spread.
+
+```powershell
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --headless --path C:\Users\forre\Documents\neural-game\game -- `
+  --creature-stage-motion-audit=C:\Users\forre\Documents\neural-game\outputs\creature_stage_scaffold\motion_audit.json
+
+python -m forge.creature_stage_motion_audit `
+  outputs/creature_stage_scaffold/motion_audit.json
+
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --headless --path C:\Users\forre\Documents\neural-game\game -- `
+  --creature-stage-motion-sheet=C:\Users\forre\Documents\neural-game\outputs\creature_stage_scaffold\motion_contact_sheet.png
+```
+
+The CPU-only sheet renderer avoids Windows viewport-capture instability and
+renders the complete 260-pose matrix without requiring a graphics window.
 
 ## Current production sprite path
 
@@ -321,8 +346,9 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
   --path C:\Users\forre\Documents\neural-game\game
 ```
 
-Controls in the arena: WASD moves, mouse or J fires, Space/Shift dashes, and
-Escape pauses. Workshop controls are documented in
+Creature-stage controls: WASD moves, the mouse aims, left click attacks, E
+assimilates/interacts, Q uses the family utility, F builds, R mutates, Space
+sprints, and Z/X/C/V/B trigger emotes. Workshop controls are documented in
 `docs/native_neural_workshop.md`.
 
 ## Where to read next

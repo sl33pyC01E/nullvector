@@ -2,6 +2,26 @@ class_name NeuralCreature
 extends Node2D
 
 const Neural = preload("res://scripts/creature_stage/creature_neural.gd")
+const MOTIONS := [
+	"idle_breathe", "idle_wiggle", "locomote",
+	"joy", "anger", "fear", "confused", "sleep", "taunt",
+	"attack", "cast", "hit", "death",
+]
+const MOTION_SPECS := {
+	"idle_breathe": {"cycle": 2.4, "loop": true, "priority": 0},
+	"idle_wiggle": {"cycle": 1.8, "loop": true, "priority": 0},
+	"locomote": {"cycle": 0.78, "loop": true, "priority": 1},
+	"joy": {"cycle": 1.0, "loop": false, "priority": 2},
+	"anger": {"cycle": 0.8, "loop": false, "priority": 2},
+	"fear": {"cycle": 0.9, "loop": false, "priority": 2},
+	"confused": {"cycle": 1.1, "loop": false, "priority": 2},
+	"sleep": {"cycle": 2.4, "loop": false, "priority": 2},
+	"taunt": {"cycle": 0.9, "loop": false, "priority": 2},
+	"attack": {"cycle": 0.55, "loop": false, "priority": 3},
+	"cast": {"cycle": 0.72, "loop": false, "priority": 3},
+	"hit": {"cycle": 0.42, "loop": false, "priority": 4},
+	"death": {"cycle": 1.2, "loop": false, "priority": 5},
+}
 
 signal died(creature: NeuralCreature)
 signal cell_lost(creature: NeuralCreature, tissue: String, organ: String)
@@ -23,12 +43,17 @@ var attack_command := 0.0
 var utility_command := 0.0
 var locomotion_phase := 0.0
 var action_impulse := 0.0
+var motion_state := "idle_breathe"
+var motion_time := 0.0
+var motion_duration := -1.0
+var motion_events: Array[String] = []
 var energy := 0.72
 var hydration := 0.85
 var age := 0.0
 var dead := false
 var selected := false
 var neural_glitch := 0.0
+var corpse_settle := 0.0
 var body_radius := 30.0
 var display_scale := 1.0
 var base_color := Color.WHITE
@@ -72,16 +97,70 @@ func set_commands(move: Vector2, aim: Vector2, feed: float, attack: float, utili
 	feed_command = clampf(feed, 0.0, 1.0)
 	attack_command = clampf(attack, 0.0, 1.0)
 	utility_command = clampf(utility, 0.0, 1.0)
+	if utility_command > 0.5 and motion_state not in ["cast", "death", "hit"]:
+		play_motion("cast", 0.72)
 
 
 func trigger_action(strength := 1.0) -> void:
 	action_impulse = maxf(action_impulse, strength)
+	play_motion("attack", 0.55)
+
+
+func play_motion(name: String, duration: float = -1.0) -> void:
+	if name not in MOTIONS or dead and name != "death":
+		return
+	var requested_priority: int = int(MOTION_SPECS[name]["priority"])
+	var active_priority: int = int(MOTION_SPECS[motion_state]["priority"])
+	if motion_duration > 0.0 and requested_priority < active_priority:
+		return
+	if name == motion_state and motion_duration > 0.0:
+		return
+	if duration < 0.0 and not bool(MOTION_SPECS[name]["loop"]):
+		duration = float(MOTION_SPECS[name]["cycle"])
+	motion_state = name
+	motion_time = 0.0
+	motion_duration = duration
+	motion_events.clear()
+	if name in ["attack", "cast", "hit"]:
+		motion_events.append("start:" + name)
+	queue_redraw()
+
+
+func current_motion() -> String:
+	return motion_state
+
+
+func motion_cycle_progress() -> float:
+	var cycle: float = float(MOTION_SPECS[motion_state]["cycle"])
+	if bool(MOTION_SPECS[motion_state]["loop"]):
+		return fmod(motion_time / cycle, 1.0)
+	return clampf(motion_time / cycle, 0.0, 1.0)
+
+
+func _update_motion_state(delta: float) -> void:
+	motion_time += delta
+	if motion_duration > 0.0 and motion_time >= motion_duration:
+		motion_duration = -1.0
+		motion_time = 0.0
+		motion_events.append("complete:" + motion_state)
+	if motion_duration > 0.0:
+		return
+	if dead:
+		motion_state = "death"
+	elif move_command.length_squared() > 0.025:
+		motion_state = "locomote"
+	elif fmod(age, 8.0) > 5.3:
+		motion_state = "idle_wiggle"
+	else:
+		motion_state = "idle_breathe"
 
 
 func simulate_body(delta: float) -> void:
 	age += delta
+	_update_motion_state(delta)
 	var locomotor := move_command.length()
-	locomotion_phase = fmod(locomotion_phase + delta * lerpf(2.2, 8.0, locomotor), TAU)
+	var phase_speed: float = 8.0 if motion_state == "locomote" else (3.1 if motion_state in ["joy", "anger", "fear", "taunt"] else 2.2)
+	locomotion_phase = fmod(locomotion_phase + delta * lerpf(phase_speed * 0.72, phase_speed, locomotor), TAU)
 	action_impulse = move_toward(action_impulse, 0.0, delta * 3.2)
 	neural_glitch = move_toward(neural_glitch, 1.0 - neural_capacity(), delta * 0.8)
 	if dead:
@@ -103,7 +182,7 @@ func _simulate_living_cells(delta: float) -> void:
 		var appendage := int(cell.get("appendage", -1))
 		var side := int(cell.get("side", 0))
 		var tissue := str(cell.get("tissue", "skin"))
-		if appendage >= 0:
+		if appendage >= 0 and motion_state == "locomote":
 			var phase_offset := float(appendage % 2) * PI
 			var stride := sin(locomotion_phase + phase_offset)
 			var leverage := clampf(abs(rest.y) / 30.0 + abs(rest.x) / 36.0, 0.2, 1.0)
@@ -114,8 +193,7 @@ func _simulate_living_cells(delta: float) -> void:
 				target.x += stride * 1.8 * leverage * move_command.length()
 		if str(cell.get("organ", "none")) in ["eye", "optic", "photoreceptor", "singularity"]:
 			target += aim_command * 1.2
-		if attack_command > 0.2 and tissue in ["weapon", "locomotor", "phase"]:
-			target += aim_command * action_impulse * 5.0
+		target += _layered_motion_offset(cell, rest)
 		if family_id == 2 and tissue in ["skin", "root"]:
 			target.x += sin(age * 1.8 + rest.y * 0.13) * 0.55
 		if family_id == 3 and str(cell.get("organ", "")) == "orbital":
@@ -133,6 +211,70 @@ func _simulate_living_cells(delta: float) -> void:
 		pos += velocity
 		cell["vel"] = velocity
 		cell["pos"] = pos
+
+
+func _layered_motion_offset(cell: Dictionary, rest: Vector2) -> Vector2:
+	var offset: Vector2 = Vector2.ZERO
+	var appendage: int = int(cell.get("appendage", -1))
+	var side: int = int(cell.get("side", 0))
+	var tissue: String = str(cell.get("tissue", "skin"))
+	var organ: String = str(cell.get("organ", "none"))
+	var leverage: float = clampf(rest.length() / maxf(body_radius, 1.0), 0.12, 1.0)
+	var perpendicular: Vector2 = Vector2(-aim_command.y, aim_command.x)
+	var progress: float = motion_cycle_progress()
+	match motion_state:
+		"idle_breathe":
+			if appendage < 0 and (tissue in ["respiratory", "skin", "structure", "phase", "armor"] or organ in ["lung", "frond", "radiator", "orbital"]):
+				offset.y += sin(motion_time * 2.6 + rest.x * 0.05) * 0.42
+		"idle_wiggle":
+			if appendage >= 0:
+				offset.x += sin(motion_time * 3.4 + float(appendage) * 1.7) * 1.35 * leverage
+				offset.y += cos(motion_time * 2.7 + float(appendage)) * 0.55 * leverage
+		"joy":
+			if appendage >= 0:
+				offset.y -= (1.8 + sin(motion_time * 6.0 + float(appendage)) * 1.4) * leverage
+				offset.x += float(side) * sin(motion_time * 4.0) * 1.2 * leverage
+			elif tissue in ["neural", "circulatory"]:
+				offset.y -= abs(sin(motion_time * 6.0)) * 0.7
+		"anger":
+			if appendage >= 0:
+				var posture_scale: float = 3.5 if tissue in ["weapon", "locomotor", "phase"] else 2.2
+				offset += aim_command * posture_scale * leverage
+				offset += perpendicular * float(side) * 0.8
+		"fear":
+			if appendage >= 0:
+				offset.x -= float(side) * 2.1 * leverage
+				offset += Vector2(sin(motion_time * 23.0 + rest.y), cos(motion_time * 19.0 + rest.x)) * 0.34
+		"confused":
+			if tissue == "sensor" or organ in ["eye", "photoreceptor", "singularity", "optic"]:
+				offset += perpendicular * sin(motion_time * 4.5 + rest.x * 0.2) * 2.2
+			elif appendage >= 0:
+				offset.y += sin(motion_time * 3.2 + float(appendage) * 2.1) * 0.8 * leverage
+		"sleep":
+			offset.y += 1.1 * leverage
+			if appendage >= 0:
+				offset.x -= float(side) * 0.7 * leverage
+			if tissue == "respiratory":
+				offset.y += sin(motion_time * 1.25) * 0.5
+		"taunt":
+			if appendage >= 0 and (side >= 0 or appendage % 2 == 0):
+				offset.y -= 2.4 * leverage
+				offset += perpendicular * sin(motion_time * 7.0) * 2.0 * leverage
+		"attack":
+			if appendage >= 0:
+				var strike: float = sin(progress * PI)
+				var strike_scale: float = 6.5 if tissue in ["weapon", "locomotor", "phase"] else 4.2
+				offset += aim_command * maxf(action_impulse, strike) * strike_scale * leverage
+			elif appendage < 0:
+				offset += aim_command * action_impulse * 0.45
+		"cast":
+			if tissue in ["neural", "sensor", "phase"] or organ in ["brain", "meristem", "phase_brain", "processor"]:
+				offset += Vector2(cos(motion_time * 7.0 + rest.y), sin(motion_time * 7.0 + rest.x)) * 0.8
+			if appendage >= 0:
+				offset += Vector2(float(side), -0.5) * sin(motion_time * PI) * 1.4 * leverage
+		"hit":
+			offset -= aim_command * sin(progress * PI) * 3.8 * leverage
+	return offset
 
 
 func _simulate_physiology(delta: float) -> void:
@@ -159,10 +301,18 @@ func _simulate_physiology(delta: float) -> void:
 
 
 func _simulate_corpse(delta: float) -> void:
+	# Death is a bounded 2.5D collapse toward the shared shadow plane, not
+	# screen-space gravity. Every cell keeps its death-relative placement while
+	# small inherited impulses disperse and then damp, preserving the corpse.
+	var settle_limit: float = minf(body_radius * 0.16, 6.0)
+	corpse_settle = move_toward(corpse_settle, settle_limit, delta * 2.5)
 	for cell in cells:
+		if not cell.has("death_rest"):
+			cell["death_rest"] = Vector2(cell["pos"])
+		var target: Vector2 = Vector2(cell["death_rest"]) + Vector2(0.0, corpse_settle)
 		var velocity: Vector2 = cell.get("vel", Vector2.ZERO)
-		velocity *= exp(-delta * 4.5)
-		velocity.y += delta * 0.8
+		velocity += (target - Vector2(cell["pos"])) * delta * 2.2
+		velocity *= exp(-delta * 3.1)
 		cell["pos"] = Vector2(cell["pos"]) + velocity
 		cell["vel"] = velocity
 
@@ -202,6 +352,7 @@ func damage_at(world_point: Vector2, radius: float, amount: float, impulse := Ve
 			if health <= 0.0:
 				_kill_cell(cell)
 	if hits > 0:
+		play_motion("hit", 0.42)
 		_rebuild_organs()
 		if neural_capacity() < 0.08 or alive_fraction() < 0.18:
 			_die()
@@ -225,6 +376,7 @@ func cut_segment(world_a: Vector2, world_b: Vector2, width := 2.2) -> int:
 			_spawn_fluid(p, str(cell.get("tissue", "skin")), Vector2(-ab.y, ab.x).normalized() * 8.0)
 			hits += 1
 	if hits > 0:
+		play_motion("hit", 0.46)
 		_rebuild_organs()
 		if neural_capacity() < 0.08 or alive_fraction() < 0.18:
 			_die()
@@ -290,7 +442,9 @@ func _die() -> void:
 		return
 	dead = true
 	move_command = Vector2.ZERO
+	play_motion("death")
 	for cell in cells:
+		cell["death_rest"] = Vector2(cell["pos"])
 		cell["vel"] = Vector2(cell.get("vel", Vector2.ZERO)) + Vector2(randf_range(-0.7, 0.7), randf_range(-0.25, 0.65))
 	died.emit(self)
 

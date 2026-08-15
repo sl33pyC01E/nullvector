@@ -168,6 +168,43 @@ weak bilateral/radial structure, or sensory tissue below locomotive tissue.
 The current bank has 14–28 distinct metric signatures per family and replays
 byte-exactly.
 
+## Layered cellular motion authority
+
+The scaffold motion vocabulary is deliberately shared with the neural sprite
+forge: `idle_breathe`, `idle_wiggle`, `locomote`, `joy`, `anger`, `fear`,
+`confused`, `sleep`, `taunt`, `attack`, `cast`, `hit`, and `death`.
+
+These are not whole-sprite scale or flip effects. Each state produces bounded
+targets for anatomical subsets:
+
+- breathing pulses internal respiratory, structural, phase, or armored cells;
+- locomotion alternates appendage chains with root-to-tip leverage;
+- emotes change appendage posture, sensory attention, neural pulse, or stance;
+- attack and cast respect aim while leaving the upright chassis orientation at
+  zero rotation;
+- hit reaction is a time-normalized impulse that cannot be restarted by a
+  lower-priority idle or emote;
+- death preserves the death-relative cell layout and settles the whole corpse
+  toward its 2.5D shadow plane with bounded damped dispersion. It does not use
+  unbounded screen-down gravity and does not pancake cells onto one line.
+
+Motion priority is explicit: death > hit > action > emote > locomotion > idle.
+Holding an action therefore cannot reset its clock every simulation tick, and
+incidental NPC emotes cannot interrupt trauma or attacks.
+
+The native motion audit runs 20 chassis x 13 motions x 72 frames at 30 Hz. A
+twin body receives the same commands and must reproduce every cell position to
+within 1e-7. The gate also requires finite coordinates, unchanged organ counts,
+zero chassis rotation, meaningful local displacement, a 14-pixel hard motion
+bound, non-explosive corpse spread, complete ordered matrix coverage, and 260
+unique sampled pose signatures. `forge.creature_stage_motion_audit` validates
+the strict schema and recomputes the cross-runtime clip identity hash.
+
+The companion `--creature-stage-motion-sheet=` mode uses only CPU `Image`
+operations, so it remains deterministic under Windows headless Godot. Its rows
+are the 20 chassis in family/morphotype order; columns follow the 13-state
+vocabulary above. The current sheet replays byte-exactly.
+
 ## First playable loop
 
 1. Spawn as one of five neural organisms with distinct metabolism and tools.

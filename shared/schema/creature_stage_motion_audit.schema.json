@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature_stage_motion_audit.schema.json",
+  "title": "NULLVECTOR creature-stage layered motion audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "passed", "fixed_hz", "frames_per_clip", "family_count",
+    "chassis_count", "motion_count", "clip_count", "clip_identity_sha256", "motions",
+    "unique_pose_signatures", "maximum_displacement", "contracts",
+    "family_summary", "failures", "clips"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-motion-audit-v1"},
+    "passed": {"const": true},
+    "fixed_hz": {"const": 30},
+    "frames_per_clip": {"const": 72},
+    "family_count": {"const": 5},
+    "chassis_count": {"const": 20},
+    "motion_count": {"const": 13},
+    "clip_count": {"const": 260},
+    "clip_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "motions": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "prefixItems": [
+        {"const": "idle_breathe"}, {"const": "idle_wiggle"},
+        {"const": "locomote"}, {"const": "joy"}, {"const": "anger"},
+        {"const": "fear"}, {"const": "confused"}, {"const": "sleep"},
+        {"const": "taunt"}, {"const": "attack"}, {"const": "cast"},
+        {"const": "hit"}, {"const": "death"}
+      ]
+    },
+    "unique_pose_signatures": {"const": 260},
+    "maximum_displacement": {"type": "number", "exclusiveMinimum": 0, "maximum": 14},
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["morphology", "motion", "orientation", "replay"],
+      "properties": {
+        "morphology": {"const": "coordinate-conditioned-safe-scaffold-v1"},
+        "motion": {"const": "layered-cellular-motion-13x20-v1"},
+        "orientation": {"const": "vertical-locked-2.5d-v1"},
+        "replay": {"const": "twin-body-exact-projection-v1"}
+      }
+    },
+    "family_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3", "4"],
+      "properties": {
+        "0": {"$ref": "#/$defs/familySummary"},
+        "1": {"$ref": "#/$defs/familySummary"},
+        "2": {"$ref": "#/$defs/familySummary"},
+        "3": {"$ref": "#/$defs/familySummary"},
+        "4": {"$ref": "#/$defs/familySummary"}
+      }
+    },
+    "failures": {"type": "array", "maxItems": 0},
+    "clips": {
+      "type": "array", "minItems": 260, "maxItems": 260,
+      "items": {"$ref": "#/$defs/clip"}
+    }
+  },
+  "$defs": {
+    "familySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family", "chassis_count", "clip_count", "unique_pose_signatures",
+        "minimum_meaningful_displacement", "maximum_displacement"
+      ],
+      "properties": {
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "chassis_count": {"const": 4},
+        "clip_count": {"const": 52},
+        "unique_pose_signatures": {"const": 52},
+        "minimum_meaningful_displacement": {"type": "number", "minimum": 0.025, "maximum": 14},
+        "maximum_displacement": {"type": "number", "exclusiveMinimum": 0, "maximum": 14}
+      }
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family", "family_id", "morphotype", "morphotype_id", "seed", "motion",
+        "frames", "cell_count", "appendage_cell_count", "maximum_displacement",
+        "maximum_appendage_displacement", "maximum_core_displacement", "spread_delta",
+        "maximum_replay_delta", "pose_sha256", "deterministic", "finite",
+        "vertical_lock", "organs_preserved", "motion_retained"
+      ],
+      "properties": {
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "morphotype": {
+          "enum": [
+            "balanced", "longarm", "sixlimb", "crowned",
+            "quadruped", "crawler", "longtail", "horned",
+            "treeform", "rosette", "runner", "twin_stem",
+            "triad", "cross", "pentad", "halo",
+            "tracked", "walker", "hover", "crab"
+          ]
+        },
+        "morphotype_id": {"type": "integer", "minimum": 0, "maximum": 3},
+        "seed": {"type": "integer"},
+        "motion": {
+          "enum": [
+            "idle_breathe", "idle_wiggle", "locomote", "joy", "anger", "fear",
+            "confused", "sleep", "taunt", "attack", "cast", "hit", "death"
+          ]
+        },
+        "frames": {"const": 72},
+        "cell_count": {"type": "integer", "minimum": 70, "maximum": 500},
+        "appendage_cell_count": {"type": "integer", "minimum": 1, "maximum": 500},
+        "maximum_displacement": {"type": "number", "exclusiveMinimum": 0, "maximum": 14},
+        "maximum_appendage_displacement": {"type": "number", "minimum": 0, "maximum": 14},
+        "maximum_core_displacement": {"type": "number", "minimum": 0, "maximum": 14},
+        "spread_delta": {"type": "number", "minimum": -1.5, "maximum": 1.5},
+        "maximum_replay_delta": {"type": "number", "minimum": 0, "maximum": 0.0000001},
+        "pose_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "deterministic": {"const": true},
+        "finite": {"const": true},
+        "vertical_lock": {"const": true},
+        "organs_preserved": {"const": true},
+        "motion_retained": {"const": true}
+      }
+    }
+  }
+}

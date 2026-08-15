@@ -9,6 +9,8 @@ const MAX_ACTIVE_CREATURES := 86
 const VIEW_SIZE := Vector2(1280, 720)
 const TRACE_STEPS := 240
 const TRACE_DELTA := 1.0 / 30.0
+const MOTION_AUDIT_FRAMES := 72
+const MOTION_AUDIT_DELTA := 1.0 / 30.0
 const TRAITS := {
 	"paired_graspers": {"name": "Paired Graspers", "text": "Manipulation and construction speed +35%."},
 	"redundant_pulse": {"name": "Redundant Pulse", "text": "Circulation remains functional after severe heart loss."},
@@ -98,6 +100,14 @@ var population_label: Label
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	rng.seed = WORLD_SEED
+	var motion_sheet_path := _argument_value("--creature-stage-motion-sheet=")
+	if not motion_sheet_path.is_empty():
+		call_deferred("_run_motion_sheet", motion_sheet_path)
+		return
+	var motion_audit_path := _argument_value("--creature-stage-motion-audit=")
+	if not motion_audit_path.is_empty():
+		call_deferred("_run_motion_audit", motion_audit_path)
+		return
 	var morphology_audit_path := _argument_value("--creature-stage-morphology-audit=")
 	if not morphology_audit_path.is_empty():
 		call_deferred("_run_morphology_audit", morphology_audit_path)
@@ -216,7 +226,7 @@ func _build_ui() -> void:
 	context_label = _label(bottom, Vector2(16, 9), Vector2(513, 40), "", Color("#e7f8ff"), 9)
 	context_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	traits_label = _label(bottom, Vector2(16, 50), Vector2(513, 20), "", Color("#75dfff"), 8)
-	event_label = _label(bottom, Vector2(16, 74), Vector2(513, 20), "WASD MOVE // LMB ATTACK // E USE // Q UTILITY // F BUILD // R MUTATE // SPACE SPRINT", Color("#70889c"), 7)
+	event_label = _label(bottom, Vector2(16, 74), Vector2(513, 20), "WASD MOVE // LMB ATTACK // E USE // Q UTILITY // F BUILD // R MUTATE // Z–B EMOTES", Color("#70889c"), 7)
 
 	selection_overlay = Control.new()
 	selection_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -343,6 +353,7 @@ func _spawn_entity(family_id: int, position_value: Vector2, serial: int, parent_
 		"age": rng.randf_range(3.0, 65.0),
 		"reproduction_cooldown": rng.randf_range(45.0, 140.0),
 		"attack_cooldown": rng.randf_range(0.0, 2.0),
+		"emote_cooldown": rng.randf_range(2.0, 9.0),
 		"target": {},
 		"lineage": seed,
 	})
@@ -449,6 +460,19 @@ func _update_entities(delta: float) -> void:
 		record["age"] = float(record["age"]) + delta
 		record["reproduction_cooldown"] = maxf(0.0, float(record["reproduction_cooldown"]) - delta)
 		record["attack_cooldown"] = maxf(0.0, float(record["attack_cooldown"]) - delta)
+		record["emote_cooldown"] = maxf(0.0, float(record["emote_cooldown"]) - delta)
+		if float(record["emote_cooldown"]) <= 0.0:
+			if is_instance_valid(threat) and body.position.distance_to(threat.position) < 210.0:
+				body.play_motion("fear", 0.9)
+			elif outputs[3] > 0.32 and is_instance_valid(prey):
+				body.play_motion("anger", 0.8)
+			elif outputs[4] > 0.18 and is_instance_valid(mate):
+				body.play_motion("joy", 1.0)
+			elif outputs[5] > 0.25:
+				body.play_motion("confused", 1.1)
+			else:
+				body.play_motion("taunt", 0.9)
+			record["emote_cooldown"] = 7.0 + float(abs(int(record["lineage"])) % 700) / 100.0
 		if outputs[2] > 0.15 and not food.is_empty() and body.position.distance_to(food["pos"]) < 34.0:
 			var gained: float = neural_world.consume_resource(str(food["id"]), delta * 0.13)
 			body.energy = minf(1.0, body.energy + gained * 0.45)
@@ -976,6 +1000,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			_try_build()
 		if started and not paused and event.keycode == KEY_R:
 			_try_mutate()
+		if started and not paused and event.keycode == KEY_Z:
+			player.play_motion("joy", 1.0)
+		if started and not paused and event.keycode == KEY_X:
+			player.play_motion("fear", 1.0)
+		if started and not paused and event.keycode == KEY_C:
+			player.play_motion("confused", 1.1)
+		if started and not paused and event.keycode == KEY_V:
+			player.play_motion("taunt", 1.0)
+		if started and not paused and event.keycode == KEY_B:
+			player.play_motion("sleep", 2.4)
 
 
 func _panel_style(background: Color, border: Color) -> StyleBoxFlat:
@@ -1013,6 +1047,282 @@ func _meter(parent: Node, position_value: Vector2, size_value: Vector2, color: C
 	meter.add_theme_stylebox_override("fill", _panel_style(color, Color.TRANSPARENT))
 	parent.add_child(meter)
 	return meter
+
+
+func _image_disk(image: Image, center: Vector2i, radius: int, color: Color) -> void:
+	for offset_y in range(-radius, radius + 1):
+		for offset_x in range(-radius, radius + 1):
+			if offset_x * offset_x + offset_y * offset_y > radius * radius + 1:
+				continue
+			var pixel := center + Vector2i(offset_x, offset_y)
+			if pixel.x >= 0 and pixel.y >= 0 and pixel.x < image.get_width() and pixel.y < image.get_height():
+				image.set_pixelv(pixel, color)
+
+
+func _image_ellipse(image: Image, center: Vector2i, radius: Vector2i, color: Color) -> void:
+	for offset_y in range(-radius.y, radius.y + 1):
+		for offset_x in range(-radius.x, radius.x + 1):
+			var normalized_x: float = float(offset_x) / maxf(float(radius.x), 1.0)
+			var normalized_y: float = float(offset_y) / maxf(float(radius.y), 1.0)
+			if normalized_x * normalized_x + normalized_y * normalized_y <= 1.0:
+				var pixel := center + Vector2i(offset_x, offset_y)
+				if pixel.x >= 0 and pixel.y >= 0 and pixel.x < image.get_width() and pixel.y < image.get_height():
+					image.set_pixelv(pixel, color)
+
+
+func _run_motion_sheet(output_path: String) -> void:
+	# CPU-only evidence renderer: unlike viewport capture, this is reliable under
+	# Godot's Windows headless renderer and covers the full 20 x 13 matrix.
+	var image := Image.create(1664, 1920, false, Image.FORMAT_RGBA8)
+	image.fill(Color("#061015"))
+	for x in range(0, image.get_width(), 24):
+		for y in range(image.get_height()):
+			image.set_pixel(x, y, Color("#0b2027"))
+	for y in range(0, image.get_height(), 24):
+		for x in range(image.get_width()):
+			image.set_pixel(x, y, Color("#0b2027"))
+	var category_colors := [
+		Color("#65dfff"), Color("#65dfff"), Color("#9dff6a"),
+		Color("#d48cff"), Color("#d48cff"), Color("#d48cff"), Color("#d48cff"), Color("#d48cff"), Color("#d48cff"),
+		Color("#ffb85f"), Color("#ffb85f"), Color("#ff667d"), Color("#8b95a3"),
+	]
+	for motion_index in range(Creature.MOTIONS.size()):
+		var header_x: int = 92 + motion_index * 120
+		for x in range(header_x - 38, header_x + 39):
+			for y in range(14, 19):
+				image.set_pixel(x, y, category_colors[motion_index])
+	for family_id in range(5):
+		for morphotype_id in range(4):
+			var row: int = family_id * 4 + morphotype_id
+			var center_y: int = 62 + row * 92
+			for x in range(12, 20):
+				for y in range(center_y - 32, center_y + 33):
+					image.set_pixel(x, y, Neural.FAMILY_COLORS[family_id])
+			var seed := 0x6D0F0000 + family_id * 0x100 + morphotype_id
+			var blueprint := Neural.decode_morphology(family_id, seed, 0)
+			for motion_index in range(Creature.MOTIONS.size()):
+				var motion: String = Creature.MOTIONS[motion_index]
+				var body: Node2D = Creature.new()
+				body.configure(blueprint)
+				_configure_motion_audit_body(body, motion)
+				var cycle: float = float(Creature.MOTION_SPECS[motion]["cycle"])
+				var peak_frames: int = maxi(1, roundi(cycle * 0.42 / MOTION_AUDIT_DELTA))
+				for _frame in range(peak_frames):
+					body.simulate_body(MOTION_AUDIT_DELTA)
+				var center := Vector2(92 + motion_index * 120, center_y)
+				var render_scale := 0.62
+				var shadow_center := Vector2i(center + Vector2(0.0, body.body_radius * 0.38 * render_scale))
+				_image_ellipse(image, shadow_center, Vector2i(maxi(4, roundi(body.body_radius * 0.58 * render_scale)), maxi(2, roundi(body.body_radius * 0.16 * render_scale))), Color("#020507"))
+				var ordered: Array = body.cells.duplicate()
+				ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return Vector2(a["pos"]).y < Vector2(b["pos"]).y)
+				for cell in ordered:
+					var pixel := Vector2i(center + Vector2(cell["pos"]) * render_scale)
+					var tissue := str(cell.get("tissue", "skin"))
+					var cell_color: Color = Neural.tissue_color(tissue, family_id, float(cell.get("health", 1.0)), 0.55)
+					if motion == "death":
+						cell_color = cell_color.darkened(0.38)
+					_image_disk(image, pixel, 2, Color("#02070a"))
+					_image_disk(image, pixel, 1, cell_color)
+				body.free()
+	var absolute_path := output_path if output_path.is_absolute_path() else ProjectSettings.globalize_path(output_path)
+	DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir())
+	var error := image.save_png(absolute_path)
+	print("CREATURE_STAGE_MOTION_SHEET_%s %s" % ["OK" if error == OK else "FAILED", absolute_path])
+	get_tree().quit(0 if error == OK else 1)
+
+
+func _configure_motion_audit_body(body: Node2D, motion: String) -> void:
+	var move := Vector2.ZERO
+	var aim := Vector2(0.8, -0.6).normalized()
+	if motion == "locomote":
+		move = Vector2(0.72, 0.34).normalized()
+	body.set_commands(move, aim, 0.0, 1.0 if motion == "attack" else 0.0, 0.0)
+	if motion == "death":
+		body.dead = true
+	body.play_motion(motion, 999.0)
+	if motion == "attack":
+		body.action_impulse = 1.0
+
+
+func _motion_body_spread(body: Node2D) -> float:
+	if body.cells.is_empty():
+		return 0.0
+	var center := Vector2.ZERO
+	for cell in body.cells:
+		center += Vector2(cell["pos"])
+	center /= float(body.cells.size())
+	var squared_radius := 0.0
+	for cell in body.cells:
+		squared_radius += center.distance_squared_to(Vector2(cell["pos"]))
+	return sqrt(squared_radius / float(body.cells.size()))
+
+
+func _run_motion_audit(output_path: String) -> void:
+	var clips: Array = []
+	var failures: Array[String] = []
+	var family_summary: Dictionary = {}
+	var total_pose_signatures: Dictionary = {}
+	var global_maximum_displacement := 0.0
+	for family_id in range(5):
+		var family_signatures: Dictionary = {}
+		var family_maximum_displacement := 0.0
+		var family_minimum_motion := 999.0
+		for morphotype_id in range(4):
+			var seed := 0x6D0F0000 + family_id * 0x100 + morphotype_id
+			var blueprint := Neural.decode_morphology(family_id, seed, 0)
+			if int(blueprint["morphotype_id"]) != morphotype_id:
+				failures.append("family%d seed%d decoded wrong morphotype" % [family_id, seed])
+			var chassis_signatures: Dictionary = {}
+			for motion in Creature.MOTIONS:
+				var body_a: Node2D = Creature.new()
+				var body_b: Node2D = Creature.new()
+				body_a.configure(blueprint)
+				body_b.configure(blueprint)
+				_configure_motion_audit_body(body_a, motion)
+				_configure_motion_audit_body(body_b, motion)
+				var initial_organs: Dictionary = body_a.organ_alive.duplicate(true)
+				var initial_spread: float = _motion_body_spread(body_a)
+				var maximum_displacement := 0.0
+				var maximum_appendage_displacement := 0.0
+				var maximum_core_displacement := 0.0
+				var maximum_replay_delta := 0.0
+				var appendage_cell_count := 0
+				var finite := true
+				var vertical_lock := true
+				var pose_material := PackedStringArray()
+				for cell in body_a.cells:
+					if int(cell.get("appendage", -1)) >= 0:
+						appendage_cell_count += 1
+				for frame in range(MOTION_AUDIT_FRAMES):
+					body_a.simulate_body(MOTION_AUDIT_DELTA)
+					body_b.simulate_body(MOTION_AUDIT_DELTA)
+					vertical_lock = vertical_lock and absf(body_a.rotation) < 0.0000001 and absf(body_b.rotation) < 0.0000001
+					if body_a.cells.size() != body_b.cells.size():
+						failures.append("family%d morph%d %s changed replay cell count" % [family_id, morphotype_id, motion])
+						break
+					for cell_index in range(body_a.cells.size()):
+						var cell_a: Dictionary = body_a.cells[cell_index]
+						var cell_b: Dictionary = body_b.cells[cell_index]
+						var pos_a: Vector2 = cell_a["pos"]
+						var pos_b: Vector2 = cell_b["pos"]
+						var rest: Vector2 = cell_a["rest"]
+						var displacement: float = pos_a.distance_to(rest)
+						maximum_displacement = maxf(maximum_displacement, displacement)
+						maximum_replay_delta = maxf(maximum_replay_delta, pos_a.distance_to(pos_b))
+						if int(cell_a.get("appendage", -1)) >= 0:
+							maximum_appendage_displacement = maxf(maximum_appendage_displacement, displacement)
+						else:
+							maximum_core_displacement = maxf(maximum_core_displacement, displacement)
+						finite = finite and is_finite(pos_a.x) and is_finite(pos_a.y)
+						if frame % 12 == 0:
+							pose_material.append("%d,%d" % [roundi(pos_a.x * 1000.0), roundi(pos_a.y * 1000.0)])
+				var final_spread: float = _motion_body_spread(body_a)
+				var pose_sha256: String = "|".join(pose_material).sha256_text()
+				var meaningful_displacement: float = maximum_core_displacement if motion == "idle_breathe" else maximum_appendage_displacement
+				if motion == "death":
+					meaningful_displacement = maximum_displacement
+				var deterministic := maximum_replay_delta <= 0.0000001
+				var organs_preserved: bool = body_a.organ_alive == initial_organs and body_a.organ_totals == body_b.organ_totals
+				var motion_retained: bool = body_a.current_motion() == motion and body_b.current_motion() == motion
+				var spread_delta: float = final_spread - initial_spread
+				if not deterministic:
+					failures.append("family%d morph%d %s replay delta %.9f" % [family_id, morphotype_id, motion, maximum_replay_delta])
+				if not finite:
+					failures.append("family%d morph%d %s produced non-finite pose" % [family_id, morphotype_id, motion])
+				if not vertical_lock:
+					failures.append("family%d morph%d %s rotated chassis" % [family_id, morphotype_id, motion])
+				if not organs_preserved:
+					failures.append("family%d morph%d %s changed organ authority" % [family_id, morphotype_id, motion])
+				if not motion_retained:
+					failures.append("family%d morph%d %s lost requested motion" % [family_id, morphotype_id, motion])
+				if meaningful_displacement < 0.025:
+					failures.append("family%d morph%d %s motion collapsed %.5f" % [family_id, morphotype_id, motion, meaningful_displacement])
+				if maximum_displacement > 14.0:
+					failures.append("family%d morph%d %s exceeded displacement bound %.4f" % [family_id, morphotype_id, motion, maximum_displacement])
+				if motion == "death" and absf(spread_delta) > 1.5:
+					failures.append("family%d morph%d death exploded spread %.4f" % [family_id, morphotype_id, spread_delta])
+				var clip := {
+					"family": Neural.FAMILIES[family_id],
+					"family_id": family_id,
+					"morphotype": blueprint["morphotype"],
+					"morphotype_id": morphotype_id,
+					"seed": seed,
+					"motion": motion,
+					"frames": MOTION_AUDIT_FRAMES,
+					"cell_count": body_a.cells.size(),
+					"appendage_cell_count": appendage_cell_count,
+					"maximum_displacement": maximum_displacement,
+					"maximum_appendage_displacement": maximum_appendage_displacement,
+					"maximum_core_displacement": maximum_core_displacement,
+					"spread_delta": spread_delta,
+					"maximum_replay_delta": maximum_replay_delta,
+					"pose_sha256": pose_sha256,
+					"deterministic": deterministic,
+					"finite": finite,
+					"vertical_lock": vertical_lock,
+					"organs_preserved": organs_preserved,
+					"motion_retained": motion_retained,
+				}
+				clips.append(clip)
+				chassis_signatures[pose_sha256] = true
+				family_signatures[pose_sha256] = true
+				total_pose_signatures[pose_sha256] = true
+				family_maximum_displacement = maxf(family_maximum_displacement, maximum_displacement)
+				family_minimum_motion = minf(family_minimum_motion, meaningful_displacement)
+				global_maximum_displacement = maxf(global_maximum_displacement, maximum_displacement)
+				body_a.free()
+				body_b.free()
+			if chassis_signatures.size() < 11:
+				failures.append("family%d morph%d only %d distinct motion poses" % [family_id, morphotype_id, chassis_signatures.size()])
+		family_summary[str(family_id)] = {
+			"family": Neural.FAMILIES[family_id],
+			"chassis_count": 4,
+			"clip_count": 4 * Creature.MOTIONS.size(),
+			"unique_pose_signatures": family_signatures.size(),
+			"minimum_meaningful_displacement": family_minimum_motion,
+			"maximum_displacement": family_maximum_displacement,
+		}
+	var expected_clips: int = 5 * 4 * Creature.MOTIONS.size()
+	if clips.size() != expected_clips:
+		failures.append("clip coverage %d != %d" % [clips.size(), expected_clips])
+	var clip_identity_material := PackedStringArray()
+	for clip in clips:
+		clip_identity_material.append("%d:%d:%s:%s" % [int(clip["family_id"]), int(clip["morphotype_id"]), str(clip["motion"]), str(clip["pose_sha256"])])
+	var clip_identity_sha256: String = "|".join(clip_identity_material).sha256_text()
+	var report := {
+		"format": "nullvector-creature-stage-motion-audit-v1",
+		"passed": failures.is_empty(),
+		"fixed_hz": 30,
+		"frames_per_clip": MOTION_AUDIT_FRAMES,
+		"family_count": 5,
+		"chassis_count": 20,
+		"motion_count": Creature.MOTIONS.size(),
+		"clip_count": clips.size(),
+		"clip_identity_sha256": clip_identity_sha256,
+		"motions": Creature.MOTIONS,
+		"unique_pose_signatures": total_pose_signatures.size(),
+		"maximum_displacement": global_maximum_displacement,
+		"contracts": {
+			"morphology": "coordinate-conditioned-safe-scaffold-v1",
+			"motion": "layered-cellular-motion-13x20-v1",
+			"orientation": "vertical-locked-2.5d-v1",
+			"replay": "twin-body-exact-projection-v1",
+		},
+		"family_summary": family_summary,
+		"failures": failures,
+		"clips": clips,
+	}
+	var absolute_path := output_path if output_path.is_absolute_path() else ProjectSettings.globalize_path(output_path)
+	DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir())
+	var handle := FileAccess.open(absolute_path, FileAccess.WRITE)
+	if handle == null:
+		push_error("Unable to write motion audit: " + absolute_path)
+		get_tree().quit(1)
+		return
+	handle.store_string(JSON.stringify(report, "  ", false))
+	handle.close()
+	print("CREATURE_STAGE_MOTION_%s clips=%d signatures=%d failures=%d" % ["OK" if failures.is_empty() else "FAILED", clips.size(), total_pose_signatures.size(), failures.size()])
+	get_tree().quit(0 if failures.is_empty() else 1)
 
 
 func _run_morphology_audit(output_path: String) -> void:
