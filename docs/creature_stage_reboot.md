@@ -92,6 +92,24 @@ student must reproduce capabilities and causal state transitions, not merely
 imitate screenshots. The final runtime may expose one model endpoint while
 retaining validation heads in research builds.
 
+### Causal trajectory contract
+
+The native scaffold can emit fixed-rate teacher rollouts with
+`--creature-stage-trace=<path>`. Version 1 records 240 transitions at 30 Hz.
+Each transition contains the exact action, before/after player position and
+velocity, full organ-capacity snapshot, genome scalars, alive/total organ cell
+counts, five-channel local neural world field, chunk and biome, nearest
+resource, inventory, objective state, active ecology count, projectile state,
+construction count, and society discovery count.
+
+`python -m forge.creature_stage_trace <trace.json>` validates the strict schema,
+bounded size, duplicate-free JSON, exact producer transition hash, continuous
+state chain, normalized controls, finite values, organ conservation, movement,
+physiology change, and action coverage. Two independent native rollouts must be
+byte-identical before a scaffold change can become a training authority. The
+trace format is deliberately model-neutral so controller, dynamics, VAE, and
+monolithic students can share the same replay evidence.
+
 This structure is the technology claim: an AI game can be authored with taste,
 trained against explicit causal systems, inspected, reproduced, and improved
 rather than emitted as a one-shot opaque artifact.

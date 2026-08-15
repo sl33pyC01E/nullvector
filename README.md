@@ -36,6 +36,11 @@ The development sequence is deliberately staged:
 See `docs/creature_stage_reboot.md` for the product, simulation, scale, neural
 authority, society/city, and acceptance contracts.
 
+The native scaffold also emits strict 240-transition causal teacher rollouts.
+`python -m forge.creature_stage_trace TRACE.json` validates their producer
+hash, state continuity, controls, organ conservation, physiology, and action
+coverage before they are admitted to neural training data.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature_stage_causal_trace.schema.json",
+  "title": "NULLVECTOR creature-stage causal trace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "world_seed", "family", "fixed_hz", "transition_count",
+    "transition_sha256", "contracts", "transitions"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-causal-trace-v1"},
+    "world_seed": {"type": "integer"},
+    "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+    "fixed_hz": {"const": 30},
+    "transition_count": {"const": 240},
+    "transition_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["morphology", "controller", "world_field", "physiology", "action"],
+      "properties": {
+        "morphology": {"const": "coordinate-conditioned-safe-scaffold-v1"},
+        "controller": {"const": "recurrent-18x12x10-v1"},
+        "world_field": {"const": "continuous-5-channel-latent-v1"},
+        "physiology": {"const": "cellular-organ-causal-scaffold-v1"},
+        "action": {"const": "move2-aim2-attack-feed-utility-sprint-v1"}
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 240,
+      "maxItems": 240,
+      "items": {"$ref": "#/$defs/transition"}
+    }
+  },
+  "$defs": {
+    "vec2": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {"type": "number"}
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["biomass", "mineral", "fluid", "spore", "phase"],
+      "properties": {
+        "biomass": {"type": "number", "minimum": 0},
+        "mineral": {"type": "number", "minimum": 0},
+        "fluid": {"type": "number", "minimum": 0},
+        "spore": {"type": "number", "minimum": 0},
+        "phase": {"type": "number", "minimum": 0}
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "generation", "integrity", "neural", "circulation", "respiration", "digestion", "senses", "energy", "hydration", "dead"],
+      "properties": {
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "generation": {"type": "integer", "minimum": 0},
+        "integrity": {"type": "number", "minimum": 0, "maximum": 1},
+        "neural": {"type": "number", "minimum": 0, "maximum": 1},
+        "circulation": {"type": "number", "minimum": 0, "maximum": 1},
+        "respiration": {"type": "number", "minimum": 0, "maximum": 1},
+        "digestion": {"type": "number", "minimum": 0, "maximum": 1},
+        "senses": {"type": "number", "minimum": 0, "maximum": 1},
+        "energy": {"type": "number", "minimum": 0, "maximum": 1},
+        "hydration": {"type": "number", "minimum": 0, "maximum": 1},
+        "dead": {"type": "boolean"}
+      }
+    },
+    "resource_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "relative", "amount"],
+      "properties": {
+        "type": {"enum": ["none", "biomass", "mineral", "fluid", "spore", "phase"]},
+        "relative": {"$ref": "#/$defs/vec2"},
+        "amount": {"type": "number", "minimum": 0, "maximum": 1.01}
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "velocity", "status", "genes", "organ_alive", "organ_totals", "world_field", "chunk", "biome", "nearest_resource", "inventory", "essence", "construction_mass", "objective_stage", "active_creatures", "active_projectiles", "built_structures", "known_societies"],
+      "properties": {
+        "position": {"$ref": "#/$defs/vec2"},
+        "velocity": {"$ref": "#/$defs/vec2"},
+        "status": {"$ref": "#/$defs/status"},
+        "genes": {"type": "object", "minProperties": 6, "additionalProperties": {"type": "number"}},
+        "organ_alive": {"type": "object", "minProperties": 3, "additionalProperties": {"type": "integer", "minimum": 0}},
+        "organ_totals": {"type": "object", "minProperties": 3, "additionalProperties": {"type": "integer", "minimum": 0}},
+        "world_field": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "number", "minimum": 0, "maximum": 1}},
+        "chunk": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer"}},
+        "biome": {"enum": ["verdant mire", "glass steppe", "spore forest", "iron reef", "phase desert"]},
+        "nearest_resource": {"$ref": "#/$defs/resource_context"},
+        "inventory": {"$ref": "#/$defs/inventory"},
+        "essence": {"type": "number", "minimum": 0},
+        "construction_mass": {"type": "number", "minimum": 0},
+        "objective_stage": {"type": "integer", "minimum": 0, "maximum": 6},
+        "active_creatures": {"type": "integer", "minimum": 1, "maximum": 87},
+        "active_projectiles": {"type": "integer", "minimum": 0},
+        "built_structures": {"type": "integer", "minimum": 0},
+        "known_societies": {"type": "integer", "minimum": 0}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["move", "aim", "attack", "feed", "utility", "sprint"],
+      "properties": {
+        "move": {"$ref": "#/$defs/vec2"},
+        "aim": {"$ref": "#/$defs/vec2"},
+        "attack": {"type": "number", "minimum": 0, "maximum": 1},
+        "feed": {"type": "number", "minimum": 0, "maximum": 1},
+        "utility": {"type": "number", "minimum": 0, "maximum": 1},
+        "sprint": {"type": "boolean"}
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "dt", "before", "action", "after"],
+      "properties": {
+        "step": {"type": "integer", "minimum": 0, "maximum": 239},
+        "dt": {"type": "number"},
+        "before": {"$ref": "#/$defs/state"},
+        "action": {"$ref": "#/$defs/action"},
+        "after": {"$ref": "#/$defs/state"}
+      }
+    }
+  }
+}

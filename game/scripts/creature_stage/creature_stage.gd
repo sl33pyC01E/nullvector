@@ -7,6 +7,8 @@ const World = preload("res://scripts/creature_stage/neural_world.gd")
 const WORLD_SEED := 0x4E554C4C
 const MAX_ACTIVE_CREATURES := 86
 const VIEW_SIZE := Vector2(1280, 720)
+const TRACE_STEPS := 240
+const TRACE_DELTA := 1.0 / 30.0
 const TRAITS := {
 	"paired_graspers": {"name": "Paired Graspers", "text": "Manipulation and construction speed +35%."},
 	"redundant_pulse": {"name": "Redundant Pulse", "text": "Circulation remains functional after severe heart loss."},
@@ -72,6 +74,9 @@ var paused := false
 var started := false
 var capture_output_path := ""
 var capture_frame_count := 0
+var trace_output_path := ""
+var trace_step := 0
+var trace_records: Array = []
 
 var ui_layer: CanvasLayer
 var selection_overlay: Control
@@ -97,6 +102,7 @@ func _ready() -> void:
 	_build_ui()
 	_spawn_initial_ecology()
 	var capture_path := _argument_value("--creature-stage-capture=")
+	var trace_path := _argument_value("--creature-stage-trace=")
 	if "--creature-stage-smoke" in OS.get_cmdline_user_args():
 		_start_as_family(0)
 		call_deferred("_run_smoke")
@@ -107,6 +113,10 @@ func _ready() -> void:
 		construction_mass = 2.0
 		player.aim_command = Vector2(0.85, -0.52).normalized()
 		_try_build()
+	elif not trace_path.is_empty():
+		_start_as_family(0)
+		trace_output_path = trace_path
+		call_deferred("_run_trace_offline")
 	elif "--creature-stage-demo" in OS.get_cmdline_user_args():
 		_start_as_family(0)
 	else:
@@ -319,6 +329,13 @@ func _update_player(delta: float) -> void:
 	var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var aim: Vector2 = player.get_global_mouse_position() - player.position
 	var sprint: bool = Input.is_action_pressed("dash") and player.energy > 0.06
+	var attack := 1.0 if Input.is_action_pressed("attack") else 0.0
+	var feed := 1.0 if Input.is_key_pressed(KEY_E) else 0.0
+	var utility := 1.0 if Input.is_key_pressed(KEY_Q) else 0.0
+	_apply_player_control(delta, move, aim, attack, feed, utility, sprint)
+
+
+func _apply_player_control(delta: float, move: Vector2, aim: Vector2, attack: float, feed: float, utility: float, sprint: bool) -> void:
 	var speed := 128.0 * float(player.genes.get("locomotion", 1.0)) * (1.55 if sprint else 1.0)
 	var locomotor_factor := clampf(player.alive_fraction() * 1.15, 0.12, 1.0)
 	var target_velocity := move * speed * locomotor_factor
@@ -327,14 +344,13 @@ func _update_player(delta: float) -> void:
 	player.position += neural_world.structure_collision_force(player.position, player.body_radius, player_family)
 	if sprint and move.length_squared() > 0.1:
 		player.energy = maxf(0.0, player.energy - delta * 0.012)
-	var attack := 1.0 if Input.is_action_pressed("attack") else 0.0
-	player.set_commands(move, aim, 0.0, attack, 0.0)
+	player.set_commands(move, aim, feed, attack, utility)
 	player.simulate_body(delta)
 	if attack > 0.0 and attack_cooldown <= 0.0:
 		_perform_attack(player, player_family, aim.normalized(), true)
-	if Input.is_key_pressed(KEY_E):
+	if feed > 0.5:
 		_try_feed_or_interact(delta)
-	if Input.is_key_pressed(KEY_Q) and utility_cooldown <= 0.0:
+	if utility > 0.5 and utility_cooldown <= 0.0:
 		_perform_utility()
 
 
@@ -570,6 +586,136 @@ func _objective_text() -> String:
 		"MIGRATION // discover three neural-field biomes",
 		"OPEN WORLD // form alliances, hunt, build, mutate, and migrate",
 	][mini(objective_stage, 6)]
+
+
+func _trace_control(step: int) -> Dictionary:
+	var movement_cycle := [Vector2.UP, Vector2(0.75, -0.65), Vector2.RIGHT, Vector2(0.7, 0.7), Vector2.DOWN, Vector2(-0.75, 0.65), Vector2.LEFT, Vector2(-0.7, -0.7)]
+	var move: Vector2 = movement_cycle[floori(float(step) / 30.0) % movement_cycle.size()]
+	var aim := Vector2.from_angle(-PI * 0.5 + float(step) * 0.047)
+	return {
+		"move": move,
+		"aim": aim,
+		"attack": 1.0 if step % 19 < 2 else 0.0,
+		"feed": 1.0 if step % 31 < 6 else 0.0,
+		"utility": 1.0 if step in [42, 126, 210] else 0.0,
+		"sprint": step % 60 >= 45,
+	}
+
+
+func _trace_control_json(control: Dictionary) -> Dictionary:
+	var move: Vector2 = control["move"]
+	var aim: Vector2 = control["aim"]
+	return {
+		"move": [move.x, move.y],
+		"aim": [aim.x, aim.y],
+		"attack": control["attack"],
+		"feed": control["feed"],
+		"utility": control["utility"],
+		"sprint": control["sprint"],
+	}
+
+
+func _trace_state() -> Dictionary:
+	var status: Dictionary = player.status_snapshot()
+	var field: PackedFloat32Array = Neural.world_field(player.position, WORLD_SEED)
+	var field_values: Array[float] = []
+	for value in field:
+		field_values.append(value)
+	var chunk: Vector2i = neural_world.world_to_chunk(player.position)
+	var nearest: Dictionary = neural_world.nearest_resource(player.position, [], 260.0)
+	var resource_context := {"type": "none", "relative": [0.0, 0.0], "amount": 0.0}
+	if not nearest.is_empty():
+		var relative: Vector2 = Vector2(nearest["pos"]) - player.position
+		resource_context = {
+			"type": str(nearest["type"]),
+			"relative": [relative.x, relative.y],
+			"amount": float(nearest["amount"]),
+		}
+	return {
+		"position": [player.position.x, player.position.y],
+		"velocity": [player_velocity.x, player_velocity.y],
+		"status": status,
+		"genes": player.genes.duplicate(true),
+		"organ_alive": player.organ_alive.duplicate(true),
+		"organ_totals": player.organ_totals.duplicate(true),
+		"world_field": field_values,
+		"chunk": [chunk.x, chunk.y],
+		"biome": neural_world.current_biome(player.position),
+		"nearest_resource": resource_context,
+		"inventory": inventory.duplicate(true),
+		"essence": essence,
+		"construction_mass": construction_mass,
+		"objective_stage": objective_stage,
+		"active_creatures": entities.size() + 1,
+		"active_projectiles": projectiles.size(),
+		"built_structures": neural_world.structures.size(),
+		"known_societies": discovered_societies.size(),
+	}
+
+
+func _run_trace_offline() -> void:
+	# This is the deterministic teacher rollout. It deliberately bypasses wall
+	# clock scheduling while executing the same public player/world transitions.
+	for step in range(TRACE_STEPS):
+		trace_step = step
+		var before := _trace_state()
+		var control := _trace_control(step)
+		sim_time += TRACE_DELTA
+		attack_cooldown = maxf(0.0, attack_cooldown - TRACE_DELTA)
+		utility_cooldown = maxf(0.0, utility_cooldown - TRACE_DELTA)
+		_apply_player_control(TRACE_DELTA, control["move"], control["aim"], float(control["attack"]), float(control["feed"]), float(control["utility"]), bool(control["sprint"]))
+		_update_entities(TRACE_DELTA)
+		_update_projectiles(TRACE_DELTA)
+		_update_particles(TRACE_DELTA)
+		neural_world.ensure_chunks(player.position)
+		neural_world.simulate_cohorts(TRACE_DELTA)
+		discovered_biomes[neural_world.current_biome(player.position)] = true
+		_advance_objective()
+		_materialize_ecology(TRACE_DELTA)
+		trace_records.append({
+			"step": step,
+			"dt": TRACE_DELTA,
+			"before": before,
+			"action": _trace_control_json(control),
+			"after": _trace_state(),
+		})
+	_finish_trace()
+
+
+func _finish_trace() -> void:
+	var transition_json := JSON.stringify(trace_records, "", false)
+	var hashing := HashingContext.new()
+	hashing.start(HashingContext.HASH_SHA256)
+	hashing.update(transition_json.to_utf8_buffer())
+	var transition_sha256 := hashing.finish().hex_encode()
+	var report := {
+		"format": "nullvector-creature-stage-causal-trace-v1",
+		"world_seed": WORLD_SEED,
+		"family": Neural.FAMILIES[player_family],
+		"fixed_hz": 30,
+		"transition_count": trace_records.size(),
+		"transition_sha256": transition_sha256,
+		"contracts": {
+			"morphology": "coordinate-conditioned-safe-scaffold-v1",
+			"controller": "recurrent-18x12x10-v1",
+			"world_field": "continuous-5-channel-latent-v1",
+			"physiology": "cellular-organ-causal-scaffold-v1",
+			"action": "move2-aim2-attack-feed-utility-sprint-v1",
+		},
+		"transitions": trace_records,
+	}
+	var absolute_path := trace_output_path if trace_output_path.is_absolute_path() else ProjectSettings.globalize_path(trace_output_path)
+	trace_output_path = ""
+	DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir())
+	var handle := FileAccess.open(absolute_path, FileAccess.WRITE)
+	if handle == null:
+		push_error("Unable to write creature-stage trace: " + absolute_path)
+		get_tree().quit(1)
+		return
+	handle.store_string(JSON.stringify(report, "  ", false))
+	handle.close()
+	print("CREATURE_STAGE_TRACE_OK steps=%d sha256=%s" % [trace_records.size(), transition_sha256])
+	get_tree().quit(0)
 
 
 func _try_reproduce(record: Dictionary, body: Node2D) -> void:
