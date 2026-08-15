@@ -104,11 +104,18 @@ def develop(genome: DevelopmentalGenome) -> DevelopedOrganism:
         raise ValueError("developmental organism escaped 64-cell review extent")
     yy, xx = np.mgrid[minimum[1] : maximum[1] + 1, minimum[0] : maximum[0] + 1]
     points = np.stack((xx.reshape(-1), yy.reshape(-1)), axis=1).astype(np.float32)
+    dominant_family = int(np.argmax(genome.family_mix))
     component_raw = np.zeros((points.shape[0], len(genome.components)), dtype=np.float32)
     occupancy = np.zeros(points.shape[0], dtype=np.float32)
     for index, component in enumerate(genome.components):
         delta = (points - np.asarray(component.anchor, dtype=np.float32)) / np.asarray(component.radius, dtype=np.float32)
-        radius_squared = np.square(delta).sum(axis=1)
+        # Machine components grow from rectilinear superellipse fields; organic
+        # and anomalous components keep smooth radial development.
+        radius_squared = (
+            np.square(np.max(np.abs(delta), axis=1))
+            if dominant_family == 4
+            else np.square(delta).sum(axis=1)
+        )
         field = np.exp(-radius_squared * 1.65)
         component_raw[:, index] = field
         occupancy = np.maximum(occupancy, np.exp(-radius_squared * 1.15))
@@ -121,7 +128,19 @@ def develop(genome: DevelopmentalGenome) -> DevelopedOrganism:
         edge_distance[update] = distance[update]
         edge_owner[update] = edge_appendage[edge_index]
         edge_side_cell[update] = edge_side[edge_index]
-        occupancy = np.maximum(occupancy, np.exp(-np.square(distance / 1.35) * 1.3))
+        tube_radius = 1.35
+        appendage_index = edge_appendage[edge_index]
+        if appendage_index >= 0:
+            kind = genome.appendages[appendage_index].kind
+            if dominant_family == 1 and kind == "leg":
+                tube_radius = 1.02
+            elif dominant_family == 1 and kind == "tail":
+                tube_radius = .82
+            elif dominant_family == 3 and kind == "tendril":
+                tube_radius = .76
+            elif dominant_family == 4 and kind == "hardpoint":
+                tube_radius = .90
+        occupancy = np.maximum(occupancy, np.exp(-np.square(distance / tube_radius) * 1.3))
     active = occupancy >= .20
     points = points[active]
     component_raw = component_raw[active]
@@ -153,7 +172,6 @@ def develop(genome: DevelopmentalGenome) -> DevelopedOrganism:
     for index, (x, y) in enumerate(points.astype(np.int16)):
         boundary[index] = any((int(x + dx), int(y + dy)) not in point_set for dx, dy in ((-1,0),(1,0),(0,-1),(0,1)))
     tissue = np.full(points.shape[0], TISSUES.index("skin"), dtype=np.uint8)
-    dominant_family = int(np.argmax(genome.family_mix))
     if dominant_family == 2:
         tissue[:] = TISSUES.index("root")
     elif dominant_family == 3:

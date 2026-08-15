@@ -59,15 +59,17 @@ def _base_genomes() -> tuple[DevelopmentalGenome, ...]:
     )
     humanoid_appendages = _pair("arm","torso",-2,3.5,5,"arm",0) + _pair("leg","pelvis",1,2.2,15,"leg",.5)
     animal_components = (
-        ComponentGene("chest", "soma", (0,-1), (7.2,4.2), organ="lung", trait_delta=_delta(muscle_density=.12)),
-        ComponentGene("haunch", "pelvis", (0,4), (6.8,4.8), "chest", organ="gut", trait_delta=_delta(muscle_strength=.14)),
-        ComponentGene("neck", "soma", (0,-6), (3.2,3.8), "chest", organ="none", trait_delta=_delta(elasticity=.10)),
-        ComponentGene("head", "head", (0,-10), (4.3,3.3), "neck", organ="brain", trait_delta=_delta(neural_density=.15)),
-        ComponentGene("muzzle", "mouth", (0,-13), (2.8,1.8), "head", organ="jaw", trait_delta=_delta(grip=.20)),
-        ComponentGene("eyes", "sensor_crown", (0,-11), (3.2,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.25)),
+        ComponentGene("chest", "soma", (0,0), (7.4,3.8), organ="lung", trait_delta=_delta(muscle_density=.12)),
+        ComponentGene("haunch", "pelvis", (0,3), (6.8,3.9), "chest", organ="gut", trait_delta=_delta(muscle_strength=.14)),
+        ComponentGene("neck", "soma", (0,-3), (3.0,2.8), "chest", organ="none", trait_delta=_delta(elasticity=.10)),
+        ComponentGene("head", "head", (0,-7), (4.4,3.0), "neck", organ="brain", trait_delta=_delta(neural_density=.15)),
+        ComponentGene("muzzle", "mouth", (0,-9), (3.0,1.6), "head", organ="jaw", trait_delta=_delta(grip=.20)),
+        ComponentGene("eyes", "sensor_crown", (0,-8), (3.3,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.25)),
     )
-    animal_appendages = _pair("leg","chest",1,5.6,13,"foreleg",0,3,8.8) + _pair("leg","haunch",2,4.2,15,"hindleg",.5,3,4.8) + (
-        AppendageGene("tail", "tail", "haunch", (0,3), (12,8), 5, 1, .25, 1, None, _delta(elasticity=.24)),
+    animal_appendages = _pair("leg","chest",1,5.7,11,"foreleg",0,3,8.6) + _pair("leg","haunch",1.5,3.6,13,"hindleg",.5,3,4.5) + (
+        # Dorsal tail: intentionally above the locomotor plane so it cannot read
+        # as a fifth leg in the vertically locked 2.5D presentation.
+        AppendageGene("tail", "tail", "chest", (4.8,-2.2), (14,-5), 5, 1, .25, 1, None, _delta(elasticity=.24)),
     )
     plant_components = (
         ComponentGene("bulb", "soma", (0,3), (6.8,5.0), organ="bulb", trait_delta=_delta(storage=.0,regeneration=.25)),
@@ -77,13 +79,17 @@ def _base_genomes() -> tuple[DevelopmentalGenome, ...]:
     )
     plant_appendages = _pair("root","bulb",2,4.8,16,"root_a",0,3,10.5) + _pair("root","bulb",3,2.0,18,"root_b",.5,3,4.0) + _pair("frond","crown",0,6.2,-9,"frond",.25,3,13.5)
     anomaly_components = (
-        ComponentGene("core", "soma", (0,-2), (5.8,6.2), organ="phase_brain", trait_delta=_delta(phase_coherence=.45,elasticity=.12)),
+        ComponentGene("core", "soma", (0,-2), (7.2,7.2), organ="phase_brain", trait_delta=_delta(phase_coherence=.45,elasticity=.12)),
         ComponentGene("sensor", "sensor_crown", (0,-11), (2.8,2.5), "core", organ="singularity", trait_delta=_delta(sensory_range=.28,phase_coherence=.20)),
-        ComponentGene("orbital_l", "orbital", (-9,-2), (3.5,3.5), "core", -1, _delta(phase_coherence=.18), "orbital"),
-        ComponentGene("orbital_r", "orbital", (9,-2), (3.5,3.5), "core", 1, _delta(phase_coherence=.18), "orbital"),
+        ComponentGene("orbital_l", "orbital", (-7,-2), (2.7,2.7), "core", -1, _delta(phase_coherence=.18), "orbital"),
+        ComponentGene("orbital_r", "orbital", (7,-2), (2.7,2.7), "core", 1, _delta(phase_coherence=.18), "orbital"),
         ComponentGene("transmuter", "gut", (0,3), (2.2,2.0), "core", organ="transmuter", trait_delta=_delta(metabolism=-.18,phase_coherence=.12)),
     )
-    anomaly_appendages = _pair("tendril","core",1,5.0,11,"outer_tendril",0,4,11.5) + _pair("tendril","core",3,2.0,17,"inner_tendril",.5,4,4.0)
+    anomaly_appendages = (
+        _pair("tendril","core",1,5.4,10,"outer_tendril",0,4,12.0)
+        + _pair("tendril","core",3,3.2,15,"middle_tendril",.33,4,7.0)
+        + _pair("tendril","core",4,1.4,18,"inner_tendril",.66,4,2.8)
+    )
     machine_components = (
         ComponentGene("hull", "soma", (0,-2), (8.4,4.8), organ="processor", trait_delta=_delta(stiffness=.22,bone_density=.20)),
         ComponentGene("drive", "pelvis", (0,4), (7.2,3.2), "hull", organ="battery", trait_delta=_delta(muscle_strength=.12)),

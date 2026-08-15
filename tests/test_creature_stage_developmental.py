@@ -66,6 +66,38 @@ def test_appendage_pairs_are_reciprocal_and_anatomically_symmetric() -> None:
         replace(genome, appendages=(broken,) + genome.appendages[1:])
 
 
+def test_reviewed_family_silhouettes_keep_their_distinct_anatomy() -> None:
+    humanoid, _, animal, _, plant, _, anomaly, _, machine, _ = review_genomes()
+
+    # Animal locomotion has exactly four ventral legs.  The unpaired tail is a
+    # dorsal structure and must never drift back into the contact plane where
+    # it reads as a fifth leg.
+    legs = [appendage for appendage in animal.appendages if appendage.kind == "leg"]
+    tails = [appendage for appendage in animal.appendages if appendage.kind == "tail"]
+    assert len(legs) == 4 and len(tails) == 1
+    assert all(appendage.endpoint[1] >= 10.0 for appendage in legs)
+    assert tails[0].paired_with is None
+    assert tails[0].root_offset[1] < 0.0 and tails[0].endpoint[1] < 0.0
+    animal_chassis = [component for component in animal.components if component.component_id in {"chest", "haunch"}]
+    assert all(component.radius[1] / component.radius[0] <= .60 for component in animal_chassis)
+
+    # Anomalies retain a round central field surrounded by multiple thin,
+    # articulated fibers instead of converging on the animal leg grammar.
+    core = next(component for component in anomaly.components if component.component_id == "core")
+    tendrils = [appendage for appendage in anomaly.appendages if appendage.kind == "tendril"]
+    assert np.isclose(core.radius[0], core.radius[1])
+    assert len(tendrils) >= 6
+    assert all(appendage.segments >= 4 for appendage in tendrils)
+
+    # The machine's authored chassis is rectilinear and its locomotor and tool
+    # systems remain categorically separate.  Humanoid and plant authorities
+    # are included here only as locked references: their genes are not reused.
+    assert {component.component_id for component in machine.components} >= {"hull", "drive", "mast", "armor"}
+    assert {appendage.kind for appendage in machine.appendages} == {"wheel", "hardpoint"}
+    assert machine.components != humanoid.components
+    assert machine.components != plant.components
+
+
 def test_development_produces_complete_cellular_anatomy() -> None:
     for genome in review_genomes():
         organism = develop(genome)

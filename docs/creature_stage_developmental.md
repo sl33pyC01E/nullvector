@@ -23,8 +23,8 @@ The current locomotion authority uses planted and swing targets plus a signed-be
 Build and replay the additive bank:
 
 ```powershell
-python -m forge.creature_stage_developmental build-review --output outputs/creature_stage_developmental/review_v4
-python -m forge.creature_stage_developmental validate-review --output outputs/creature_stage_developmental/review_v4
+python -m forge.creature_stage_developmental build-review --output outputs/creature_stage_developmental/review_v5
+python -m forge.creature_stage_developmental validate-review --output outputs/creature_stage_developmental/review_v5
 ```
 
 The bank contains:
@@ -34,6 +34,14 @@ The bank contains:
 - `developmental_locomotion.mp4`: the same loop in a compact video artifact.
 - `specimens/*.npz`: exact cellular, developmental-field, skeleton, and muscle arrays.
 - `review_manifest.json`: strict schema, source binding, exact semantic/frame replay hashes, loop metrics, and artifact hashes.
+
+The v5 review freezes the user-approved humanoid and plantlike authorities while
+making the remaining families more legible. Animalians use a short horizontal
+chassis, four narrow ventral legs, and one unpaired dorsal tail. Anomalies use a
+round phase core with six thin articulated fibers. Machines grow from
+rectilinear superellipse component fields and keep wheels separate from lateral
+hardpoints. These distinctions are regression-tested before any successor
+corpus can be compiled.
 
 ## Current limits
 
