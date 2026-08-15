@@ -72,6 +72,25 @@ C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
 The CPU-only sheet renderer avoids Windows viewport-capture instability and
 renders the complete 260-pose matrix without requiring a graphics window.
 
+The same authority can now be exported as a compact action-conditioned cell
+trajectory corpus. It contains all 20 chassis x 13 motions x 72 frames, with
+anatomy, genes, controls, events, and 4.2 million quantized per-cell position
+samples. Two independent final exports are byte-identical and fail closed on
+producer drift, malformed structure, tampering, collapsed motion, excessive
+displacement, or a violation of the 100 GiB free-disk floor.
+
+```powershell
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --headless --path C:\Users\forre\Documents\neural-game\game -- `
+  --creature-stage-motion-corpus=C:\Users\forre\Documents\neural-game\outputs\creature_stage_motion_corpus_v1_final_a
+
+python -m forge.creature_stage_motion_corpus `
+  outputs/creature_stage_motion_corpus_v1_final_a
+```
+
+See `docs/creature_stage_motion_corpus.md` for the binary layout, replay
+contract, hashes, and current training scope.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical

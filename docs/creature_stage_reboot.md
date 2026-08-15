@@ -205,6 +205,30 @@ operations, so it remains deterministic under Windows headless Godot. Its rows
 are the 20 chassis in family/morphotype order; columns follow the 13-state
 vocabulary above. The current sheet replays byte-exactly.
 
+### Action-conditioned cell trajectory corpus
+
+`--creature-stage-motion-corpus=<directory>` publishes the complete motion
+matrix as an atomic, model-neutral teacher corpus. Every clip contains 72
+fixed-rate frames of local per-cell position deltas, plus the exact chassis
+anatomy, genes, motion ID, movement and aim vectors, action channels, and
+external impact/terminal event. The ordering is deliberately dense and
+regular: chassis, motion, frame, cell, then x/y.
+
+The exporter refuses to overwrite an existing destination, writes through a
+staging directory, and refuses publication if its reserve would cross the
+100 GiB free-disk floor. `forge.creature_stage_motion_corpus` independently
+checks the strict schema, exact two-file closure, byte ranges, source hashes,
+cell and clip identities, ordered coverage, controls/events, topology metadata,
+motion magnitude, death spread, and every binary slice. The loader exposes an
+immutable float32 `[72, cells, 2]` tensor for a requested clip.
+
+This corpus is the first bounded curriculum for the Stage 2
+action-conditioned motion model. It does not yet encode rendered RGB, fluid
+fields, injury evolution, contact forces, or whole-world temporal state; those
+remain separate causal authorities until a later aligned corpus joins them.
+The exact format and current evidence are recorded in
+`docs/creature_stage_motion_corpus.md`.
+
 ## First playable loop
 
 1. Spawn as one of five neural organisms with distinct metabolism and tools.
