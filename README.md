@@ -136,6 +136,21 @@ promotion requirements. A strict ONNX path is already proven on the smoke
 checkpoint with dynamic batches and held-out numerical parity. See
 `docs/creature_stage_neural_motion.md`.
 
+Damage, organ function, viability, and ground-plane fluid dynamics now have a
+separate 16.7M-parameter native-cell physiology transformer candidate. It
+shares the 384-cell anatomical token contract, adds a ten-capacity organism
+head and 160-token puddle branch, and learns from all nine strict intervention
+trajectories without changing chassis support.
+
+```powershell
+python -m forge.creature_stage_neural_physiology model-info
+python -m forge.creature_stage_neural_physiology validate-smoke `
+  --output outputs/creature_stage_neural_physiology/smoke_cpu_v1
+python -m forge.creature_stage_neural_physiology prepare-production
+```
+
+See `docs/creature_stage_neural_physiology.md`.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical
