@@ -102,7 +102,7 @@ def _fabrik(chain: np.ndarray, root: np.ndarray, target: np.ndarray, bend: int) 
     return result
 
 
-def _skin_cells(organism: DevelopedOrganism, posed_nodes: np.ndarray) -> np.ndarray:
+def skin_cells(organism: DevelopedOrganism, posed_nodes: np.ndarray) -> np.ndarray:
     rest_nodes = organism.skeleton_nodes[:, :2]
     points = organism.cell_xy.astype(np.float32)
     distance = np.linalg.norm(points[:, None, :] - rest_nodes[None, :, :], axis=2)
@@ -136,8 +136,10 @@ def pose(organism: DevelopedOrganism, phase: float) -> MotionPose:
     activations = np.zeros(len(organism.muscles), dtype=np.float32)
     for index, muscle in enumerate(organism.muscles):
         appendage = int(muscle[2])
+        joint = int(muscle[6])
         offset = organism.genome.appendages[appendage].phase
-        wave = .5 + .5 * math.sin(math.tau * (phase + offset) + (math.pi if muscle[3] > 0 else 0.0))
+        joint_lag = joint * .085 * (1.0 if organism.genome.appendages[appendage].side >= 0 else -1.0)
+        wave = .5 + .5 * math.sin(math.tau * (phase + offset + joint_lag) + (math.pi if muscle[3] > 0 else 0.0))
         activations[index] = wave * float(muscle[4])
-    cells = _skin_cells(organism, nodes)
+    cells = skin_cells(organism, nodes)
     return MotionPose(phase, nodes, cells, activations, planted)

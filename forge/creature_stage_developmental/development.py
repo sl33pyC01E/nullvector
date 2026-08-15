@@ -76,12 +76,18 @@ def _appendage_nodes(genome: DevelopmentalGenome, component_lookup: dict[str, in
             chain_nodes.append(node_index)
             previous = node_index
         if chain_nodes:
-            # Flexor/extensor pair: same attachments, opposite signed moment arm.
-            root = root_component_index
-            insertion = chain_nodes[-1]
+            # Every articulated joint receives its own antagonistic pair.  Each
+            # actuator spans the joint (node before -> node after) and records a
+            # joint ordinal for the controller.  This is deliberately richer
+            # than one muscle pair spanning an entire appendage.
             strength = np.clip(genome.traits[TRAITS.index("muscle_strength")] + appendage.trait_delta[TRAITS.index("muscle_strength")], 0.0, 1.0)
-            muscles.append([root, insertion, float(appendage_index), -1.0, float(strength), float(appendage.side)])
-            muscles.append([root, insertion, float(appendage_index), 1.0, float(strength), float(appendage.side)])
+            joint_nodes = [root_component_index, root_node] + chain_nodes
+            for joint in range(appendage.segments):
+                origin = joint_nodes[joint]
+                insertion = joint_nodes[joint + 2]
+                local_strength = float(strength * (1.0 - .08 * joint))
+                muscles.append([origin, insertion, float(appendage_index), -1.0, local_strength, float(appendage.side), float(joint)])
+                muscles.append([origin, insertion, float(appendage_index), 1.0, local_strength, float(appendage.side), float(joint)])
     return nodes, edges, muscles, edge_appendage, edge_side
 
 
@@ -91,7 +97,7 @@ def develop(genome: DevelopmentalGenome) -> DevelopedOrganism:
     nodes, edges, muscles, edge_appendage, edge_side = _appendage_nodes(genome, component_lookup, component_nodes)
     nodes_array = np.asarray(nodes, dtype=np.float32)
     edges_array = np.asarray(edges, dtype=np.int16).reshape(-1, 2)
-    muscles_array = np.asarray(muscles, dtype=np.float32).reshape(-1, 6)
+    muscles_array = np.asarray(muscles, dtype=np.float32).reshape(-1, 7)
     minimum = np.floor(nodes_array[:, :2].min(axis=0) - 6).astype(np.int16)
     maximum = np.ceil(nodes_array[:, :2].max(axis=0) + 6).astype(np.int16)
     if np.any(maximum - minimum > 64):

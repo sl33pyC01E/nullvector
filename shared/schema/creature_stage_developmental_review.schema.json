@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nullvector.local/schema/creature-stage-developmental-review-v1.json",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-review-v2.json",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "passed", "source_sha256", "contracts", "trait_order", "tissue_order", "specimen_count", "specimens", "contact_sheet", "motion"],
   "properties": {
-    "format": {"const": "nullvector-creature-stage-developmental-review-v1"},
+    "format": {"const": "nullvector-creature-stage-developmental-review-v2"},
     "passed": {"const": true},
     "source_sha256": {"$ref": "#/$defs/sha256"},
     "contracts": {
@@ -17,7 +17,7 @@
         "components": {"const": "graftable-developmental-sources-v1"},
         "traits": {"const": "overlap-normalized-diffusion-v1"},
         "skeleton": {"const": "breakable-node-edge-load-graph-v1"},
-        "muscle": {"const": "paired-flexor-extensor-actuator-v1"},
+        "muscle": {"const": "per-joint-flexor-extensor-actuator-v2"},
         "orientation": {"const": "vertical-locked-2.5d-v1"}
       }
     },
@@ -118,15 +118,16 @@
     "motion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["contract", "frame_count", "fps", "loop", "semantic_sha256", "frame_stream_sha256", "loop_seam_max_abs", "metrics", "ffmpeg", "artifacts"],
+      "required": ["contract", "frame_count", "fps", "loop", "semantic_sha256", "frame_stream_sha256", "loop_seam_max_abs", "maximum_edge_strain", "metrics", "ffmpeg", "artifacts"],
       "properties": {
-        "contract": {"const": "vertical-locked-skeleton-muscle-locomotion-v1"},
+        "contract": {"const": "vertical-locked-recurrent-skeleton-muscle-locomotion-v2"},
         "frame_count": {"type": "integer", "minimum": 8, "maximum": 240},
         "fps": {"type": "integer", "minimum": 1, "maximum": 60},
         "loop": {"const": true},
         "semantic_sha256": {"$ref": "#/$defs/sha256"},
         "frame_stream_sha256": {"$ref": "#/$defs/sha256"},
         "loop_seam_max_abs": {"type": "number", "minimum": 0, "maximum": 0.005},
+        "maximum_edge_strain": {"type": "number", "minimum": 0, "maximum": 0.15},
         "metrics": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/motionMetric"}},
         "ffmpeg": {"type": "string", "minLength": 1},
         "artifacts": {

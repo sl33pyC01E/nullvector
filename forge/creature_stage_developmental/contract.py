@@ -35,6 +35,7 @@ SOURCE_FILES: Final[tuple[str, ...]] = (
     "forge/creature_stage_developmental/genomes.py",
     "forge/creature_stage_developmental/development.py",
     "forge/creature_stage_developmental/motion.py",
+    "forge/creature_stage_developmental/dynamics.py",
     "forge/creature_stage_developmental/review.py",
     "shared/schema/creature_stage_developmental_review.schema.json",
 )

@@ -18,11 +18,12 @@ from jsonschema import Draft202012Validator
 from ..safety import require_disk_floor
 from .contract import FAMILIES, SCHEMA_PATH, TISSUES, TRAITS, source_sha256
 from .development import DevelopedOrganism, develop
+from .dynamics import DynamicCycle, DynamicFrame, simulate_cycle
 from .genomes import review_genomes
 from .motion import MotionPose, pose
 
 
-FORMAT = "nullvector-creature-stage-developmental-review-v1"
+FORMAT = "nullvector-creature-stage-developmental-review-v2"
 TISSUE_COLORS = {
     "skin": (80, 207, 236), "bone": (235, 229, 194), "muscle": (239, 79, 102),
     "tendon": (244, 159, 78), "armor": (139, 158, 178), "neural": (242, 78, 188),
@@ -180,7 +181,7 @@ def _render_sheet(organisms: list[DevelopedOrganism]) -> Image.Image:
     return image.convert("RGB")
 
 
-def _render_motion_frame(organisms: list[DevelopedOrganism], poses: list[MotionPose], phase: float) -> Image.Image:
+def _render_motion_frame(organisms: list[DevelopedOrganism], poses: list[MotionPose | DynamicFrame], phase: float) -> Image.Image:
     width, height = 1800, 940
     image = Image.new("RGBA", (width, height), (3, 8, 14, 255))
     draw = ImageDraw.Draw(image, "RGBA")
@@ -228,16 +229,22 @@ def _render_motion_frame(organisms: list[DevelopedOrganism], poses: list[MotionP
     return image.convert("RGB")
 
 
-def _motion_semantic_sha256(organisms: list[DevelopedOrganism], frame_count: int) -> str:
-    digest = hashlib.sha256(b"nullvector-developmental-motion-cycle-v1\0")
+def _motion_semantic_sha256(
+    organisms: list[DevelopedOrganism],
+    frame_count: int,
+    cycles: list[DynamicCycle] | None = None,
+) -> str:
+    cycles = cycles or [simulate_cycle(organism, frame_count=frame_count, settle_cycles=12) for organism in organisms]
+    digest = hashlib.sha256(b"nullvector-developmental-motion-cycle-v2\0")
     for frame in range(frame_count):
         phase = frame / frame_count
         digest.update(np.asarray([phase], dtype="<f4").tobytes())
-        for organism in organisms:
-            motion = pose(organism, phase)
+        for organism, cycle in zip(organisms, cycles, strict=True):
+            motion = cycle.frames[frame]
             digest.update(organism.identity_sha256.encode("ascii") + b"\0")
             digest.update(motion.nodes.astype("<f4", copy=False).tobytes())
             digest.update(motion.cells.astype("<f4", copy=False).tobytes())
+            digest.update(motion.velocities.astype("<f4", copy=False).tobytes())
             digest.update(motion.muscle_activation.astype("<f4", copy=False).tobytes())
             digest.update(motion.planted_contacts.astype(np.uint8, copy=False).tobytes())
     return digest.hexdigest()
@@ -249,11 +256,17 @@ def _png_bytes(image: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
-def _render_motion_frames(organisms: list[DevelopedOrganism], frame_count: int, destination: Path | None = None) -> str:
-    digest = hashlib.sha256(b"nullvector-developmental-motion-frame-stream-v1\0")
+def _render_motion_frames(
+    organisms: list[DevelopedOrganism],
+    frame_count: int,
+    destination: Path | None = None,
+    cycles: list[DynamicCycle] | None = None,
+) -> str:
+    cycles = cycles or [simulate_cycle(organism, frame_count=frame_count, settle_cycles=12) for organism in organisms]
+    digest = hashlib.sha256(b"nullvector-developmental-motion-frame-stream-v2\0")
     for frame in range(frame_count):
         phase = frame / frame_count
-        motions = [pose(organism, phase) for organism in organisms]
+        motions = [cycle.frames[frame] for cycle in cycles]
         encoded = _png_bytes(_render_motion_frame(organisms, motions, phase))
         digest.update(len(encoded).to_bytes(8, "little") + encoded)
         if destination is not None:
@@ -318,20 +331,19 @@ def publish_review(output: Path) -> dict[str, Any]:
     _render_sheet(organisms).save(sheet, compress_level=7)
     frame_count = 72
     fps = 12
+    cycles = [simulate_cycle(organism, frame_count=frame_count, settle_cycles=12) for organism in organisms]
     frames = staging / "motion_frames"
     frames.mkdir()
-    frame_stream_sha256 = _render_motion_frames(organisms, frame_count, frames)
-    motion_semantic_sha256 = _motion_semantic_sha256(organisms, frame_count)
+    frame_stream_sha256 = _render_motion_frames(organisms, frame_count, frames, cycles)
+    motion_semantic_sha256 = _motion_semantic_sha256(organisms, frame_count, cycles)
     mp4, gif, ffmpeg_version = _encode_motion(frames, staging, fps)
     shutil.rmtree(frames)
-    seam_drift = 0.0
+    seam_drift = max(cycle.loop_seam_max_abs for cycle in cycles)
+    maximum_edge_strain = max(cycle.maximum_edge_strain for cycle in cycles)
     motion_metrics: list[dict[str, Any]] = []
-    for organism in organisms:
-        rest = pose(organism, 0.0)
-        near_loop = pose(organism, 1.0 - 1e-6)
-        local_seam = float(np.max(np.abs(rest.cells - near_loop.cells)))
-        seam_drift = max(seam_drift, local_seam)
-        quarter = pose(organism, .25)
+    for organism, cycle in zip(organisms, cycles, strict=True):
+        local_seam = cycle.loop_seam_max_abs
+        quarter = cycle.frames[frame_count // 4]
         displacement = np.linalg.norm(quarter.cells - organism.cell_xy.astype(np.float32), axis=1)
         motion_metrics.append({
             "genome_id": organism.genome.genome_id,
@@ -341,6 +353,8 @@ def publish_review(output: Path) -> dict[str, Any]:
         })
     if seam_drift > .005:
         raise ValueError("developmental locomotion is not loop closed")
+    if maximum_edge_strain > .15:
+        raise ValueError("developmental locomotion exceeded its skeletal strain gate")
     manifest: dict[str, Any] = {
         "format": FORMAT,
         "passed": True,
@@ -350,7 +364,7 @@ def publish_review(output: Path) -> dict[str, Any]:
             "components": "graftable-developmental-sources-v1",
             "traits": "overlap-normalized-diffusion-v1",
             "skeleton": "breakable-node-edge-load-graph-v1",
-            "muscle": "paired-flexor-extensor-actuator-v1",
+            "muscle": "per-joint-flexor-extensor-actuator-v2",
             "orientation": "vertical-locked-2.5d-v1",
         },
         "trait_order": list(TRAITS),
@@ -359,13 +373,14 @@ def publish_review(output: Path) -> dict[str, Any]:
         "specimens": records,
         "contact_sheet": {"path": sheet.name, "bytes": sheet.stat().st_size, "sha256": _sha256(sheet)},
         "motion": {
-            "contract": "vertical-locked-skeleton-muscle-locomotion-v1",
+            "contract": "vertical-locked-recurrent-skeleton-muscle-locomotion-v2",
             "frame_count": frame_count,
             "fps": fps,
             "loop": True,
             "semantic_sha256": motion_semantic_sha256,
             "frame_stream_sha256": frame_stream_sha256,
             "loop_seam_max_abs": seam_drift,
+            "maximum_edge_strain": maximum_edge_strain,
             "metrics": motion_metrics,
             "ffmpeg": ffmpeg_version,
             "artifacts": {
@@ -430,12 +445,15 @@ def validate_review(output: Path) -> dict[str, Any]:
     frame_count = motion.get("frame_count")
     if type(frame_count) is not int or not 8 <= frame_count <= 240:
         raise ValueError("developmental motion frame count drifted")
-    if motion.get("semantic_sha256") != _motion_semantic_sha256(expected, frame_count):
+    cycles = [simulate_cycle(organism, frame_count=frame_count, settle_cycles=12) for organism in expected]
+    if motion.get("semantic_sha256") != _motion_semantic_sha256(expected, frame_count, cycles):
         raise ValueError("developmental motion semantic replay drifted")
-    if motion.get("frame_stream_sha256") != _render_motion_frames(expected, frame_count):
+    if motion.get("frame_stream_sha256") != _render_motion_frames(expected, frame_count, cycles=cycles):
         raise ValueError("developmental motion frame replay drifted")
     if float(motion.get("loop_seam_max_abs", 1.0)) > .005:
         raise ValueError("developmental motion loop gate failed")
+    if float(motion.get("maximum_edge_strain", 1.0)) > .15:
+        raise ValueError("developmental motion skeletal strain gate failed")
     artifacts = motion.get("artifacts", {})
     for name in ("mp4", "gif"):
         artifact = artifacts.get(name, {})

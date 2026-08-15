@@ -14,6 +14,7 @@ from forge.creature_stage_developmental import (
     develop,
     pose,
     review_genomes,
+    simulate_cycle,
 )
 from forge.creature_stage_developmental.contract import source_sha256
 from forge.creature_stage_developmental.review import publish_review, validate_review
@@ -88,14 +89,17 @@ def test_skeleton_is_connected_and_every_appendage_has_antagonistic_muscles() ->
         assert _connected(len(organism.skeleton_nodes), organism.skeleton_edges)
         assert len(organism.skeleton_edge_appendage) == len(organism.skeleton_edges)
         assert len(organism.skeleton_edge_side) == len(organism.skeleton_edges)
-        assert len(organism.muscles) == len(genome.appendages) * 2
+        assert len(organism.muscles) == sum(appendage.segments for appendage in genome.appendages) * 2
         for appendage_index, appendage in enumerate(genome.appendages):
             edges = np.flatnonzero(organism.skeleton_edge_appendage == appendage_index)
             assert len(edges) == appendage.segments + 1
             muscle = organism.muscles[organism.muscles[:, 2] == appendage_index]
-            assert muscle.shape == (2, 6)
-            assert sorted(muscle[:, 3].tolist()) == [-1.0, 1.0]
-            assert np.allclose(muscle[:, 4], muscle[0, 4])
+            assert muscle.shape == (appendage.segments * 2, 7)
+            for joint in range(appendage.segments):
+                pair = muscle[muscle[:, 6] == joint]
+                assert pair.shape == (2, 7)
+                assert sorted(pair[:, 3].tolist()) == [-1.0, 1.0]
+                assert np.allclose(pair[:, 4], pair[0, 4])
 
 
 def test_motion_is_deterministic_loop_closed_and_nontrivial() -> None:
@@ -125,6 +129,23 @@ def test_humanoid_vertical_orientation_remains_locked() -> None:
             motion = pose(organism, float(phase))
             assert motion.nodes[head, 1] < motion.nodes[pelvis, 1] - 6.0
             assert abs(float(motion.nodes[head, 0] - motion.nodes[pelvis, 0])) < 2.0
+
+
+def test_recurrent_muscle_dynamics_reaches_bounded_limit_cycles() -> None:
+    for genome in review_genomes():
+        organism = develop(genome)
+        cycle = simulate_cycle(organism, frame_count=72, settle_cycles=12)
+        assert len(cycle.frames) == 72
+        assert cycle.loop_seam_max_abs <= .005
+        assert cycle.maximum_edge_strain <= .15
+        assert cycle.frames[0].nodes.shape == organism.skeleton_nodes.shape
+        assert cycle.frames[0].velocities.shape == organism.skeleton_nodes[:, :2].shape
+        assert cycle.frames[0].muscle_activation.shape == (len(organism.muscles),)
+        assert float(np.linalg.norm(cycle.frames[18].cells - organism.cell_xy, axis=1).mean()) >= .25
+    organism = develop(review_genomes()[0])
+    first = simulate_cycle(organism, frame_count=24, settle_cycles=12)
+    second = simulate_cycle(organism, frame_count=24, settle_cycles=12)
+    assert all(np.array_equal(left.nodes, right.nodes) for left, right in zip(first.frames, second.frames, strict=True))
 
 
 def test_phase_rejects_nonfinite_and_out_of_range() -> None:
