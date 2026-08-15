@@ -34,7 +34,7 @@ SOURCE_FILES: Final[tuple[str, ...]] = (
     "forge/neural_cell_motion/supervisor.py", "shared/schema/neural_cell_motion_corpus.schema.json",
 )
 MODEL_FILES: Final[tuple[str, ...]] = (
-    "forge/neural_cell_motion/model.py", "forge/neural_cell_motion/training.py", "forge/neural_cell_motion/contract.py",
+    "forge/neural_cell_motion/model.py", "forge/neural_cell_motion/training.py", "forge/neural_cell_motion/production.py", "forge/neural_cell_motion/contract.py",
 )
 
 

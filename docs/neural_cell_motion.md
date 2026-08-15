@@ -83,3 +83,39 @@ python -m forge.neural_cell_motion build-corpus `
   --output outputs/neural_cell_motion/smoke_v1 `
   --identities-per-family 1
 ```
+
+## Segmented production training
+
+Production training is deliberately restartable and fail-closed. The default
+schedule is 12,000 family-balanced updates in immutable 500-step checkpoints.
+Every batch contains the same number of humanoid, animalian, plantlike,
+anomaly, and machine examples even though the source family sizes differ. A
+sample coordinate is a pure function of the frozen seed, global step, and
+batch slot, so a resumed segment reads the same identities and frames.
+
+The supervisor launches each segment in a fresh Python process, permits at
+most three attempts, records native access violations and timeouts, and accepts
+a checkpoint only after reloading and hashing its model and EMA states. Its
+telemetry is canonical, source-bound, sequential, and rejects duplicated,
+skipped, or incoherent attempts. The trainer also refuses to start unless CUDA
+BF16 deterministic mode is available and at least 14 GiB of VRAM is free; it
+will not crowd an unrelated GPU workload.
+
+Inspect the deterministic sampler without using CUDA:
+
+```powershell
+python -m forge.neural_cell_motion sampler-report --steps 100
+```
+
+Prepare or run the immutable production schedule only in a clear GPU window:
+
+```powershell
+$env:CUBLAS_WORKSPACE_CONFIG=':4096:8'
+python -m forge.neural_cell_motion prepare-production
+python -m forge.neural_cell_motion train-production
+```
+
+The production runner is currently a training foundation, not runtime
+authority. A production launch must still add and calibrate held-out recurrent
+rollout, loop-closure, event-pose, and anti-collapse quality gates before a
+checkpoint can replace the authored cellular motion bank.

@@ -13,6 +13,14 @@ from forge.cellular_organism.compiler import _load_arrays
 from forge.neural_cell_motion.contract import FEATURE_CHANNELS, NeuralCellMotionConfig, ORGAN_CHANNELS
 from forge.neural_cell_motion.dataset import _build_shard, _selection_plan, _static_features, load_corpus_manifest, validate_corpus
 from forge.neural_cell_motion.model import NeuralCellMotionUNet, neural_motion_loss
+from forge.neural_cell_motion.production import (
+    MotionBatchSampler,
+    _replay_authority,
+    _telemetry,
+    _telemetry_payload,
+    prepare_production,
+    sampler_report,
+)
 from forge.neural_cell_motion.supervisor import ACCESS_VIOLATION_CODES, build_corpus_resilient, validate_corpus_resilient
 
 
@@ -133,3 +141,54 @@ def test_npz_header_bounds_reject_rehashed_shape_forgery(tmp_path: Path, smoke_c
     manifest["semantic_sha256"] = sha256_bytes(canonical_json_bytes({key: value for key, value in manifest.items() if key != "semantic_sha256"}))
     manifest_path.write_bytes(canonical_json_bytes(manifest))
     with pytest.raises(ValueError, match="NPY header|tensor bound"): validate_corpus(output)
+
+
+def test_production_replay_authority_and_sampler_are_exact() -> None:
+    corpus = ROOT / "outputs/neural_cell_motion/corpus_v1"
+    replay = _replay_authority(corpus)
+    assert replay["replay"] is True and replay["validated_identity_count"] == 45
+    sampler = MotionBatchSampler(corpus, batch_size=10)
+    assert [len(sampler.by_family[index]) for index in range(5)] == [9, 8, 7, 6, 5]
+    assert sampler.coordinates(17) == MotionBatchSampler(corpus, batch_size=10).coordinates(17)
+    batch = sampler.batch(17)
+    assert [tuple(value.shape) for value in batch] == [
+        (10, 60, 48, 48), (10, 4, 48, 48), (10, 4, 48, 48),
+        (10,), (10,), (10,), (10,),
+    ]
+    assert [value.dtype for value in batch] == [torch.float32, torch.float32, torch.float32, torch.int64, torch.int64, torch.int64, torch.float32]
+    assert batch[3].tolist() == [0, 1, 2, 3, 4, 0, 1, 2, 3, 4]
+    assert float((batch[2] * (1 - batch[0][:, :1])).abs().max()) == 0
+    report = sampler_report(corpus, batch_size=10, steps=100)
+    assert report["passed"] is True and report["family_counts"] == [200] * 5 and report["identity_coordinates"] == 35
+
+
+def test_production_schedule_is_bounded_and_resume_contract_is_immutable(tmp_path: Path) -> None:
+    corpus = ROOT / "outputs/neural_cell_motion/corpus_v1"; output = tmp_path / "production"
+    contract = prepare_production(output, corpus=corpus, total_steps=100, segment_steps=100, batch_size=10)
+    assert contract["minimum_free_vram_bytes"] == 14 * 1024**3 and contract["supervisor"] == {"max_attempts_per_segment": 3, "segment_timeout_seconds": 1800}
+    assert prepare_production(output, corpus=corpus, total_steps=100, segment_steps=100, batch_size=10) == contract
+    with pytest.raises(ValueError, match="schedule"):
+        prepare_production(tmp_path / "bad", corpus=corpus, total_steps=101, segment_steps=100, batch_size=10)
+    with pytest.raises(ValueError, match="changed during resume"):
+        prepare_production(output, corpus=corpus, total_steps=200, segment_steps=100, batch_size=10)
+
+
+def test_production_telemetry_rejects_rehashed_duplicate_or_incoherent_rows(tmp_path: Path) -> None:
+    from forge.multifield_style_motion.hashing import canonical_json_bytes
+    base = {
+        "end_step": 100, "attempt": 1, "returncode": 0, "seconds": 1.25,
+        "stdout_tail": "", "stderr_tail": "", "access_violation": False,
+        "timed_out": False, "artifact_valid": True, "validation_error": "",
+    }
+    output = tmp_path / "telemetry"; output.mkdir()
+    valid = _telemetry_payload([base]); (output / "production_training_telemetry.json").write_bytes(canonical_json_bytes(valid))
+    assert _telemetry(output)["attempts"] == [base]
+    duplicate = _telemetry_payload([base, dict(base)])
+    (output / "production_training_telemetry.json").write_bytes(canonical_json_bytes(duplicate))
+    with pytest.raises(ValueError, match="ordering"):
+        _telemetry(output)
+    impossible_row = {**base, "returncode": 7, "artifact_valid": True}
+    impossible = _telemetry_payload([impossible_row])
+    (output / "production_training_telemetry.json").write_bytes(canonical_json_bytes(impossible))
+    with pytest.raises(ValueError, match="successful-attempt"):
+        _telemetry(output)
