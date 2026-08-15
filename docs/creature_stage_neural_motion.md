@@ -124,9 +124,13 @@ checkpoints, AdamW at 2e-4, 1,000-step warmup, gradient clip 1.0, EMA 0.9995,
 BF16 autocast with float32 loss, exact optimizer and CPU/CUDA RNG resume, at
 least 16 GiB free VRAM, and a planned-output guard preserving 100 GiB free.
 
-Production was not launched during this milestone because an unrelated sprite
-training process left about 11.5 GiB VRAM free. The runner correctly refuses
-that state rather than crowding or terminating other work.
+The first immutable production segment is now published at
+`outputs/creature_stage_neural_motion/production_v1/cell_motion_0001000.pt`.
+It contains step 1,000 EMA state `642f34580da10dbbf5d88f6932a7716c89443878a89398cdda4b9569bff41146`
+and model state `2a5879d3658d78688b44963dc5ff2758060d1ddf4e61aaa7f468b2f366226e29`.
+The remaining 19 segments are intentionally not inferred from this first
+checkpoint; each must resume through the strict optimizer/RNG/checkpoint
+chain and pass the same free-disk and free-VRAM guards.
 
 ## Promotion requirements
 
@@ -151,7 +155,11 @@ python -m forge.creature_stage_neural_motion validate-evaluation `
 
 The report contains all 65 held-out family/action clips, per-clip evidence,
 family and motion macro-aggregates, and exact checkpoint/teacher/source
-provenance. It measures position and velocity error, improvement over copying
+provenance. Structural replay is exact across backends; finite metric values
+use the manifest-recorded symmetric comparison bound of 5e-5 absolute and
+2e-5 relative to accommodate CPU/CUDA kernel rounding. Gates, counts,
+integers, identities, and promotion verdicts never receive tolerance. It
+measures position and velocity error, improvement over copying
 the previous state, bond-relative coherence, predicted versus target action
 energy, appendage/core activity, loop closure, displacement bounds, and exact
 zero outside native cells. Aggregate values are recomputed from clip records;
@@ -163,17 +171,31 @@ promotion-eligible. A complete 5-family x 13-motion x 72-frame validation
 matrix, all quality gates, and production EMA authority are jointly required.
 
 The current mechanism proof is preserved at
-`outputs/creature_stage_neural_motion/evaluation_smoke_full_v1`. It covers 65
-clips and 4,680 prediction-fed frames and exact-replays on CPU. Its semantic
-identity is
-`2a36d1a9e0ccdd0936463a7bf89ec797f692df88d802f9e42ed0a91c51ee2ccb`;
+`outputs/creature_stage_neural_motion/evaluation_smoke_full_v2`. It covers 65
+clips and 4,680 prediction-fed frames and exact-replays on its CPU reference
+backend. Its semantic identity is
+`a9c6beee6e6f486f6ca6d3fa812a3b85c958dd612eeafbf0a637a3d8b88637e7`;
 the manifest file SHA-256 is
-`235a15ea7302145d58f3c5dda41509b78c815d77c1fac661473199a4792d1a5b`.
+`a2e6430013fa18931cabf0748d3c948aaaf9e0d2010055f937ffd14c1366a400`.
 As intended, the four-update smoke model is rejected: mean position error is
 1.49306437 px, mean velocity error is 1.10997799 px, copy-previous improvement
 is -0.01370313, and motion-energy ratio is 3.14874795. It nevertheless remains
 finite, bounded, bond-coherent, and exactly zero outside occupied cells. This
 distinguishes a sound evaluator/model interface from a trained motion model.
+
+The first production diagnostic is preserved at
+`outputs/creature_stage_neural_motion/evaluation_step_1000_v2`. Its CUDA
+report then independently replayed on CPU across all 4,680 recurrent frames.
+The semantic identity is
+`8d67ee24e2e429b342a42dbd4290e57847cf9f95d0d06bc2134088e25bbc1d7b`
+and its manifest file SHA-256 is
+`1ccee7d7286ddd5de0453de91594d517322ddcf6096047b0c33d07cbb6322fe7`.
+It is correctly rejected: step 1,000 is not the final production checkpoint;
+position MAE is 1.41918155 px, velocity MAE is 1.10005672 px,
+copy-previous improvement is -0.01258480, and energy ratio is 2.82749949.
+This is evidence of a valid training/evaluation chain, not acceptable motion
+quality. The previous `*_v1` evaluation directories remain historical
+backend-exact artifacts and fail current v2 source authority by design.
 
 ## Portable ONNX authority
 
@@ -198,14 +220,14 @@ PyTorch with ONNX Runtime on 80 held-out examples spanning all five families,
 four representative motions, and four phases. Every validation repeats the
 numerical comparison; a rehashed parity claim is insufficient.
 
-The CPU smoke export at
-`outputs/creature_stage_neural_motion/onnx_smoke_v1` is 1,102,737 bytes. Its
+The current CPU smoke export at
+`outputs/creature_stage_neural_motion/onnx_smoke_v2` is 1,102,737 bytes. Its
 ONNX SHA-256 is
 `ca07c28bce36bd3b5d96537dd54cd54b29b827e15f953899908944444e621615`,
 semantic identity is
-`d95b564084c5b800aecc3df69b1154c8599d23a726d6b047aeb8aaa2fab744cc`,
+`a8bf0d97bf942ec8e13432e6203b1a4cb54644394c1a9383a1c375aeb19c11e2`,
 and manifest file SHA-256 is
-`3b8f26f2614e650062ef653e8fef89ef6568b0ec427d4e2f56a8789182a53490`.
+`67cedf42cfc8c605667630b3cc41a26917053f6953d05ee307e209e689a895bf`.
 Maximum absolute error is 4.619e-7 and mean absolute error is 4.74e-8, with
 exact zero outside occupied cells. This proves portability of the interface,
 not motion quality; production EMA weights must pass the separate recurrent

@@ -6,18 +6,34 @@
   "additionalProperties": false,
   "required": [
     "format", "status", "evaluation_source_sha256", "model_source_sha256",
-    "checkpoint", "teacher", "scope", "thresholds", "clips", "aggregate",
+    "checkpoint", "teacher", "scope", "replay_policy", "thresholds", "clips", "aggregate",
     "families", "motions", "diagnostics", "gates", "promotion_eligible",
     "semantic_sha256"
   ],
   "properties": {
-    "format": {"const": "nullvector-creature-stage-neural-motion-evaluation-v1"},
+    "format": {"const": "nullvector-creature-stage-neural-motion-evaluation-v2"},
     "status": {"const": "evaluated"},
     "evaluation_source_sha256": {"$ref": "#/$defs/sha256"},
     "model_source_sha256": {"$ref": "#/$defs/sha256"},
     "checkpoint": {"type": "object"},
     "teacher": {"type": "object"},
     "scope": {"type": "object"},
+    "replay_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "structure", "provenance_and_gates", "numeric_comparison",
+        "absolute_tolerance", "relative_tolerance", "reference_backend"
+      ],
+      "properties": {
+        "structure": {"const": "exact"},
+        "provenance_and_gates": {"const": "exact"},
+        "numeric_comparison": {"const": "symmetric_isclose"},
+        "absolute_tolerance": {"const": 0.00005},
+        "relative_tolerance": {"const": 0.00002},
+        "reference_backend": {"const": "cpu"}
+      }
+    },
     "thresholds": {"type": "object"},
     "clips": {"type": "array", "minItems": 5, "maxItems": 65},
     "aggregate": {"$ref": "#/$defs/metrics"},

@@ -350,6 +350,7 @@ def export_checkpoint(checkpoint_path: Path, output: Path) -> dict[str, Any]:
 def _validate_structure(payload: dict[str, Any]) -> None:
     checkpoint_keys = {
         "kind", "format", "path", "bytes", "sha256", "step",
+        "total_steps", "final_checkpoint",
         "model_state_sha256", "ema_state_sha256", "contract_semantic_sha256",
         "smoke_semantic_sha256",
     }

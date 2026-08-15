@@ -11,6 +11,7 @@ from forge.creature_stage_neural_motion.contract import source_sha256
 from forge.creature_stage_neural_motion.evaluation import (
     REPORT_NAME,
     _canonical,
+    _cross_backend_difference,
     evaluate_checkpoint,
     evaluation_source_sha256,
     validate_evaluation,
@@ -37,6 +38,7 @@ def test_prediction_fed_diagnostic_rollout_is_exact_and_not_promotable(
     assert result["clips"] == 10
     assert not result["promotion_eligible"]
     assert not result["gates"]["full_validation_matrix"]
+    assert not result["gates"]["final_production_checkpoint"]
     assert result["gates"]["outside_cells_exact_zero"]
     assert validate_evaluation(output / REPORT_NAME, replay=True) == result
 
@@ -61,6 +63,32 @@ def test_rehashed_nested_metric_tamper_fails_derived_evidence(
     path.write_bytes(_canonical(payload))
     with pytest.raises(ValueError, match="aggregate drifted"):
         validate_evaluation(path)
+
+
+def test_cross_backend_replay_is_structurally_exact_and_numerically_bounded() -> None:
+    expected = {
+        "source": "a" * 64,
+        "gates": {"finite": True},
+        "rows": [{"metric": 1.0, "count": 5}],
+    }
+    within = {
+        "source": "a" * 64,
+        "gates": {"finite": True},
+        "rows": [{"metric": 1.000019, "count": 5}],
+    }
+    assert _cross_backend_difference(within, expected) is None
+
+    changed_gate = json.loads(json.dumps(within))
+    changed_gate["gates"]["finite"] = False
+    assert "$.gates.finite" in _cross_backend_difference(changed_gate, expected)
+
+    changed_count = json.loads(json.dumps(within))
+    changed_count["rows"][0]["count"] = 6
+    assert "$.rows[0].count" in _cross_backend_difference(changed_count, expected)
+
+    outside = json.loads(json.dumps(within))
+    outside["rows"][0]["metric"] = 1.001
+    assert "replay tolerance" in _cross_backend_difference(outside, expected)
 
 
 def test_sealed_test_split_requires_explicit_release(

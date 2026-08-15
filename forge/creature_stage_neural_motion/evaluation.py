@@ -30,7 +30,7 @@ from .training import (
 )
 
 
-EVALUATION_FORMAT = "nullvector-creature-stage-neural-motion-evaluation-v1"
+EVALUATION_FORMAT = "nullvector-creature-stage-neural-motion-evaluation-v2"
 EVALUATION_SCHEMA = PROJECT_ROOT / "shared/schema/creature_stage_neural_motion_evaluation.schema.json"
 EVALUATION_SOURCE_FILES = (
     "forge/creature_stage_neural_motion/evaluation.py",
@@ -38,6 +38,16 @@ EVALUATION_SOURCE_FILES = (
 )
 REPORT_NAME = "evaluation_manifest.json"
 MAX_REPORT_BYTES = 8 * 1024 * 1024
+CROSS_BACKEND_ABSOLUTE_TOLERANCE = 5e-5
+CROSS_BACKEND_RELATIVE_TOLERANCE = 2e-5
+REPLAY_POLICY = {
+    "structure": "exact",
+    "provenance_and_gates": "exact",
+    "numeric_comparison": "symmetric_isclose",
+    "absolute_tolerance": CROSS_BACKEND_ABSOLUTE_TOLERANCE,
+    "relative_tolerance": CROSS_BACKEND_RELATIVE_TOLERANCE,
+    "reference_backend": "cpu",
+}
 METRIC_NAMES = (
     "position_mae_px",
     "velocity_mae_px",
@@ -85,6 +95,43 @@ def _relative(path: Path) -> str:
         raise ValueError("cellular motion evaluation path must remain inside the project") from error
 
 
+def _cross_backend_difference(actual: Any, expected: Any, path: str = "$") -> str | None:
+    """Return the first structural or tolerance violation in two replay payloads."""
+    if type(actual) is not type(expected):
+        return f"{path}: type {type(actual).__name__} != {type(expected).__name__}"
+    if isinstance(actual, dict):
+        if actual.keys() != expected.keys():
+            return f"{path}: keys {tuple(actual)} != {tuple(expected)}"
+        for key in actual:
+            difference = _cross_backend_difference(actual[key], expected[key], f"{path}.{key}")
+            if difference is not None:
+                return difference
+        return None
+    if isinstance(actual, list):
+        if len(actual) != len(expected):
+            return f"{path}: length {len(actual)} != {len(expected)}"
+        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
+            difference = _cross_backend_difference(actual_item, expected_item, f"{path}[{index}]")
+            if difference is not None:
+                return difference
+        return None
+    if isinstance(actual, float):
+        if not (math.isfinite(actual) and math.isfinite(expected)):
+            return None if actual == expected else f"{path}: non-finite values differ"
+        if not math.isclose(
+            actual,
+            expected,
+            rel_tol=CROSS_BACKEND_RELATIVE_TOLERANCE,
+            abs_tol=CROSS_BACKEND_ABSOLUTE_TOLERANCE,
+        ):
+            return (
+                f"{path}: {actual!r} != {expected!r}; absolute difference "
+                f"{abs(actual - expected):.9g} exceeds replay tolerance"
+            )
+        return None
+    return None if actual == expected else f"{path}: {actual!r} != {expected!r}"
+
+
 def _load_authority(checkpoint_path: Path) -> tuple[CellularMotionTransformer, dict[str, Any], NativeMotionTeacher]:
     checkpoint_path = Path(checkpoint_path).resolve()
     if checkpoint_path.is_symlink() or not checkpoint_path.is_file():
@@ -104,6 +151,8 @@ def _load_authority(checkpoint_path: Path) -> tuple[CellularMotionTransformer, d
             "bytes": checkpoint_path.stat().st_size,
             "sha256": _sha256_file(checkpoint_path),
             "step": int(payload["steps"]),
+            "total_steps": None,
+            "final_checkpoint": False,
             "model_state_sha256": payload["model_state_sha256"],
             "ema_state_sha256": None,
             "contract_semantic_sha256": None,
@@ -141,6 +190,8 @@ def _load_authority(checkpoint_path: Path) -> tuple[CellularMotionTransformer, d
         "bytes": checkpoint_path.stat().st_size,
         "sha256": _sha256_file(checkpoint_path),
         "step": step,
+        "total_steps": int(contract["total_steps"]),
+        "final_checkpoint": step == int(contract["total_steps"]),
         "model_state_sha256": payload["model_state_sha256"],
         "ema_state_sha256": payload["ema_state_sha256"],
         "contract_semantic_sha256": contract["semantic_sha256"],
@@ -233,6 +284,10 @@ def _gates(payload: dict[str, Any]) -> dict[str, bool]:
     )
     return {
         "full_validation_matrix": full,
+        "final_production_checkpoint": (
+            payload["checkpoint"]["kind"] == "production_ema"
+            and payload["checkpoint"]["final_checkpoint"] is True
+        ),
         "all_values_finite": all(
             math.isfinite(float(row["metrics"][name])) for row in clips for name in METRIC_NAMES
         ),
@@ -366,6 +421,7 @@ def _build_payload(
             "prediction_fed": True,
             "state_teacher_forcing_after_frame_zero": False,
         },
+        "replay_policy": dict(REPLAY_POLICY),
         "thresholds": dict(PROMOTION_THRESHOLDS),
         "clips": clip_records,
         "aggregate": _aggregate(clip_records),
@@ -374,7 +430,7 @@ def _build_payload(
         "diagnostics": {"maximum_outside_abs": round(maximum_outside, 12)},
     }
     payload["gates"] = _gates(payload)
-    payload["promotion_eligible"] = all(payload["gates"].values()) and authority["kind"] == "production_ema"
+    payload["promotion_eligible"] = all(payload["gates"].values())
     return payload
 
 
@@ -408,8 +464,17 @@ def evaluate_checkpoint(
 
 
 def _validate_relationships(report: dict[str, Any]) -> None:
+    if report["replay_policy"] != REPLAY_POLICY:
+        raise ValueError("cellular motion evaluation replay policy drifted")
     if report["thresholds"] != PROMOTION_THRESHOLDS:
         raise ValueError("cellular motion evaluation thresholds drifted")
+    checkpoint_keys = {
+        "kind", "format", "path", "bytes", "sha256", "step", "total_steps",
+        "final_checkpoint", "model_state_sha256", "ema_state_sha256",
+        "contract_semantic_sha256", "smoke_semantic_sha256",
+    }
+    if set(report["checkpoint"]) != checkpoint_keys:
+        raise ValueError("cellular motion evaluation checkpoint structure drifted")
     clips = report["clips"]
     scope = report["scope"]
     if set(scope) != {
@@ -455,7 +520,7 @@ def _validate_relationships(report: dict[str, Any]) -> None:
     ]
     if report["motions"] != expected_motions or report["gates"] != _gates(report):
         raise ValueError("cellular motion evaluation derived evidence drifted")
-    expected_promotion = all(report["gates"].values()) and report["checkpoint"]["kind"] == "production_ema"
+    expected_promotion = all(report["gates"].values())
     if report["promotion_eligible"] is not expected_promotion:
         raise ValueError("cellular motion evaluation promotion verdict drifted")
 
@@ -469,7 +534,7 @@ def validate_evaluation(report_path: Path, *, replay: bool = False) -> dict[str,
     required = {
         "format", "status", "evaluation_source_sha256", "model_source_sha256",
         "checkpoint", "teacher", "scope", "thresholds", "clips", "aggregate",
-        "families", "motions", "diagnostics", "gates", "promotion_eligible",
+        "replay_policy", "families", "motions", "diagnostics", "gates", "promotion_eligible",
         "semantic_sha256",
     }
     if raw != _canonical(report) or set(report) != required:
@@ -501,8 +566,12 @@ def validate_evaluation(report_path: Path, *, replay: bool = False) -> dict[str,
             device=torch.device("cpu"),
             allow_sealed_test=report["scope"]["sealed_test_released"],
         )
-        if replayed != {k: v for k, v in report.items() if k != "semantic_sha256"}:
-            raise ValueError("cellular motion evaluation exact replay drifted")
+        difference = _cross_backend_difference(
+            replayed,
+            {k: v for k, v in report.items() if k != "semantic_sha256"},
+        )
+        if difference is not None:
+            raise ValueError(f"cellular motion evaluation cross-backend replay drifted: {difference}")
     return {
         "passed": True,
         "promotion_eligible": report["promotion_eligible"],
