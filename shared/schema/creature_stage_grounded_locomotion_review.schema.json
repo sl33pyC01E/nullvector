@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NULLVECTOR grounded developmental locomotion review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "source_sha256", "developmental_source_sha256",
+    "config", "scope", "cycles", "artifacts", "gates",
+    "visually_inspected", "promotion_ready", "semantic_sha256"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-grounded-developmental-locomotion-v1"},
+    "status": {"enum": ["passed", "failed-quality"]},
+    "source_sha256": {"$ref": "#/$defs/sha256"},
+    "developmental_source_sha256": {"$ref": "#/$defs/sha256"},
+    "config": {"type": "object"},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["organisms", "families", "base_organisms", "grafted_organisms", "frames_per_cycle"],
+      "properties": {
+        "organisms": {"const": 10},
+        "families": {"const": 5},
+        "base_organisms": {"const": 5},
+        "grafted_organisms": {"const": 5},
+        "frames_per_cycle": {"const": 72}
+      }
+    },
+    "cycles": {"type": "array", "minItems": 10, "maxItems": 10},
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arrays", "contact_sheet", "gif", "mp4"],
+      "properties": {
+        "arrays": {"$ref": "#/$defs/artifact"},
+        "contact_sheet": {"$ref": "#/$defs/artifact"},
+        "gif": {"$ref": "#/$defs/artifact"},
+        "mp4": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "gates": {"type": "object", "additionalProperties": {"type": "boolean"}},
+    "visually_inspected": {"type": "boolean"},
+    "promotion_ready": {"type": "boolean"},
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^[a-zA-Z0-9_.-]+$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}
