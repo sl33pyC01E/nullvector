@@ -83,3 +83,43 @@ matrix as v1. The immediate success criterion is to retain or improve the
 step-3,000 geometry while raising the weakest locomotion/action energy ratios
 and beating the copy-previous baseline. If those signals do not improve, the
 pilot stops without consuming the remaining schedule.
+
+## Update-500 pilot evidence
+
+The first 500-update checkpoint is sealed at
+`outputs/creature_stage_neural_motion_rollout/production_v1/cell_motion_rollout_0000500.pt`.
+It is 438,984,575 bytes with file SHA-256
+`2b0601913ac3fc29f6135c2ef41073667d3bdd51238760dc692baae733813dac`.
+Its model state is
+`429ee645f2568be65d10a5a764c9cf72e88ac9bf44883bd2448218f164881d68`
+and EMA state is
+`ae2f83102a40a56880bb1f757428c0627a658640a1992e49210d85c0997dac90`.
+The production contract semantic identity is
+`8c62aad4bdb20dcb66c179ff799d3723a12a61478bb7107902443611cc47e989`.
+
+The full CUDA report at
+`outputs/creature_stage_neural_motion_rollout/evaluation_pilot500_full_v1`
+was independently recreated on CPU across all 65 clips and 4,680 recurrent
+frames. Its semantic identity is
+`610aee770cf9e32d3b3668cc742332083150ab612495c99c9d909d2eeaf9eeb0`;
+the manifest file SHA-256 is
+`e29eafc3ae67f9dff658a89ace2e98c874909189d6d4a9921a0e107e6c8106ca`;
+the evaluator source identity is
+`a938415856c20bba1d80782c7df26de0f4373019e34e3eb0756bb3f81981f4ec`.
+
+| measure | v1 step 3,000 | rollout update 500 | interpretation |
+| --- | ---: | ---: | --- |
+| position MAE | 0.4982 px | 0.4823 px | improved |
+| velocity MAE | 0.1546 px | 0.1329 px | improved |
+| weakest clip energy | 0.1100 | 0.1450 | improved, still low |
+| aggregate energy | 0.6343 | 0.4980 | below calibrated range |
+| appendage/core ratio | 1.2993 | 1.7451 | stronger articulation separation |
+| copy-previous improvement | -0.0096 | -0.0089 | still fails |
+
+The objective is redistributing energy rather than uniformly shrinking it:
+previously overactive humanoid/machine idles moved closer to target, while the
+weakest anomaly and locomotion clips gained energy. Nevertheless, locomotion
+as a motion class remains underpowered. Update 500 is therefore a useful but
+rejected pilot. One more bounded segment is justified to test the trend; the
+branch must stop or be recalibrated if aggregate locomotion and the weakest
+clip do not continue improving.

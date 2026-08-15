@@ -12,6 +12,12 @@ from forge.creature_stage_neural_motion.contract import source_sha256 as parent_
 from forge.creature_stage_neural_motion.dataset import NativeMotionTeacher
 from forge.creature_stage_neural_motion.training import _canonical
 from forge.creature_stage_neural_motion_rollout.contract import RolloutTrainingConfig, source_sha256
+from forge.creature_stage_neural_motion_rollout.evaluation import (
+    REPORT_NAME,
+    evaluate_checkpoint,
+    evaluation_source_sha256,
+    validate_evaluation,
+)
 from forge.creature_stage_neural_motion_rollout.training import (
     RolloutBatchSampler,
     rollout_frame_loss,
@@ -21,6 +27,7 @@ from forge.creature_stage_neural_motion_rollout.training import (
 
 
 TEACHER = PROJECT_ROOT / "outputs/creature_stage_motion_corpus_v1_final_a"
+PILOT = PROJECT_ROOT / "outputs/creature_stage_neural_motion_rollout/production_v1/cell_motion_rollout_0000500.pt"
 
 
 def test_rollout_sampler_is_deterministic_balanced_and_consecutive() -> None:
@@ -86,4 +93,31 @@ def test_rollout_cpu_smoke_replays_and_rehashed_tamper_fails(
 
 def test_rollout_successor_is_additive_to_frozen_parent_model() -> None:
     assert len(source_sha256()) == 64
+    assert len(evaluation_source_sha256()) == 64
     assert parent_source_sha256() == "2300cacade824488a69d1f191519e5809222f1de14ecd8d92f64f3ea1f3b5ec5"
+
+
+def test_rollout_pilot_evaluation_is_prediction_fed_and_replays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "-1")
+    output = tmp_path / "evaluation"
+    result = evaluate_checkpoint(PILOT, output, motion_ids=(0,), rollout_frames=2)
+    assert result["passed"]
+    assert result["update"] == 500
+    assert result["clips"] == 5
+    assert not result["promotion_eligible"]
+    assert not result["gates"]["full_validation_matrix"]
+    assert not result["gates"]["final_rollout_checkpoint"]
+    assert result["gates"]["outside_cells_exact_zero"]
+    assert validate_evaluation(output / REPORT_NAME, replay=True) == result
+
+    path = output / REPORT_NAME
+    payload = json.loads(path.read_bytes())
+    payload["clips"][0]["metrics"]["position_mae_px"] += 0.25
+    payload["semantic_sha256"] = hashlib.sha256(
+        _canonical({key: value for key, value in payload.items() if key != "semantic_sha256"})
+    ).hexdigest()
+    path.write_bytes(_canonical(payload))
+    with pytest.raises(ValueError, match="aggregate drifted"):
+        validate_evaluation(path)
