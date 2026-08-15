@@ -124,11 +124,14 @@ python -m forge.creature_stage_neural_motion model-info
 python -m forge.creature_stage_neural_motion validate-smoke `
   --output outputs/creature_stage_neural_motion/smoke_cpu_v1_final
 python -m forge.creature_stage_neural_motion prepare-production
+python -m forge.creature_stage_neural_motion evaluate --help
 ```
 
-It is not runtime authority yet. Production training, recurrent held-out
-evaluation, portable export, and native parity remain promotion requirements.
-See `docs/creature_stage_neural_motion.md`.
+It is not runtime authority yet. Its evaluator rolls EMA predictions forward
+on their own state across unseen chassis and refuses promotion on
+family/action collapse, weak motion energy, bond incoherence, or provenance
+drift. Production training, portable export, and native parity remain
+promotion requirements. See `docs/creature_stage_neural_motion.md`.
 
 ## Current production sprite path
 

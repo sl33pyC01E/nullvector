@@ -130,12 +130,56 @@ that state rather than crowding or terminating other work.
 
 ## Promotion requirements
 
-The CPU proof validates implementation, not learned quality. Runtime promotion
-still requires:
+The CPU proof validates implementation, not learned quality. A separate,
+source-bound evaluator now performs recurrent prediction-fed rollouts: only
+frame zero comes from the teacher state, and every later state is the model's
+own preceding output. This prevents a good one-frame loss from concealing
+long-horizon collapse.
+
+```powershell
+python -m forge.creature_stage_neural_motion evaluate `
+  --checkpoint outputs/creature_stage_neural_motion/production_v1/cell_motion_0020000.pt `
+  --output outputs/creature_stage_neural_motion/evaluation_step_20000 `
+  --split validation --frames 72 --motions 0 1 2 3 4 5 6 7 8 9 10 11 12 `
+  --device cuda
+
+$env:CUDA_VISIBLE_DEVICES='-1'
+python -m forge.creature_stage_neural_motion validate-evaluation `
+  --report outputs/creature_stage_neural_motion/evaluation_step_20000/evaluation_manifest.json `
+  --replay
+```
+
+The report contains all 65 held-out family/action clips, per-clip evidence,
+family and motion macro-aggregates, and exact checkpoint/teacher/source
+provenance. It measures position and velocity error, improvement over copying
+the previous state, bond-relative coherence, predicted versus target action
+energy, appendage/core activity, loop closure, displacement bounds, and exact
+zero outside native cells. Aggregate values are recomputed from clip records;
+even a fully rehashed nested edit fails validation. The five sealed test
+chassis cannot be evaluated without an explicit `--release-sealed-test` flag.
+
+Smoke checkpoints may be evaluated to prove the mechanism, but are never
+promotion-eligible. A complete 5-family x 13-motion x 72-frame validation
+matrix, all quality gates, and production EMA authority are jointly required.
+
+The current mechanism proof is preserved at
+`outputs/creature_stage_neural_motion/evaluation_smoke_full_v1`. It covers 65
+clips and 4,680 prediction-fed frames and exact-replays on CPU. Its semantic
+identity is
+`2a36d1a9e0ccdd0936463a7bf89ec797f692df88d802f9e42ed0a91c51ee2ccb`;
+the manifest file SHA-256 is
+`235a15ea7302145d58f3c5dda41509b78c815d77c1fac661473199a4792d1a5b`.
+As intended, the four-update smoke model is rejected: mean position error is
+1.49306437 px, mean velocity error is 1.10997799 px, copy-previous improvement
+is -0.01370313, and motion-energy ratio is 3.14874795. It nevertheless remains
+finite, bounded, bond-coherent, and exactly zero outside occupied cells. This
+distinguishes a sound evaluator/model interface from a trained motion model.
+
+Runtime promotion still additionally requires:
 
 1. a complete segmented checkpoint chain;
-2. recurrent prediction-fed validation across every held-out family/action,
-   with sealed test used only at final selection;
+2. a promotion-eligible prediction-fed validation report, with sealed test used
+   only at final selection;
 3. displacement, velocity, loop closure, appendage-root coherence, action
    timing, and long-rollout stability gates;
 4. visual clips proving locomotion, breathing, emotes, actions, hits, and
