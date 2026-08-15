@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature-stage-developmental-review-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "passed", "source_sha256", "contracts", "trait_order", "tissue_order", "specimen_count", "specimens", "contact_sheet", "motion"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-developmental-review-v1"},
+    "passed": {"const": true},
+    "source_sha256": {"$ref": "#/$defs/sha256"},
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "components", "traits", "skeleton", "muscle", "orientation"],
+      "properties": {
+        "family": {"const": "five-prior-simplex-v1"},
+        "components": {"const": "graftable-developmental-sources-v1"},
+        "traits": {"const": "overlap-normalized-diffusion-v1"},
+        "skeleton": {"const": "breakable-node-edge-load-graph-v1"},
+        "muscle": {"const": "paired-flexor-extensor-actuator-v1"},
+        "orientation": {"const": "vertical-locked-2.5d-v1"}
+      }
+    },
+    "trait_order": {"type": "array", "minItems": 15, "maxItems": 15, "uniqueItems": true, "items": {"type": "string"}},
+    "tissue_order": {"type": "array", "minItems": 15, "maxItems": 15, "uniqueItems": true, "items": {"type": "string"}},
+    "specimen_count": {"const": 10},
+    "specimens": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/specimen"}},
+    "contact_sheet": {"$ref": "#/$defs/artifact"},
+    "motion": {"$ref": "#/$defs/motion"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "kind", "anchor", "radius", "parent", "side", "trait_delta", "organ"],
+      "properties": {
+        "component_id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string"},
+        "anchor": {"$ref": "#/$defs/pair"},
+        "radius": {"$ref": "#/$defs/pair"},
+        "parent": {"type": ["string", "null"]},
+        "side": {"type": "integer", "minimum": -1, "maximum": 1},
+        "trait_delta": {"$ref": "#/$defs/traits"},
+        "organ": {"type": "string"}
+      }
+    },
+    "appendage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["appendage_id", "kind", "root_component", "root_offset", "endpoint", "segments", "side", "phase", "bend", "paired_with", "trait_delta"],
+      "properties": {
+        "appendage_id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string"},
+        "root_component": {"type": "string", "minLength": 1},
+        "root_offset": {"$ref": "#/$defs/pair"},
+        "endpoint": {"$ref": "#/$defs/pair"},
+        "segments": {"type": "integer", "minimum": 1, "maximum": 5},
+        "side": {"type": "integer", "minimum": -1, "maximum": 1},
+        "phase": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+        "bend": {"enum": [-1, 1]},
+        "paired_with": {"type": ["string", "null"]},
+        "trait_delta": {"$ref": "#/$defs/traits"}
+      }
+    },
+    "pair": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+    "traits": {"type": "array", "minItems": 15, "maxItems": 15, "items": {"type": "number"}},
+    "genome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["genome_id", "seed", "family_mix", "traits", "components", "appendages", "generation", "parent_ids"],
+      "properties": {
+        "genome_id": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer", "minimum": 0},
+        "family_mix": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"type": "number", "minimum": 0, "maximum": 1}},
+        "traits": {"$ref": "#/$defs/traits"},
+        "components": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/component"}},
+        "appendages": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/appendage"}},
+        "generation": {"type": "integer", "minimum": 0},
+        "parent_ids": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "specimen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["genome", "cell_count", "skeleton_node_count", "skeleton_edge_count", "muscle_count", "identity_sha256", "artifact"],
+      "properties": {
+        "genome": {"$ref": "#/$defs/genome"},
+        "cell_count": {"type": "integer", "minimum": 1},
+        "skeleton_node_count": {"type": "integer", "minimum": 1},
+        "skeleton_edge_count": {"type": "integer", "minimum": 0},
+        "muscle_count": {"type": "integer", "minimum": 0},
+        "identity_sha256": {"$ref": "#/$defs/sha256"},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "motionMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["genome_id", "loop_seam_max_abs", "quarter_cycle_mean_cell_displacement", "quarter_cycle_max_cell_displacement"],
+      "properties": {
+        "genome_id": {"type": "string", "minLength": 1},
+        "loop_seam_max_abs": {"type": "number", "minimum": 0, "maximum": 0.005},
+        "quarter_cycle_mean_cell_displacement": {"type": "number", "exclusiveMinimum": 0},
+        "quarter_cycle_max_cell_displacement": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "frame_count", "fps", "loop", "semantic_sha256", "frame_stream_sha256", "loop_seam_max_abs", "metrics", "ffmpeg", "artifacts"],
+      "properties": {
+        "contract": {"const": "vertical-locked-skeleton-muscle-locomotion-v1"},
+        "frame_count": {"type": "integer", "minimum": 8, "maximum": 240},
+        "fps": {"type": "integer", "minimum": 1, "maximum": 60},
+        "loop": {"const": true},
+        "semantic_sha256": {"$ref": "#/$defs/sha256"},
+        "frame_stream_sha256": {"$ref": "#/$defs/sha256"},
+        "loop_seam_max_abs": {"type": "number", "minimum": 0, "maximum": 0.005},
+        "metrics": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/motionMetric"}},
+        "ffmpeg": {"type": "string", "minLength": 1},
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mp4", "gif"],
+          "properties": {"mp4": {"$ref": "#/$defs/artifact"}, "gif": {"$ref": "#/$defs/artifact"}}
+        }
+      }
+    }
+  }
+}
