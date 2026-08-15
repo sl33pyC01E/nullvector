@@ -254,6 +254,31 @@ short of bond fracture graphs, detached-polyp identity, scars, infection, or
 cell regrowth; those need explicit state before a neural dynamics model can be
 credited with learning them.
 
+### Stage 2 cellular motion transformer
+
+`forge.creature_stage_neural_motion` is the first model designed directly
+against the native 20-chassis authority. Each anatomical cell becomes a token
+containing body coordinates, tissue, organ, side, appendage, centrality, and
+eight genome values. Its recurrent input is the preceding cell displacement
+and velocity. Family, morphotype, motion state, phase, move/aim vectors,
+attack/utility channels, and impact/terminal events use a separate condition
+path.
+
+The production model has 27,409,156 parameters: ten 384-wide transformer
+blocks with eight attention heads. Global attention supplies organism-wide
+coordination; every block also aggregates the exact local eight-neighbor cell
+graph. This makes distant limbs coordinate without reducing motion to an
+unconstrained whole-sprite deformation. Padded cells remain exactly zero.
+
+Morphotypes 0–1 from every family train, morphotype 2 is validation, and
+morphotype 3 is sealed test. The sampler is family-balanced. Production uses
+deterministic BF16 segments, immutable optimizer/RNG/EMA checkpoints, a 16 GiB
+free-VRAM gate, and the 100 GiB disk floor. A four-step CPU proof validates the
+full tensor and optimization path but is not a quality claim. CUDA production
+was deliberately not started while another sprite-training process occupied
+the GPU. Exact evidence and commands are in
+`docs/creature_stage_neural_motion.md`.
+
 ## First playable loop
 
 1. Spawn as one of five neural organisms with distinct metabolism and tools.

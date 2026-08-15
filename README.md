@@ -111,6 +111,25 @@ python -m forge.creature_stage_intervention_corpus `
 See `docs/creature_stage_intervention_corpus.md` for the causal field layout
 and evidence.
 
+The first Stage 2 replacement bound directly to these native cells is now a
+27.4M-parameter recurrent cellular motion transformer. Each anatomical cell is
+a token; global attention coordinates the whole organism while an explicit
+grid-neighbor path preserves local chassis and appendage connections. It
+conditions on family, structural morphotype, motion, phase, move/aim vectors,
+action channels, and external events. One chassis per family is validation and
+another is sealed test.
+
+```powershell
+python -m forge.creature_stage_neural_motion model-info
+python -m forge.creature_stage_neural_motion validate-smoke `
+  --output outputs/creature_stage_neural_motion/smoke_cpu_v1_final
+python -m forge.creature_stage_neural_motion prepare-production
+```
+
+It is not runtime authority yet. Production training, recurrent held-out
+evaluation, portable export, and native parity remain promotion requirements.
+See `docs/creature_stage_neural_motion.md`.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical
