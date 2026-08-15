@@ -175,6 +175,42 @@ is -0.01370313, and motion-energy ratio is 3.14874795. It nevertheless remains
 finite, bounded, bond-coherent, and exactly zero outside occupied cells. This
 distinguishes a sound evaluator/model interface from a trained motion model.
 
+## Portable ONNX authority
+
+The same checkpoint can be exported as a single-file opset-18 ONNX graph with
+dynamic batch size and fixed native-cell dimensions. The game-side caller owns
+the recurrent state: it feeds each prediction back as the next frame's state.
+No rasterized sprite or flattened animation is embedded in the graph.
+
+```powershell
+$env:CUDA_VISIBLE_DEVICES='-1'
+python -m forge.creature_stage_neural_motion export-onnx `
+  --checkpoint outputs/creature_stage_neural_motion/production_v1/cell_motion_0020000.pt `
+  --output outputs/creature_stage_neural_motion/onnx_step_20000
+
+python -m forge.creature_stage_neural_motion validate-onnx `
+  --output outputs/creature_stage_neural_motion/onnx_step_20000
+```
+
+Validation runs ONNX's full checker, rejects external tensor files, verifies
+every input/output dtype and dimension, tests batches 1/3/5, and compares
+PyTorch with ONNX Runtime on 80 held-out examples spanning all five families,
+four representative motions, and four phases. Every validation repeats the
+numerical comparison; a rehashed parity claim is insufficient.
+
+The CPU smoke export at
+`outputs/creature_stage_neural_motion/onnx_smoke_v1` is 1,102,737 bytes. Its
+ONNX SHA-256 is
+`ca07c28bce36bd3b5d96537dd54cd54b29b827e15f953899908944444e621615`,
+semantic identity is
+`d95b564084c5b800aecc3df69b1154c8599d23a726d6b047aeb8aaa2fab744cc`,
+and manifest file SHA-256 is
+`3b8f26f2614e650062ef653e8fef89ef6568b0ec427d4e2f56a8789182a53490`.
+Maximum absolute error is 4.619e-7 and mean absolute error is 4.74e-8, with
+exact zero outside occupied cells. This proves portability of the interface,
+not motion quality; production EMA weights must pass the separate recurrent
+promotion report before runtime integration.
+
 Runtime promotion still additionally requires:
 
 1. a complete segmented checkpoint chain;
@@ -184,7 +220,7 @@ Runtime promotion still additionally requires:
    timing, and long-rollout stability gates;
 4. visual clips proving locomotion, breathing, emotes, actions, hits, and
    bounded corpse settling;
-5. portable export and numerical parity against EMA weights;
+5. a portable export and numerical-parity report against promoted EMA weights;
 6. native Godot parity plus frame-time and memory measurements;
 7. evidence that the neural model improves or faithfully preserves the
    deterministic oracle rather than merely smoothing it.

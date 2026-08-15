@@ -125,13 +125,16 @@ python -m forge.creature_stage_neural_motion validate-smoke `
   --output outputs/creature_stage_neural_motion/smoke_cpu_v1_final
 python -m forge.creature_stage_neural_motion prepare-production
 python -m forge.creature_stage_neural_motion evaluate --help
+python -m forge.creature_stage_neural_motion export-onnx --help
 ```
 
 It is not runtime authority yet. Its evaluator rolls EMA predictions forward
 on their own state across unseen chassis and refuses promotion on
 family/action collapse, weak motion energy, bond incoherence, or provenance
 drift. Production training, portable export, and native parity remain
-promotion requirements. See `docs/creature_stage_neural_motion.md`.
+promotion requirements. A strict ONNX path is already proven on the smoke
+checkpoint with dynamic batches and held-out numerical parity. See
+`docs/creature_stage_neural_motion.md`.
 
 ## Current production sprite path
 

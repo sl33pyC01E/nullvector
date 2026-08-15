@@ -8,6 +8,7 @@ from .contract import DEFAULT_OUTPUT, DEFAULT_TEACHER, CellularMotionTransformer
 from .model import CellularMotionTransformer
 from .training import prepare_production, run_cpu_smoke, train_segment, validate_cpu_smoke
 from .evaluation import evaluate_checkpoint, validate_evaluation
+from .export import export_checkpoint, validate_export
 
 
 def main() -> int:
@@ -37,6 +38,11 @@ def main() -> int:
     verify = sub.add_parser("validate-evaluation")
     verify.add_argument("--report", type=Path, required=True)
     verify.add_argument("--replay", action="store_true")
+    portable = sub.add_parser("export-onnx")
+    portable.add_argument("--checkpoint", type=Path, required=True)
+    portable.add_argument("--output", type=Path, required=True)
+    portable_verify = sub.add_parser("validate-onnx")
+    portable_verify.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "model-info":
         model = CellularMotionTransformer()
@@ -60,8 +66,12 @@ def main() -> int:
             rollout_frames=args.frames, device=args.device,
             allow_sealed_test=args.release_sealed_test,
         )
-    else:
+    elif args.command == "validate-evaluation":
         result = validate_evaluation(args.report, replay=args.replay)
+    elif args.command == "export-onnx":
+        result = export_checkpoint(args.checkpoint, args.output)
+    else:
+        result = validate_export(args.output)
     print(json.dumps(result, indent=2))
     return 0
 

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature_stage_neural_motion_export.schema.json",
+  "title": "NULLVECTOR portable cellular motion export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "status", "export_source_sha256", "evaluation_source_sha256",
+    "model_source_sha256", "checkpoint", "teacher", "interface", "onnx",
+    "runtime", "tolerances", "parity", "gates", "semantic_sha256"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-neural-motion-onnx-v1"},
+    "status": {"const": "exported"},
+    "export_source_sha256": {"$ref": "#/$defs/sha256"},
+    "evaluation_source_sha256": {"$ref": "#/$defs/sha256"},
+    "model_source_sha256": {"$ref": "#/$defs/sha256"},
+    "checkpoint": {"type": "object"},
+    "teacher": {"type": "object"},
+    "interface": {"type": "object"},
+    "onnx": {"type": "object"},
+    "runtime": {"type": "object"},
+    "tolerances": {"type": "object"},
+    "parity": {"type": "object"},
+    "gates": {"type": "object"},
+    "semantic_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
