@@ -10,6 +10,30 @@ Godot assets are PNG and JSON.
 The early 32px vehicle experiment remains a replayable baseline. The active
 pipeline is the 48px five-family forge described below.
 
+## Current playable reboot
+
+The default Godot scene is now `CreatureStage.tscn`: a native 2.5D cellular
+creature-stage prototype rather than the old wave arena. It is the first
+causal scaffold for a longer research program whose target is one recurrent,
+action-conditioned DiT world model with a continuous VAE viewport decoder.
+
+The scaffold currently provides five genuinely different cellular chassis,
+internal organs and capacities, cell damage and healing, appendage motion,
+ground-plane fluids, family-specific metabolism and actions, recurrent NPC
+controllers, resources, reproduction, 49 streamed exact chunks, distant
+ecology cohorts, and seeded settlements/societies. Bodies remain vertically
+aligned in 2.5D; appendages and aim move, but the chassis never flips.
+
+The development sequence is deliberately staged:
+
+1. make the deterministic/procedural causal oracle fun and complete;
+2. replace authorities with separately validated neural models;
+3. reverse-distill the working ensemble into a monolithic recurrent
+   action-DiT + VAE student while retaining auxiliary causal-state heads.
+
+See `docs/creature_stage_reboot.md` for the product, simulation, scale, neural
+authority, society/city, and acceptance contracts.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical

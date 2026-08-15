@@ -1,12 +1,12 @@
 ; Engine configuration file.
-; Native neural sprite laboratory - Godot 4.3.
+; NULLVECTOR creature-stage technology proof - Godot 4.3.
 
 config_version=5
 
 [application]
 
-config/name="NULLVECTOR // Neural Arena"
-run/main_scene="res://Arena.tscn"
+config/name="NULLVECTOR // Creature Stage"
+run/main_scene="res://CreatureStage.tscn"
 
 [display]
 
