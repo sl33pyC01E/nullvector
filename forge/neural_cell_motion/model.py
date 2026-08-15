@@ -25,7 +25,7 @@ class ConditionEncoder(nn.Module):
         self.out = nn.Sequential(nn.LayerNorm(dimensions), nn.SiLU(), nn.Linear(dimensions, dimensions))
 
     def forward(self, family: Tensor, motion: Tensor, facing: Tensor, phase: Tensor) -> Tensor:
-        batch = len(family)
+        batch = family.shape[0]
         if family.shape != motion.shape or family.shape != facing.shape or family.shape != phase.shape or family.ndim != 1 or bool((family < 0).any()) or bool((family >= 5).any()) or bool((motion < 0).any()) or bool((motion >= 13).any()) or bool((facing < 0).any()) or bool((facing >= 8).any()) or not bool(torch.isfinite(phase).all()): raise ValueError("Neural motion condition drifted.")
         return self.out(self.family(family) + self.motion(motion) + self.facing(facing) + self.phase(phase_embedding(phase, self.dimensions))).reshape(batch, self.dimensions)
 
@@ -75,7 +75,7 @@ class NeuralCellMotionUNet(nn.Module):
     def parameter_count(self) -> int: return sum(value.numel() for value in self.parameters())
 
     def forward(self, static: Tensor, previous: Tensor, family: Tensor, motion: Tensor, facing: Tensor, phase: Tensor) -> Tensor:
-        if static.ndim != 4 or static.shape[1:] != (self.config.static_channels, 48, 48) or previous.shape != (len(static), self.config.state_channels, 48, 48): raise ValueError("Neural motion raster input drifted.")
+        if static.ndim != 4 or static.shape[1:] != (self.config.static_channels, 48, 48) or previous.ndim != 4 or previous.shape[0] != static.shape[0] or previous.shape[1:] != (self.config.state_channels, 48, 48): raise ValueError("Neural motion raster input drifted.")
         condition = self.condition(family, motion, facing, phase); x0 = self.input(torch.cat((static.float(), previous.float()), dim=1))
         for block in self.encoder0: x0 = block(x0, condition)
         x1 = self.down0(x0)

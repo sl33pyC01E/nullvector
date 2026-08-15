@@ -13,15 +13,21 @@ from forge.cellular_organism.compiler import _load_arrays
 from forge.neural_cell_motion.contract import DEFAULT_CORPUS, FEATURE_CHANNELS, MODEL_FILES, NeuralCellMotionConfig, ORGAN_CHANNELS, SOURCE_FILES, corpus_source_sha256
 from forge.neural_cell_motion.dataset import _build_shard, _selection_plan, _static_features, load_corpus_manifest, validate_corpus
 from forge.neural_cell_motion.evaluation import EVALUATION_SOURCE_FILES, acceptance_gates, evaluate_recurrent_split, validate_evaluation_result
+from forge.neural_cell_motion.export import export_checkpoint, validate_export_bundle
 from forge.neural_cell_motion.model import NeuralCellMotionUNet, neural_motion_loss
 from forge.neural_cell_motion.production import (
+    CHECKPOINT_FORMAT,
+    CONTRACT_NAME,
     MotionBatchSampler,
+    _semantic,
     _replay_authority,
     _telemetry,
     _telemetry_payload,
+    checkpoint_name,
     prepare_production,
     sampler_report,
 )
+from forge.neural_cell_motion.training import _state_sha256
 from forge.neural_cell_motion.supervisor import ACCESS_VIOLATION_CODES, build_corpus_resilient, validate_corpus_resilient
 
 
@@ -250,3 +256,27 @@ def test_full_evaluation_gates_reject_motion_energy_collapse() -> None:
     collapsed = json.loads(json.dumps(evaluation)); collapsed["response_energy"]["displacement"] = {"predicted": 0.0, "target": .2, "ratio": 0.0}
     gates = acceptance_gates(collapsed)
     assert gates["displacement_response_not_collapsed"] is False and not all(gates.values())
+
+
+def test_onnx_bundle_has_dynamic_batch_exact_parity_and_checkpoint_binding(tmp_path: Path) -> None:
+    from forge.multifield_style_motion.hashing import canonical_json_bytes
+    from forge.neural_cell_motion.contract import model_source_sha256
+
+    production = tmp_path / "production"; production.mkdir(); bundle = tmp_path / "onnx_bundle"
+    config = NeuralCellMotionConfig(base_channels=24, channel_multipliers=(1, 2, 3), blocks_per_level=1, condition_dim=96, attention_heads=4, dropout=0)
+    contract = {"source_sha256": model_source_sha256(), "seed": 0x4E434D, "model": config.to_dict(), "total_steps": 1, "corpus": {"path": DEFAULT_CORPUS.relative_to(ROOT).as_posix(), "semantic_sha256": load_corpus_manifest(DEFAULT_CORPUS)["semantic_sha256"]}}
+    contract["semantic_sha256"] = _semantic(contract); (production / CONTRACT_NAME).write_bytes(canonical_json_bytes(contract))
+    torch.manual_seed(0x4E434D); model = NeuralCellMotionUNet(config); state = {name: value.detach().cpu().clone() for name, value in model.state_dict().items()}
+    checkpoint = {
+        "format": CHECKPOINT_FORMAT, "source_sha256": model_source_sha256(), "contract_semantic_sha256": contract["semantic_sha256"], "step": 1,
+        "model_state": state, "ema_state": state, "optimizer_state": {}, "model_state_sha256": _state_sha256(state), "ema_state_sha256": _state_sha256(state),
+        "cpu_rng_state": torch.get_rng_state(), "cuda_rng_state": torch.zeros(16, dtype=torch.uint8),
+        "history": [{"step": 1, "loss": 1.0, "displacement": .5, "activation": .2, "emission": .1, "coherence": .1, "temporal": .1, "outside": 0.0, "gradient_norm": 1.0, "lr": 1e-4}], "runtime": {"device": "cpu-test"},
+    }
+    torch.save(checkpoint, production / checkpoint_name(1))
+    result = export_checkpoint(production, step=1, destination=bundle)
+    assert result["passed"] is True and result["replay"] is True and result["step"] == 1 and result["max_abs_error"] <= 2e-5
+    assert validate_export_bundle(bundle, production=production, replay=True) == result
+    broken = tmp_path / "broken_bundle"; shutil.copytree(bundle, broken); onnx_path = broken / "neural_cell_motion.onnx"; payload = bytearray(onnx_path.read_bytes()); payload[-17] ^= 0x5A; onnx_path.write_bytes(payload)
+    with pytest.raises(ValueError, match="artifact binding"):
+        validate_export_bundle(broken)

@@ -7,6 +7,7 @@ from pathlib import Path
 from .contract import DEFAULT_CORPUS
 from .dataset import validate_corpus
 from .evaluation_report import evaluate_segment, validate_evaluation_report
+from .export import export_checkpoint, validate_export_bundle
 from .model import NeuralCellMotionUNet
 from .production import prepare_production, run_supervisor, sampler_report, train_segment
 from .supervisor import build_corpus_resilient, validate_corpus_resilient
@@ -24,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     segment = commands.add_parser("segment"); segment.add_argument("--output", type=Path, required=True); segment.add_argument("--end-step", type=int, required=True)
     evaluate = commands.add_parser("evaluate-production"); evaluate.add_argument("--output", type=Path, required=True); evaluate.add_argument("--step", type=int, required=True)
     verify_evaluation = commands.add_parser("validate-evaluation"); verify_evaluation.add_argument("--output", type=Path, required=True); verify_evaluation.add_argument("--step", type=int, required=True)
+    export = commands.add_parser("export-onnx"); export.add_argument("--output", type=Path, required=True); export.add_argument("--step", type=int, required=True); export.add_argument("--destination", type=Path, required=True)
+    verify_export = commands.add_parser("validate-onnx"); verify_export.add_argument("--bundle", type=Path, required=True); verify_export.add_argument("--output", type=Path); verify_export.add_argument("--replay", action="store_true")
     sampler = commands.add_parser("sampler-report"); sampler.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS); sampler.add_argument("--batch-size", type=int, default=10); sampler.add_argument("--steps", type=int, default=100)
     commands.add_parser("model-info"); args = parser.parse_args(argv)
     if args.command == "build-corpus": result = build_corpus_resilient(args.output, identities_per_family=args.identities_per_family, workers=args.workers, max_attempts=args.max_attempts, timeout_seconds=args.timeout_seconds, recover_from=args.recover_from)
@@ -39,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "segment": result = train_segment(args.output, end_step=args.end_step)
     elif args.command == "evaluate-production": result = evaluate_segment(args.output, step=args.step)
     elif args.command == "validate-evaluation": result = validate_evaluation_report(args.output, step=args.step)
+    elif args.command == "export-onnx": result = export_checkpoint(args.output, step=args.step, destination=args.destination)
+    elif args.command == "validate-onnx": result = validate_export_bundle(args.bundle, production=args.output, replay=args.replay)
     elif args.command == "sampler-report": result = sampler_report(args.corpus, batch_size=args.batch_size, steps=args.steps)
     else:
         model = NeuralCellMotionUNet(); result = {"parameters": model.parameter_count, "config": model.config.to_dict()}

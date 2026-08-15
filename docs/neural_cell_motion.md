@@ -158,3 +158,35 @@ The production runner is still not runtime authority. A successful process and
 a low scalar loss are insufficient; only a final checkpoint with
 `promotion_eligible: true`, followed by ONNX export and runtime parity, may
 replace the authored cellular motion bank.
+
+## ONNX runtime bundle
+
+An immutable checkpoint can be exported as a bounded, self-verifying ONNX
+bundle without CUDA. Export always loads the checkpoint's EMA weights and
+records the training contract, corpus identity, checkpoint bytes, model/EMA
+state hashes, model geometry, tensor interface, and ONNX artifact hash.
+
+The graph keeps batch size dynamic for every input and the output. Export runs
+three deterministic CPU probes at batch sizes 1, 2, and 5 through both PyTorch
+and ONNX Runtime. It rejects non-finite output, numerical disagreement above
+`2e-5`, or any motion outside the authoritative cellular support. Replay reloads
+the original checkpoint, reruns all probes, and exact-compares the recorded
+evidence. A rehashed manifest cannot authorize changed model bytes.
+
+```powershell
+python -m forge.neural_cell_motion export-onnx `
+  --output outputs/neural_cell_motion/production_v1 `
+  --step 12000 `
+  --destination outputs/neural_cell_motion/runtime_v1
+
+python -m forge.neural_cell_motion validate-onnx `
+  --bundle outputs/neural_cell_motion/runtime_v1 `
+  --output outputs/neural_cell_motion/production_v1 `
+  --replay
+```
+
+This bundle proves portable graph integrity and CPU numerical parity. It does
+not by itself promote a checkpoint, prove visual quality, or replace the
+recurrent held-out gates. Native Godot/WebGPU integration must consume this
+same tensor contract and add its own backend parity evidence before runtime
+authority changes.
