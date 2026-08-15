@@ -123,3 +123,42 @@ as a motion class remains underpowered. Update 500 is therefore a useful but
 rejected pilot. One more bounded segment is justified to test the trend; the
 branch must stop or be recalibrated if aggregate locomotion and the weakest
 clip do not continue improving.
+
+## Early-stop decision
+
+Update 1,000 is the best sealed checkpoint for this objective. Its full CUDA
+report exact-replayed on the CPU reference backend:
+
+| measure | update 500 | update 1,000 |
+| --- | ---: | ---: |
+| position MAE | 0.4823 px | 0.5246 px |
+| velocity MAE | 0.1329 px | 0.1239 px |
+| aggregate energy | 0.4980 | 0.6933 |
+| weakest clip energy | 0.1450 | 0.2776 |
+| locomotion energy | 0.2200 | 0.5191 |
+| appendage/core ratio | 1.7451 | 1.9382 |
+
+All geometry, velocity, energy, family, motion, loop, bond, bounds, and
+outside-cell gates pass at update 1,000. It remains rejected because the
+copy-previous improvement is still slightly negative and it is not the final
+contract endpoint. Its checkpoint EMA state is
+`c7b87fbe5e7a5a004f1ad0169569118fee1e34407e3121d9b80f572cbb4cc9fd`.
+The report semantic identity is
+`444ef46fc253374dc70c6b09a9b90be53eaef3e74696fc2dfd73b57587723e38`;
+its manifest SHA-256 is
+`cf183b3076551390a585625f368b76b46180f779a34f6d5d1b5790dc2d54b4b8`.
+
+Update 1,500 was run only as a bounded trend test. Its energy ratio reached
+0.84, weakest clip 0.31, and locomotion 0.90, but locomotion position error
+rose to 1.35 px, loop closure failed, motion balance failed, and aggregate
+appendage/core separation fell. The CPU-generated report validated in a fresh
+process after the host produced an impossible transient PyTorch-unpickler
+state during its first post-write reload. It is retained as rejected evidence,
+not as a sealed best checkpoint. No updates beyond 1,500 are authorized under
+this contract.
+
+The next additive successor should initialize from update 1,000, sample cyclic
+motion across the 71-to-0 boundary, lengthen prediction-fed context, lower the
+energy weight now that collapse is corrected, and increase state-delta
+accuracy. This targets copy-baseline and loop closure without returning to
+inert motion or overdriving locomotion.
