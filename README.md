@@ -147,9 +147,13 @@ python -m forge.creature_stage_neural_physiology model-info
 python -m forge.creature_stage_neural_physiology validate-smoke `
   --output outputs/creature_stage_neural_physiology/smoke_cpu_v1
 python -m forge.creature_stage_neural_physiology prepare-production
+python -m forge.creature_stage_neural_physiology evaluate --help
 ```
 
-See `docs/creature_stage_neural_physiology.md`.
+Its prediction-fed evaluator explicitly rejects healthy-control collapse,
+incorrect organ ablation, missing leaks, and fluid-count drift rather than
+letting a low average loss authorize gameplay. See
+`docs/creature_stage_neural_physiology.md`.
 
 ## Current production sprite path
 

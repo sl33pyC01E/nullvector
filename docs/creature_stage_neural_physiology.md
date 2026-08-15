@@ -83,6 +83,42 @@ The production contract declares 16,000 family-balanced updates in immutable
 free-VRAM gate. CUDA training is intentionally not started while another job
 occupies the RTX 4090.
 
+## Prediction-fed causal evaluation
+
+The evaluator feeds all three predicted recurrent states—cells, organism
+capacities, and fluid slots—back into the next frame. Its full validation
+matrix is five unseen chassis x nine interventions x 180 frames (45 clips,
+8,100 recurrent steps). It separately measures position, health, viability,
+organ summaries, improvement over copying the previous health state, fluid
+presence/count/value accuracy, control stability, targeted versus off-target
+organ response, healing response, and fluid emission.
+
+```powershell
+$env:CUDA_VISIBLE_DEVICES='-1'
+python -m forge.creature_stage_neural_physiology evaluate `
+  --checkpoint outputs/creature_stage_neural_physiology/smoke_cpu_v1/smoke_checkpoint.pt `
+  --output outputs/creature_stage_neural_physiology/evaluation_smoke_full_v1
+
+python -m forge.creature_stage_neural_physiology validate-evaluation `
+  --report outputs/creature_stage_neural_physiology/evaluation_smoke_full_v1/evaluation_manifest.json `
+  --replay
+```
+
+The full smoke diagnostic exact-replays with semantic identity
+`e8e0e885d60157cbb9ca0509b9854e1b40ee73b24bc33ad7c24765910f58ddab`;
+its manifest file SHA-256 is
+`d873ca2cabc2c5b7e9c96a4dfe6d752fc858a0da70a155561bad3dbbb22c0103` and
+evaluation source is
+`335bf6e104a040eab433e4b07a32dc7342a53e113b7c647b42af52608dcb1704`.
+
+The result is deliberately rejected. The four-update model has health MAE
+0.24210335, viability accuracy 0.96487722, summary MAE 0.40410855, fluid F1
+0, and targeted post-ablation capacity 0.75382134. It also predicts minimum
+control integrity around 0.525 and maximum death around 0.509. This is the
+spawn-time cascade failure expressed quantitatively. The interface remains
+finite and exactly zero outside cells, but those safety properties do not
+override failed causal quality.
+
 ## Promotion gates still required
 
 1. exact segmented optimizer/RNG/EMA resume and native-crash containment;
