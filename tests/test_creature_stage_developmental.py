@@ -78,6 +78,8 @@ def test_reviewed_family_silhouettes_keep_their_distinct_anatomy() -> None:
     assert all(appendage.endpoint[1] >= 10.0 for appendage in legs)
     assert tails[0].paired_with is None
     assert tails[0].root_offset[1] < 0.0 and tails[0].endpoint[1] < 0.0
+    assert tails[0].side == 0
+    assert tails[0].root_offset[0] == 0.0 and tails[0].endpoint[0] == 0.0
     animal_chassis = [component for component in animal.components if component.component_id in {"chest", "haunch"}]
     assert all(component.radius[1] / component.radius[0] <= .60 for component in animal_chassis)
 
@@ -149,6 +151,53 @@ def test_motion_is_deterministic_loop_closed_and_nontrivial() -> None:
         assert np.any(quarter.muscle_activation > 0.0)
         assert quarter.planted_contacts.shape == (len(genome.appendages),)
         assert np.any([pose(organism, phase).planted_contacts.any() for phase in np.linspace(0.0, .875, 8)])
+
+
+def test_family_locomotion_uses_distinct_physical_grammars() -> None:
+    animal = develop(review_genomes()[2])
+    anomaly = develop(review_genomes()[6])
+    machine = develop(review_genomes()[8])
+    phases = np.linspace(0.0, .9375, 16)
+
+    def terminals(organism, motion):
+        result = []
+        for appendage_index in range(len(organism.genome.appendages)):
+            edge_ids = np.flatnonzero(organism.skeleton_edge_appendage == appendage_index)
+            result.append(motion.nodes[int(organism.skeleton_edges[int(edge_ids[-1]), 1]), :2])
+        return np.asarray(result, dtype=np.float32)
+
+    # Animal tail stays dorsal while exactly four leg terminals perform a
+    # diagonal, alternating gait with substantial foot travel.
+    animal_poses = [pose(animal, float(phase)) for phase in phases]
+    animal_tips = np.stack([terminals(animal, motion) for motion in animal_poses])
+    leg_indices = [index for index, gene in enumerate(animal.genome.appendages) if gene.kind == "leg"]
+    tail_index = next(index for index, gene in enumerate(animal.genome.appendages) if gene.kind == "tail")
+    assert animal_tips[:, tail_index, 1].max() < animal_tips[:, leg_indices, 1].min() - 5.0
+    assert np.ptp(animal_tips[:, leg_indices, 0], axis=0).min() >= 5.5
+    assert all(1 <= int(motion.planted_contacts[leg_indices].sum()) <= 3 for motion in animal_poses)
+
+    # Only the four outer/middle anomaly fibers are eligible for intermittent
+    # support; the inner pair remains freely waving rather than becoming legs.
+    anomaly_poses = [pose(anomaly, float(phase)) for phase in phases]
+    inner = [index for index, gene in enumerate(anomaly.genome.appendages) if gene.root_offset[1] > 3.1]
+    assert len(inner) == 2
+    assert all(not motion.planted_contacts[inner].any() for motion in anomaly_poses)
+    anomaly_tips = np.stack([terminals(anomaly, motion) for motion in anomaly_poses])
+    assert np.ptp(anomaly_tips[:, inner, 0], axis=0).min() >= 4.0
+    assert np.ptp(anomaly_tips[:, inner, 1], axis=0).min() >= 2.0
+
+    # Machine suspension rolls shallowly without organic leg lift, while the
+    # hull and drive preserve their rigid relative transform.
+    machine_poses = [pose(machine, float(phase)) for phase in phases]
+    wheel_indices = [index for index, gene in enumerate(machine.genome.appendages) if gene.kind == "wheel"]
+    machine_tips = np.stack([terminals(machine, motion) for motion in machine_poses])
+    assert np.ptp(machine_tips[:, wheel_indices, 1], axis=0).max() <= .45
+    components = {component.component_id: index for index, component in enumerate(machine.genome.components)}
+    rigid_offsets = np.stack([
+        motion.nodes[components["drive"], :2] - motion.nodes[components["hull"], :2]
+        for motion in machine_poses
+    ])
+    assert np.ptp(rigid_offsets, axis=0).max() <= 1e-6
 
 
 def test_humanoid_vertical_orientation_remains_locked() -> None:

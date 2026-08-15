@@ -23,8 +23,8 @@ The current locomotion authority uses planted and swing targets plus a signed-be
 Build and replay the additive bank:
 
 ```powershell
-python -m forge.creature_stage_developmental build-review --output outputs/creature_stage_developmental/review_v5
-python -m forge.creature_stage_developmental validate-review --output outputs/creature_stage_developmental/review_v5
+python -m forge.creature_stage_developmental build-review --output outputs/creature_stage_developmental/review_v7
+python -m forge.creature_stage_developmental validate-review --output outputs/creature_stage_developmental/review_v7
 ```
 
 The bank contains:
@@ -35,14 +35,22 @@ The bank contains:
 - `specimens/*.npz`: exact cellular, developmental-field, skeleton, and muscle arrays.
 - `review_manifest.json`: strict schema, source binding, exact semantic/frame replay hashes, loop metrics, and artifact hashes.
 
-The v5 review freezes the user-approved humanoid and plantlike authorities while
+The v7 review freezes the user-approved humanoid and plantlike authorities while
 making the remaining families more legible. Animalians use a short horizontal
-chassis, four narrow ventral legs, and one unpaired dorsal tail. Anomalies use a
+chassis, four narrow ventral legs, and one centered vertical dorsal grasper. The
+grasper has no left/right side and cannot be mistaken for a fifth leg. Anomalies use a
 round phase core with six thin articulated fibers. Machines grow from
 rectilinear superellipse component fields and keep wheels separate from lateral
 hardpoints. These distinctions are regression-tested before any successor
 corpus can be compiled.
 
+The reviewed bank is now compiled into the developmental neural-actuator corpus.
+That corpus retains every cell, skeleton node, muscle attachment, skinning
+weight, contact schedule, family mixture, morphotype, and trait channel instead
+of flattening the creature into an RGBA animation target. See
+`docs/creature_stage_developmental_motion.md` for the trained successor and its
+autonomous-loop evidence.
+
 ## Current limits
 
-This is not yet the final creature generator or physics engine. It uses ten authored genomes, a two-dimensional constraint graph, kinematic contact intent, recurrent damped dynamics, and linear skinning. It approximates relative mass, joint moments, skeletal strain, and contact, but does not yet simulate tendon rupture, joint breakage, fluid pressure, or neural injury. Those belong in the next authority iteration after the chassis and locomotion silhouettes are approved. GPU training remains paused until that review is complete.
+This is not yet the final creature generator or physics engine. It uses ten authored genomes, a two-dimensional constraint graph, kinematic contact intent, recurrent damped dynamics, and linear skinning. It approximates relative mass, joint moments, skeletal strain, and contact, but does not yet simulate tendon rupture, joint breakage, fluid pressure, or neural injury. Those belong in the next authority iteration after the chassis and locomotion silhouettes are approved.

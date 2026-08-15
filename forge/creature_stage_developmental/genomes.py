@@ -67,9 +67,10 @@ def _base_genomes() -> tuple[DevelopmentalGenome, ...]:
         ComponentGene("eyes", "sensor_crown", (0,-8), (3.3,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.25)),
     )
     animal_appendages = _pair("leg","chest",1,5.7,11,"foreleg",0,3,8.6) + _pair("leg","haunch",1.5,3.6,13,"hindleg",.5,3,4.5) + (
-        # Dorsal tail: intentionally above the locomotor plane so it cannot read
-        # as a fifth leg in the vertically locked 2.5D presentation.
-        AppendageGene("tail", "tail", "chest", (4.8,-2.2), (14,-5), 5, 1, .25, 1, None, _delta(elasticity=.24)),
+        # Centerline dorsal grasper: vertically aligned, unpaired, and entirely
+        # above the locomotor plane.  It reads as a grasping/sensory stalk rather
+        # than a fifth leg or a permanent one-sided silhouette imbalance.
+        AppendageGene("tail", "tail", "chest", (0,-2.2), (0,-14), 4, 0, .25, 1, None, _delta(elasticity=.18,grip=.18,sensory_range=.08)),
     )
     plant_components = (
         ComponentGene("bulb", "soma", (0,3), (6.8,5.0), organ="bulb", trait_delta=_delta(storage=.0,regeneration=.25)),
