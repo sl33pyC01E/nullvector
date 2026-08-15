@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/creature_stage_intervention_corpus.schema.json",
+  "title": "NULLVECTOR cellular intervention trajectory corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "passed", "fixed_hz", "frames_per_clip", "intervention_frame",
+    "heal_frame", "family_count", "chassis_count", "intervention_count",
+    "clip_count", "total_frames", "total_cell_samples", "maximum_fluid_slots",
+    "summary_fields", "interventions", "organ_groups", "encodings", "contracts",
+    "source", "corpus_identity_sha256", "artifacts", "chassis", "clips"
+  ],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-intervention-corpus-v1"},
+    "passed": {"const": true},
+    "fixed_hz": {"const": 30},
+    "frames_per_clip": {"const": 180},
+    "intervention_frame": {"const": 15},
+    "heal_frame": {"const": 75},
+    "family_count": {"const": 5},
+    "chassis_count": {"const": 20},
+    "intervention_count": {"const": 9},
+    "clip_count": {"const": 180},
+    "total_frames": {"const": 32400},
+    "total_cell_samples": {"type": "integer", "minimum": 2000000, "maximum": 12000000},
+    "maximum_fluid_slots": {"const": 160},
+    "summary_fields": {
+      "type": "array", "minItems": 10, "maxItems": 10,
+      "prefixItems": [
+        {"const": "integrity"}, {"const": "neural"}, {"const": "circulation"},
+        {"const": "respiration"}, {"const": "digestion"}, {"const": "senses"},
+        {"const": "energy"}, {"const": "hydration"}, {"const": "dead"},
+        {"const": "fluid_count"}
+      ]
+    },
+    "interventions": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/intervention"}},
+    "organ_groups": {
+      "type": "object", "additionalProperties": false,
+      "required": ["neural", "circulation", "respiration", "digestion", "senses"],
+      "properties": {
+        "neural": {"$ref": "#/$defs/organList"},
+        "circulation": {"$ref": "#/$defs/organList"},
+        "respiration": {"$ref": "#/$defs/organList"},
+        "digestion": {"$ref": "#/$defs/organList"},
+        "senses": {"$ref": "#/$defs/organList"}
+      }
+    },
+    "encodings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["position_velocity", "unit", "fluid_scalar", "clipped_values"],
+      "properties": {
+        "position_velocity": {
+          "type": "object", "additionalProperties": false,
+          "required": ["scale", "bias"],
+          "properties": {"scale": {"const": 256}, "bias": {"const": 32768}}
+        },
+        "unit": {
+          "type": "object", "additionalProperties": false,
+          "required": ["scale"], "properties": {"scale": {"const": 65535}}
+        },
+        "fluid_scalar": {
+          "type": "object", "additionalProperties": false,
+          "required": ["scale"], "properties": {"scale": {"const": 1024}}
+        },
+        "clipped_values": {"const": 0}
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["morphology", "physiology", "orientation", "binary", "fluid"],
+      "properties": {
+        "morphology": {"const": "coordinate-conditioned-safe-scaffold-v1"},
+        "physiology": {"const": "cellular-organ-causal-scaffold-v1"},
+        "orientation": {"const": "vertical-locked-2.5d-v1"},
+        "binary": {"const": "clip-frame-summary-cell-fluid-u16le-v1"},
+        "fluid": {"const": "ground-plane-diffuse-puddle-v1"}
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["files", "combined_sha256"],
+      "properties": {
+        "files": {
+          "type": "object", "additionalProperties": false,
+          "required": ["scripts/creature_stage/creature_neural.gd", "scripts/creature_stage/neural_creature.gd", "scripts/creature_stage/intervention_corpus.gd"],
+          "properties": {
+            "scripts/creature_stage/creature_neural.gd": {"$ref": "#/$defs/sha256"},
+            "scripts/creature_stage/neural_creature.gd": {"$ref": "#/$defs/sha256"},
+            "scripts/creature_stage/intervention_corpus.gd": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "combined_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "corpus_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "artifacts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["intervention_frames"],
+      "properties": {
+        "intervention_frames": {
+          "type": "object", "additionalProperties": false,
+          "required": ["path", "bytes", "sha256"],
+          "properties": {
+            "path": {"const": "intervention_frames.u16le"},
+            "bytes": {"type": "integer", "minimum": 80000000, "maximum": 160000000, "multipleOf": 2},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    },
+    "chassis": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/chassis"}},
+    "clips": {"type": "array", "minItems": 180, "maxItems": 180, "items": {"$ref": "#/$defs/clip"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "organList": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "string", "minLength": 2, "maxLength": 32}, "uniqueItems": true},
+    "intervention": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "target", "event_frames"],
+      "properties": {
+        "name": {"enum": ["control", "wound", "heal", "cut", "neural_ablation", "circulation_ablation", "respiration_ablation", "digestion_ablation", "sensory_ablation"]},
+        "target": {"enum": ["none", "central_nonorgan_patch", "lower_appendage_plane", "neural", "circulation", "respiration", "digestion", "senses"]},
+        "event_frames": {"type": "array", "minItems": 0, "maxItems": 2, "items": {"type": "integer", "minimum": 15, "maximum": 75}, "uniqueItems": true}
+      }
+    },
+    "genes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["width", "height", "asymmetry", "symmetry", "repair", "metabolism", "fertility", "bond_strength"],
+      "properties": {
+        "width": {"type": "number", "minimum": 0.5, "maximum": 1.5},
+        "height": {"type": "number", "minimum": 0.5, "maximum": 1.5},
+        "asymmetry": {"type": "number", "minimum": -0.3, "maximum": 0.3},
+        "symmetry": {"type": "number", "minimum": 0.45, "maximum": 1},
+        "repair": {"type": "number", "minimum": 0.4, "maximum": 1.6},
+        "metabolism": {"type": "number", "minimum": 0.4, "maximum": 1.6},
+        "fertility": {"type": "number", "minimum": 0.4, "maximum": 1.6},
+        "bond_strength": {"type": "number", "minimum": 0.4, "maximum": 1.6}
+      }
+    },
+    "cell": {
+      "type": "object", "additionalProperties": false,
+      "required": ["grid", "tissue", "organ", "appendage", "side"],
+      "properties": {
+        "grid": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": -32, "maximum": 32}},
+        "tissue": {"enum": ["skin", "structure", "armor", "neural", "circulatory", "respiratory", "digestive", "sensor", "locomotor", "storage", "phase", "root", "weapon"]},
+        "organ": {"enum": ["none", "brain", "heart", "lung", "gut", "eye", "root", "stem", "bulb", "frond", "runner", "meristem", "vascular", "photoreceptor", "core", "orbital", "phase_bond", "phase_brain", "singularity", "flux", "transmuter", "drive", "mast", "hardpoint", "processor", "coolant_pump", "radiator", "battery", "optic"]},
+        "appendage": {"type": "integer", "minimum": -1, "maximum": 31},
+        "side": {"type": "integer", "minimum": -1, "maximum": 1}
+      }
+    },
+    "chassis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["chassis_id", "family", "family_id", "morphotype", "morphotype_id", "seed", "generation", "genes", "cell_count", "cell_identity_sha256", "cells"],
+      "properties": {
+        "chassis_id": {"type": "integer", "minimum": 0, "maximum": 19},
+        "family": {"enum": ["humanoid", "animalian", "plantlike", "anomaly", "machine"]},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "morphotype": {"enum": ["balanced", "longarm", "sixlimb", "crowned", "quadruped", "crawler", "longtail", "horned", "treeform", "rosette", "runner", "twin_stem", "triad", "cross", "pentad", "halo", "tracked", "walker", "hover", "crab"]},
+        "morphotype_id": {"type": "integer", "minimum": 0, "maximum": 3},
+        "seed": {"type": "integer"},
+        "generation": {"const": 0},
+        "genes": {"$ref": "#/$defs/genes"},
+        "cell_count": {"type": "integer", "minimum": 70, "maximum": 500},
+        "cell_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "cells": {"type": "array", "minItems": 70, "maxItems": 500, "items": {"$ref": "#/$defs/cell"}}
+      }
+    },
+    "clip": {
+      "type": "object", "additionalProperties": false,
+      "required": ["clip_id", "chassis_id", "family_id", "morphotype_id", "intervention", "intervention_id", "target", "event_frames", "hit_count", "maximum_fluid_count", "frames", "cell_count", "frame_stride_bytes", "byte_offset", "byte_length", "trajectory_sha256"],
+      "properties": {
+        "clip_id": {"type": "integer", "minimum": 0, "maximum": 179},
+        "chassis_id": {"type": "integer", "minimum": 0, "maximum": 19},
+        "family_id": {"type": "integer", "minimum": 0, "maximum": 4},
+        "morphotype_id": {"type": "integer", "minimum": 0, "maximum": 3},
+        "intervention": {"enum": ["control", "wound", "heal", "cut", "neural_ablation", "circulation_ablation", "respiration_ablation", "digestion_ablation", "sensory_ablation"]},
+        "intervention_id": {"type": "integer", "minimum": 0, "maximum": 8},
+        "target": {"type": "string", "minLength": 2, "maxLength": 40},
+        "event_frames": {"type": "array", "minItems": 0, "maxItems": 2, "items": {"type": "integer", "minimum": 15, "maximum": 75}, "uniqueItems": true},
+        "hit_count": {"type": "integer", "minimum": 0, "maximum": 500},
+        "maximum_fluid_count": {"type": "integer", "minimum": 0, "maximum": 160},
+        "frames": {"const": 180},
+        "cell_count": {"type": "integer", "minimum": 70, "maximum": 500},
+        "frame_stride_bytes": {"type": "integer", "minimum": 2500, "maximum": 5940, "multipleOf": 4},
+        "byte_offset": {"type": "integer", "minimum": 0, "maximum": 160000000, "multipleOf": 4},
+        "byte_length": {"type": "integer", "minimum": 450000, "maximum": 1069200, "multipleOf": 4},
+        "trajectory_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

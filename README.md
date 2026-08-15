@@ -91,6 +91,26 @@ python -m forge.creature_stage_motion_corpus `
 See `docs/creature_stage_motion_corpus.md` for the binary layout, replay
 contract, hashes, and current training scope.
 
+An aligned intervention corpus adds wounds, healing, cuts, neural loss, and
+circulatory, respiratory, digestive, and sensory ablations. It stores 32,400
+causal frames over the same 20 chassis: per-cell health/alive state and local
+position, organ capacities, death state, energy/hydration, and up to 160 exact
+ground-plane fluid particles. The validator derives each reported capacity
+from the underlying living organ cells and rejects a merely self-consistent
+manifest.
+
+```powershell
+C:\Users\forre\Desktop\Godot_v4.3-stable_win64.exe `
+  --headless --path C:\Users\forre\Documents\neural-game\game -- `
+  --creature-stage-intervention-corpus=C:\Users\forre\Documents\neural-game\outputs\creature_stage_intervention_corpus_v1_final_a
+
+python -m forge.creature_stage_intervention_corpus `
+  outputs/creature_stage_intervention_corpus_v1_final_a
+```
+
+See `docs/creature_stage_intervention_corpus.md` for the causal field layout
+and evidence.
+
 ## Current production sprite path
 
 The rest-identity model is a 23.8M-parameter absorbing-state categorical

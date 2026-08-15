@@ -4,6 +4,7 @@ const Neural = preload("res://scripts/creature_stage/creature_neural.gd")
 const Creature = preload("res://scripts/creature_stage/neural_creature.gd")
 const World = preload("res://scripts/creature_stage/neural_world.gd")
 const MotionCorpus = preload("res://scripts/creature_stage/motion_corpus.gd")
+const InterventionCorpus = preload("res://scripts/creature_stage/intervention_corpus.gd")
 
 const WORLD_SEED := 0x4E554C4C
 const MAX_ACTIVE_CREATURES := 86
@@ -101,6 +102,10 @@ var population_label: Label
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	rng.seed = WORLD_SEED
+	var intervention_corpus_path := _argument_value("--creature-stage-intervention-corpus=")
+	if not intervention_corpus_path.is_empty():
+		call_deferred("_run_intervention_corpus", intervention_corpus_path)
+		return
 	var motion_corpus_path := _argument_value("--creature-stage-motion-corpus=")
 	if not motion_corpus_path.is_empty():
 		call_deferred("_run_motion_corpus", motion_corpus_path)
@@ -1067,6 +1072,14 @@ func _image_disk(image: Image, center: Vector2i, radius: int, color: Color) -> v
 func _run_motion_corpus(output_path: String) -> void:
 	var result: Dictionary = MotionCorpus.export_corpus(output_path)
 	print("CREATURE_STAGE_MOTION_CORPUS_%s clips=%d frames=%d bytes=%d" % ["OK" if bool(result.get("passed", false)) else "FAILED", int(result.get("clip_count", 0)), int(result.get("total_frames", 0)), int(result.get("binary_bytes", 0))])
+	if not bool(result.get("passed", false)):
+		push_error(JSON.stringify(result))
+	get_tree().quit(0 if bool(result.get("passed", false)) else 1)
+
+
+func _run_intervention_corpus(output_path: String) -> void:
+	var result: Dictionary = InterventionCorpus.export_corpus(output_path)
+	print("CREATURE_STAGE_INTERVENTION_CORPUS_%s clips=%d frames=%d bytes=%d" % ["OK" if bool(result.get("passed", false)) else "FAILED", int(result.get("clip_count", 0)), int(result.get("total_frames", 0)), int(result.get("binary_bytes", 0))])
 	if not bool(result.get("passed", false)):
 		push_error(JSON.stringify(result))
 	get_tree().quit(0 if bool(result.get("passed", false)) else 1)

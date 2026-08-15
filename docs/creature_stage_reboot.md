@@ -229,6 +229,31 @@ remain separate causal authorities until a later aligned corpus joins them.
 The exact format and current evidence are recorded in
 `docs/creature_stage_motion_corpus.md`.
 
+### Cellular intervention trajectory corpus
+
+The next aligned authority is exported with
+`--creature-stage-intervention-corpus=<directory>`. It covers all 20 chassis
+under nine paired conditions: intact control, partial wound, wound followed by
+healing, lower-body cut, and complete ablation of neural, circulatory,
+respiratory, digestive, or sensory cells. Each 180-frame clip contains an
+identical 15-frame pre-intervention baseline before the event occurs.
+
+The fixed-width binary preserves per-cell local position, health, and alive
+state; eight normalized physiology fields; death; fluid count; and 160 exact
+ground-plane fluid slots containing position, velocity, radius, and remaining
+life. Capacity fields are not trusted labels: the independent validator
+recomputes them from the static organ membership and frame-level alive flags.
+It also verifies partial wounds do not kill, healing raises health, cuts remove
+cells, every ablation zeroes its target capacity, neural ablation becomes
+terminal, fluids expand, unused slots are canonical zero, and every
+non-control clip is byte-identical to its control before the intervention.
+
+The exact contract and reproducibility evidence are in
+`docs/creature_stage_intervention_corpus.md`. Version 1 deliberately stops
+short of bond fracture graphs, detached-polyp identity, scars, infection, or
+cell regrowth; those need explicit state before a neural dynamics model can be
+credited with learning them.
+
 ## First playable loop
 
 1. Spawn as one of five neural organisms with distinct metabolism and tools.
