@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nullvector developmental muscle-causal evaluation v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "production", "checkpoint", "teacher_semantic_sha256", "device", "specimens", "metrics", "gates", "diagnostics", "contact_sheet", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-developmental-muscle-causal-evaluation-v2"},
+    "status": {"enum": ["passed", "failed-quality"]},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "production": {"$ref": "#/$defs/artifact"},
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "update", "sha256", "ema_state_sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1}, "update": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ema_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "teacher_semantic_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "device": {"type": "string", "minLength": 1},
+    "specimens": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"type": "object"}},
+    "metrics": {"type": "object", "minProperties": 10},
+    "gates": {"type": "object", "minProperties": 10, "additionalProperties": {"type": "boolean"}},
+    "diagnostics": {"type": "object", "additionalProperties": false, "required": ["oracle_previous_target_rmse_px", "oracle_previous_target_is_noncausal"], "properties": {"oracle_previous_target_rmse_px": {"type": "number", "minimum": 0}, "oracle_previous_target_is_noncausal": {"const": true}}},
+    "contact_sheet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "visually_inspected"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "visually_inspected": {"type": "boolean"}}
+    },
+    "semantic_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "semantic_sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "semantic_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+    }
+  }
+}
