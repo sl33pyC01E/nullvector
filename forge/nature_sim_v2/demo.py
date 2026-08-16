@@ -19,6 +19,7 @@ from .adventure import AdventureState
 from .phenotype import phenotype_traits
 from .evolution import EvolutionLedger
 from .state import ColonyState
+from .savegame import load_world,save_world
 from .world import NatureWorld
 
 
@@ -26,6 +27,7 @@ CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller
 BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controller_v3.pt"
 COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
+QUICK_SAVE=PROJECT_ROOT/"saves/nature_quick.nvz"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
 FAMILY_COLORS=("#35dcff","#ff5ca9","#91ff42","#b778ff","#ffb236")
 MATERIAL_COLORS=((0,0,0,0),(92,73,46,150),(105,113,117,210),(42,126,174,150),(180,20,58,190),(91,176,62,175),(76,66,43,180),(151,166,178,225),(119,73,63,185),(87,232,148,190),(255,107,26,230),(125,140,150,130),(155,92,255,210))
@@ -113,6 +115,10 @@ class NatureDemo:
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
+                elif event.key==pg.K_F5:
+                    report=save_world(self.world,QUICK_SAVE);self.message=f"LIVING WORLD SAVED // {report['organisms']} ORGANISMS // {report['bytes']/1024:.1f} KIB"
+                elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
+                    self.world=load_world(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime);self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();living=[entity.entity_id for entity in self.world.organisms.values() if entity.alive];self.selected=living[0] if living else next(iter(self.world.organisms));self.camera=self.world.organisms[self.selected].position.copy();self.society=SocietyLayer(self.world,seed=self.world.seed^0x515544);self.message="LIVING WORLD RESTORED // CELL DAMAGE + FLUIDS + COLONIES + POWDER EXACT"
                 elif event.key==pg.K_i:self.tool="inspect"
                 elif event.key==pg.K_j:self.tool="damage"
                 elif event.key==pg.K_h:self.tool="heal"
@@ -247,7 +253,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  F5 SAVE  F9 LOAD  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
