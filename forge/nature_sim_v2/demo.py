@@ -14,6 +14,7 @@ from ..nature_colony_nn import NeuralColonyRuntime
 from ..nature_society_nn import NeuralSocietyRuntime
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
+from ..qud_trade_v1 import execute_trade,generate_trade_offers
 from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
 from .adventure import AdventureState
@@ -60,7 +61,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime)
@@ -137,6 +138,13 @@ class NatureDemo:
                             seed=(self.creator_seed+self.creator.revision*104729+self.world.tick_index*65537)&0x7FFF_FFFF_FFFF_FFFF;entity_id=self.creator.incarnate(self.world,self.adventure,self.camera,seed=seed);self.selected=entity_id;self.camera=self.world.organisms[entity_id].position.copy();self.creator.active=False;self.creator.revision+=1;self.sprite_cache.clear();self.message=f"INCARNATED // {FAMILIES[self.world.organisms[entity_id].family].upper()} // {self.world.organisms[entity_id].body.organism.cell_count} LIVING CELLS"
                         except ValueError as exc:self.message=f"INCARNATION REJECTED // {exc}"
                     continue
+                if self.trade_settlement is not None:
+                    if event.key in (pg.K_ESCAPE,pg.K_y):self.trade_settlement=None;self.trade_offers=();self.message="BARTER CLOSED"
+                    elif event.key in (pg.K_7,pg.K_8,pg.K_9):
+                        index={pg.K_7:0,pg.K_8:1,pg.K_9:2}[event.key]
+                        try:self.message=execute_trade(self.trade_offers[index],settlement=self.society.settlements[self.trade_settlement],adventure=self.adventure,journal=self.quests);self.trade_offers=generate_trade_offers(self.society.settlements[self.trade_settlement],reputation=self.quests.reputation.get(self.society.settlements[self.trade_settlement].faction_id,0),epoch=self.world.tick_index//60)
+                        except ValueError as exc:self.message=f"BARTER REJECTED // {exc}"
+                    continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
                 elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
@@ -167,6 +175,12 @@ class NatureDemo:
                     try:self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
+                elif event.key==pg.K_y and self.selected in self.world.organisms:
+                    if not self.society.settlements:self.message="BARTER // NO SETTLEMENTS YET"
+                    else:
+                        entity=self.world.organisms[self.selected];settlement=min(self.society.settlements.values(),key=lambda item:float(np.linalg.norm(self.world._delta(entity.position,np.asarray(item.center)))));distance=float(np.linalg.norm(self.world._delta(entity.position,np.asarray(settlement.center))))
+                        if distance>9:self.message=f"BARTER // SETTLEMENT {distance:.1f} CELLS AWAY"
+                        else:self.trade_settlement=settlement.settlement_id;self.trade_offers=generate_trade_offers(settlement,reputation=self.quests.reputation.get(settlement.faction_id,0),epoch=self.world.tick_index//60);self.message="FINITE SETTLEMENT BARTER // 7/8/9 TRADE"
                 elif event.key in (pg.K_4,pg.K_5,pg.K_6) and self.adventure.pending_encounter is not None and self.selected in self.world.organisms:
                     index={pg.K_4:0,pg.K_5:1,pg.K_6:2}[event.key]
                     self.message=self.adventure.resolve_pending(index,self.world,self.world.organisms[self.selected])
@@ -293,6 +307,13 @@ class NatureDemo:
         for index,choice in enumerate(encounter.choices):
             x=panel.x+22+index*242;box=pg.Rect(x,panel.y+118,224,102);pg.draw.rect(self.screen,(8,22,28),box);pg.draw.rect(self.screen,(48,105,118),box,1);self.screen.blit(self.font.render(f"[{index+4}] {choice.label.upper()}",True,(225,238,241)),(x+12,box.y+11));capacity={"perception":systems.get("senses",0),"integrity":systems.get("integrity",0),"neural":systems.get("neural",0)}[choice.approach];risk_color=(116,255,116) if choice.risk<.25 else (255,210,89) if choice.risk<.5 else (255,103,105);self.screen.blit(self.small.render(f"TEST {choice.approach.upper()}  {capacity:.2f}",True,(133,203,218)),(x+12,box.y+42));self.screen.blit(self.small.render(f"RISK {choice.risk:.2f}  YIELD x{choice.reward_scale:.2f}",True,risk_color),(x+12,box.y+62));self.screen.blit(self.small.render("REAL INJURY ON FAILURE",True,(166,117,130)),(x+12,box.y+80))
 
+    def _draw_trade(self):
+        if self.trade_settlement is None:return
+        pg=self.pg;settlement=self.society.settlements[self.trade_settlement];faction=self.society.factions[settlement.faction_id];width=750;height=258;panel=pg.Rect((self.screen.get_width()-width)//2,102,width,height);shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((0,4,7,132));self.screen.blit(shade,(0,0));pg.draw.rect(self.screen,(5,16,19),panel);pg.draw.rect(self.screen,(86,225,177),panel,2)
+        reputation=self.quests.reputation.get(faction.faction_id,0);self.screen.blit(self.small.render(f"SETTLEMENT BARTER // FINITE PHYSICAL STOCK // REPUTATION {reputation:+.2f}",True,(105,236,191)),(panel.x+22,panel.y+16));self.screen.blit(self.big.render(faction.name.upper(),True,(226,246,235)),(panel.x+22,panel.y+39));self.screen.blit(self.small.render("THEIR SURPLUS BECOMES YOUR SUPPLY; YOUR PAYMENT ENTERS THEIR BUILDING ECONOMY.",True,(130,165,157)),(panel.x+22,panel.y+80))
+        for index,offer in enumerate(self.trade_offers):
+            x=panel.x+20+index*239;box=pg.Rect(x,panel.y+112,222,112);pg.draw.rect(self.screen,(7,25,25),box);pg.draw.rect(self.screen,(47,104,89),box,1);self.screen.blit(self.font.render(f"[{index+7}] BARTER",True,(205,255,223)),(x+12,box.y+11));self.screen.blit(self.small.render(f"GIVE  {offer.give_amount:.2f} {offer.give_material.upper()}",True,(255,174,105)),(x+12,box.y+43));self.screen.blit(self.small.render(f"TAKE  {offer.receive_amount:.2f} {offer.receive_material.upper()}",True,(104,232,255)),(x+12,box.y+64));have=self.adventure.inventory.get(offer.give_material,0);self.screen.blit(self.small.render(f"YOU HOLD {have:.2f} // [Y] CLOSE",True,(130,156,152)),(x+12,box.y+88))
+
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,610);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
@@ -358,6 +379,7 @@ class NatureDemo:
             if self.show_cells:self._draw_cells(entity)
             self._draw_evolution_offers(entity)
         if self.adventure.pending_encounter is not None:self._draw_encounter()
+        if self.trade_settlement is not None:self._draw_trade()
         if self.creator.active:self._draw_creator()
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
@@ -372,9 +394,11 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
+    if args.trade and demo.society.settlements:
+        settlement=next(iter(demo.society.settlements.values()));demo.trade_settlement=settlement.settlement_id;demo.trade_offers=generate_trade_offers(settlement,reputation=demo.quests.reputation.get(settlement.faction_id,0),epoch=0);demo.message="FINITE SETTLEMENT BARTER // 7/8/9 TRADE"
     demo.run(capture=args.capture)
 
 
