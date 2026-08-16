@@ -15,6 +15,8 @@ from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
 from .adventure import AdventureState
 from .phenotype import phenotype_traits
+from .evolution import EvolutionLedger
+from .state import ColonyState
 from .world import NatureWorld
 
 
@@ -38,7 +40,12 @@ class NatureDemo:
         if showcase:
             self.adventure.inventory.update({"biomass":5.0,"rock":4.0,"metal":4.0,"crystal":3.0,"water":4.0,"knowledge":2.0})
             self.adventure.craft_selected();self.adventure.recipe_index=2;self.adventure.craft_selected();self.adventure.recipe_index=1
-        self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+            founders=[entity for entity in self.world.organisms.values() if entity.family==0][:3]
+            if len(founders)>=3:
+                center=np.asarray((20.0,22.0));members=set()
+                for index,entity in enumerate(founders):entity.position=center+np.asarray((index*.7,-index*.35));entity.colony_id=1;members.add(entity.entity_id)
+                self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior)
@@ -132,6 +139,7 @@ class NatureDemo:
             jump=entity.position-previous_position;dx=1 if jump[0]<-self.world.size*.5 else -1 if jump[0]>self.world.size*.5 else 0;dy=1 if jump[1]<-self.world.size*.5 else -1 if jump[1]>self.world.size*.5 else 0
             if dx or dy:self._enter_region(dx,dy,entity);entity=self.world.organisms.get(self.selected)
         self.adventure.observe(self.world)
+        self.evolution.observe(self.world)
         if self.world.tick_index-self.last_society_tick>=60:
             self.society.step_history(1);self.last_society_tick=self.world.tick_index
         if entity is not None and np.linalg.norm(self.manual)>0:self.camera+=(entity.position-self.camera)*min(1,delta*4)
@@ -173,8 +181,6 @@ class NatureDemo:
         pg=self.pg
         for settlement in self.society.settlements.values():
             faction=self.society.factions[settlement.faction_id];color=pg.Color(FAMILY_COLORS[faction.family])
-            for building in settlement.buildings:
-                origin=self.world_to_screen(building.origin);rect=pg.Rect(origin[0],origin[1],building.width*self.zoom,building.height*self.zoom);pg.draw.rect(self.screen,(8,18,21),rect);pg.draw.rect(self.screen,color,rect,max(1,int(self.zoom*.16)))
             for x,y in settlement.roads:
                 point=self.world_to_screen((x,y));pg.draw.circle(self.screen,(75,88,78),(int(point[0]),int(point[1])),max(1,int(self.zoom*.16)))
             center=self.world_to_screen(settlement.center);self.screen.blit(self.small.render(faction.name.upper(),True,color),(center[0]-40,center[1]-18))
@@ -192,6 +198,9 @@ class NatureDemo:
         recipe=self.adventure.selected_recipe;self.screen.blit(self.small.render(f"RECIPE [T] {recipe.name.upper()}  [R] CRAFT",True,(196,139,255)),(x,y));y+=17
         for artifact in self.adventure.equipped_artifacts():
             effects=" ".join(f"{name[:3].upper()}+{value:.2f}" for name,value in artifact.effects);self.screen.blit(self.small.render(f"{artifact.slot[:4].upper()} {artifact.name[:28].upper()} {effects}",True,(221,185,255)),(x,y));y+=15
+        y+=6;self.screen.blit(self.small.render(f"NATURAL SELECTION // DIVERSITY {self.evolution.diversity:.2f}",True,(111,238,188)),(x,y));y+=17
+        for clade in self.evolution.dominant(3):
+            self.screen.blit(self.small.render(f"{clade.clade_id[-5:].upper()} F{clade.family} N{clade.population:02} FIT {clade.fitness:.2f} G{clade.max_generation}",True,(99,194,158)),(x,y));y+=15
 
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,535);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
