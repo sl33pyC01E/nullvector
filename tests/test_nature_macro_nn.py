@@ -11,6 +11,7 @@ from forge.nature_macro_nn.corpus import build_corpus, generate_world_arrays, va
 from forge.nature_macro_nn.model import NeuralMacroPatchDynamics
 from forge.nature_macro_nn.state import extract_global_state, extract_patch_state
 from forge.nature_macro_nn.corpus import _bootstrap
+from forge.nature_macro_nn.training import calibrate_thresholds
 from forge.nature_world_scale_v1.atlas import BIOMES
 
 
@@ -43,6 +44,15 @@ def test_zero_initialized_model_is_exact_persistence_with_trainable_heads() -> N
     (predicted.mean() + predicted_global.mean()).backward()
     assert model.delta.weight.grad is not None
     assert model.global_head[-1].weight.grad is not None
+
+
+def test_gate_calibration_has_complete_bounded_channel_contract() -> None:
+    arrays = generate_world_arrays(0, steps=8, base_seed=0xFACE)
+    model = NeuralMacroPatchDynamics(ModelConfig(width=32, blocks=2, global_width=48)).eval()
+    thresholds = calibrate_thresholds(model, arrays, torch.device("cpu"))
+    assert len(thresholds["spatial"]) == len(STATE_CHANNELS)
+    assert len(thresholds["global"]) == GLOBAL_FEATURES
+    assert all(0 <= value <= 1.01 for values in thresholds.values() for value in values)
 
 
 def test_world_sequence_and_corpus_round_trip(tmp_path: Path) -> None:

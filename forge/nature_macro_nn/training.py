@@ -45,16 +45,49 @@ def _masked_mae(predicted, target, mask):
 
 
 @torch.inference_mode()
-def evaluate(model, arrays, device, *, batch_size=32):
-    outputs = []; global_outputs = []; gates = []
+def _predict(model, arrays, device, *, batch_size=32):
+    outputs = []; global_outputs = []; gates = []; global_gates = []
     for start in range(0, len(arrays["current"]), batch_size):
         stop = start + batch_size
         tensors = [torch.from_numpy(arrays[name][start:stop].astype(np.float32)).to(device) for name in ("current", "previous", "global_state", "previous_global")]
-        predicted, predicted_global, gate, *_ = model(*tensors)
-        outputs.append(predicted.float().cpu()); global_outputs.append(predicted_global.float().cpu()); gates.append(gate.float().cpu())
-    predicted = torch.cat(outputs); predicted_global = torch.cat(global_outputs); gate = torch.cat(gates)
+        predicted, predicted_global, gate, _, global_gate, _ = model(*tensors)
+        outputs.append(predicted.float().cpu()); global_outputs.append(predicted_global.float().cpu()); gates.append(gate.float().cpu()); global_gates.append(global_gate.float().cpu())
+    return torch.cat(outputs), torch.cat(global_outputs), torch.cat(gates), torch.cat(global_gates)
+
+
+@torch.inference_mode()
+def calibrate_thresholds(model, arrays, device) -> dict[str, list[float]]:
+    predicted, predicted_global, gate, global_gate = _predict(model, arrays, device)
     current = torch.from_numpy(arrays["current"].astype(np.float32)); target = torch.from_numpy(arrays["target"].astype(np.float32))
     global_state = torch.from_numpy(arrays["global_state"]); target_global = torch.from_numpy(arrays["target_global"])
+    candidates = torch.cat((torch.linspace(0, 1, 101), torch.tensor([1.01])))
+
+    def choose(output, present, expected, scores):
+        chosen = []
+        for channel in range(present.shape[1]):
+            losses = []
+            for threshold in candidates:
+                value = torch.where(scores[:, channel] >= threshold, output[:, channel], present[:, channel])
+                losses.append(float(F.l1_loss(value, expected[:, channel])))
+            chosen.append(float(candidates[int(np.argmin(losses))]))
+        return chosen
+
+    return {
+        "spatial": choose(predicted, current, target, gate),
+        "global": choose(predicted_global, global_state, target_global, global_gate),
+    }
+
+
+@torch.inference_mode()
+def evaluate(model, arrays, device, *, thresholds=None, batch_size=32):
+    predicted, predicted_global, gate, global_gate = _predict(model, arrays, device, batch_size=batch_size)
+    current = torch.from_numpy(arrays["current"].astype(np.float32)); target = torch.from_numpy(arrays["target"].astype(np.float32))
+    global_state = torch.from_numpy(arrays["global_state"]); target_global = torch.from_numpy(arrays["target_global"])
+    if thresholds is not None:
+        spatial_thresholds = torch.tensor(thresholds["spatial"]).view(1, -1, 1, 1)
+        global_thresholds = torch.tensor(thresholds["global"]).view(1, -1)
+        predicted = torch.where(gate >= spatial_thresholds, predicted, current)
+        predicted_global = torch.where(global_gate >= global_thresholds, predicted_global, global_state)
     changed = (target - current).abs() > 1e-3; global_changed = (target_global - global_state).abs() > 1e-3
     spatial_mae = float(F.l1_loss(predicted, target)); spatial_persistence = float(F.l1_loss(current, target))
     global_mae = float(F.l1_loss(predicted_global, target_global)); global_persistence = float(F.l1_loss(global_state, target_global))
@@ -73,8 +106,10 @@ def evaluate(model, arrays, device, *, batch_size=32):
 
 
 @torch.inference_mode()
-def rollout_error(model, groups, device, *, horizon=8):
-    errors = []; persistence_errors = []
+def rollout_error(model, groups, device, *, thresholds, horizon=8):
+    errors = []; persistence_errors = []; global_errors = []; global_persistence_errors = []
+    spatial_thresholds = torch.tensor(thresholds["spatial"], device=device).view(1, -1, 1, 1)
+    global_thresholds = torch.tensor(thresholds["global"], device=device).view(1, -1)
     for _, arrays in groups:
         if len(arrays["current"]) < horizon: continue
         previous = torch.from_numpy(arrays["previous"][:1].astype(np.float32)).to(device)
@@ -82,14 +117,24 @@ def rollout_error(model, groups, device, *, horizon=8):
         previous_global = torch.from_numpy(arrays["previous_global"][:1]).to(device)
         global_state = torch.from_numpy(arrays["global_state"][:1]).to(device)
         anchor = current.clone()
+        global_anchor = global_state.clone()
         for step in range(horizon):
-            predicted, predicted_global, *_ = model(current, previous, global_state, previous_global)
+            predicted, predicted_global, gate, _, global_gate, _ = model(current, previous, global_state, previous_global)
+            predicted = torch.where(gate >= spatial_thresholds, predicted, current)
+            predicted_global = torch.where(global_gate >= global_thresholds, predicted_global, global_state)
             target = torch.from_numpy(arrays["target"][step:step + 1].astype(np.float32)).to(device)
+            target_global = torch.from_numpy(arrays["target_global"][step:step + 1]).to(device)
             errors.append(float(F.l1_loss(predicted, target))); persistence_errors.append(float(F.l1_loss(anchor, target)))
+            global_errors.append(float(F.l1_loss(predicted_global, target_global))); global_persistence_errors.append(float(F.l1_loss(global_anchor, target_global)))
             previous, current = current, predicted
             previous_global, global_state = global_state, predicted_global
     mae = float(np.mean(errors)); persistence = float(np.mean(persistence_errors))
-    return {"horizon": horizon, "mae": mae, "frozen_persistence_mae": persistence, "improvement": 1 - mae / max(persistence, 1e-8)}
+    global_mae = float(np.mean(global_errors)); global_persistence = float(np.mean(global_persistence_errors))
+    return {
+        "horizon": horizon, "mae": mae, "frozen_persistence_mae": persistence, "improvement": 1 - mae / max(persistence, 1e-8),
+        "global_mae": global_mae, "global_frozen_persistence_mae": global_persistence,
+        "global_improvement": 1 - global_mae / max(global_persistence, 1e-8),
+    }
 
 
 def _save(path: Path, payload: dict):
@@ -138,10 +183,21 @@ def train(corpus: Path, output: Path, *, model_config=ModelConfig(), training=Tr
             if score < best_score: best_score, best_step, best_state = score, step, {name: value.detach().cpu().to(torch.bfloat16) if value.is_floating_point() else value.detach().cpu() for name, value in ema.state_dict().items()}
             payload = {"format": CHECKPOINT_FORMAT, "source_sha256": source_sha256(), "corpus_sha256": manifest["manifest_sha256"], "model_config": config_dict(model_config), "training_config": config_dict(training), "step": step, "ema_state": best_state, "ema_sha256": _state_hash(best_state), "history": history, "validation_history": validation_history}
             _save(output / "latest.pt", payload)
-    ema.load_state_dict(best_state); ema.to(target).eval(); validation = evaluate(ema, validation_arrays, target); test = evaluate(ema, test_arrays, target); rollout = rollout_error(ema, test_groups, target)
-    gates = {"spatial_beats_persistence": test["spatial_improvement"] > 0, "changed_spatial_beats_persistence": test["changed_spatial_mae"] < test["changed_spatial_persistence_mae"], "global_beats_persistence": test["global_improvement"] > 0, "rollout_beats_frozen_persistence": rollout["improvement"] > 0}; gates["all_passed"] = all(gates.values())
-    report = {"format": REPORT_FORMAT, "source_sha256": source_sha256(), "corpus_sha256": manifest["manifest_sha256"], "parameters": sum(value.numel() for value in model.parameters()), "device": str(target), "best_step": best_step, "best_selection": best_score, "splits": {"train_worlds": [x for x, _ in train_groups], "validation_worlds": [x for x, _ in validation_groups], "test_worlds": [x for x, _ in test_groups]}, "validation": validation, "test": test, "rollout": rollout, "gates": gates, "history": history, "validation_history": validation_history}
-    final = {"format": CHECKPOINT_FORMAT, "status": "evaluated", "source_sha256": source_sha256(), "corpus_sha256": manifest["manifest_sha256"], "model_config": config_dict(model_config), "training_config": config_dict(training), "ema_state": best_state, "ema_sha256": _state_hash(best_state), "report": report}
+    ema.load_state_dict(best_state); ema.to(target).eval()
+    thresholds = calibrate_thresholds(ema, validation_arrays, target)
+    raw_validation = evaluate(ema, validation_arrays, target); raw_test = evaluate(ema, test_arrays, target)
+    validation = evaluate(ema, validation_arrays, target, thresholds=thresholds); test = evaluate(ema, test_arrays, target, thresholds=thresholds)
+    rollout = rollout_error(ema, test_groups, target, thresholds=thresholds)
+    gates = {
+        "spatial_beats_persistence": test["spatial_improvement"] > 0,
+        "changed_spatial_beats_persistence": test["changed_spatial_mae"] < test["changed_spatial_persistence_mae"],
+        "global_beats_persistence": test["global_improvement"] > 0,
+        "changed_global_beats_persistence": test["changed_global_mae"] < test["changed_global_persistence_mae"],
+        "rollout_beats_frozen_persistence": rollout["improvement"] > 0,
+        "global_rollout_beats_frozen_persistence": rollout["global_improvement"] > 0,
+    }; gates["all_passed"] = all(gates.values())
+    report = {"format": REPORT_FORMAT, "source_sha256": source_sha256(), "corpus_sha256": manifest["manifest_sha256"], "parameters": sum(value.numel() for value in model.parameters()), "device": str(target), "best_step": best_step, "best_selection": best_score, "splits": {"train_worlds": [x for x, _ in train_groups], "validation_worlds": [x for x, _ in validation_groups], "test_worlds": [x for x, _ in test_groups]}, "gate_thresholds": thresholds, "raw_validation": raw_validation, "raw_test": raw_test, "validation": validation, "test": test, "rollout": rollout, "gates": gates, "history": history, "validation_history": validation_history}
+    final = {"format": CHECKPOINT_FORMAT, "status": "evaluated", "source_sha256": source_sha256(), "corpus_sha256": manifest["manifest_sha256"], "model_config": config_dict(model_config), "training_config": config_dict(training), "ema_state": best_state, "ema_sha256": _state_hash(best_state), "gate_thresholds": thresholds, "report": report}
     _save(output / "runtime.pt", final); (output / "report.json").write_bytes(canonical(report)); return report
 
 
