@@ -12,6 +12,7 @@ from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..nature_colony_nn import NeuralColonyRuntime
 from ..nature_society_nn import NeuralSocietyRuntime
+from ..nature_timeline_nn import NeuralTimelineRuntime
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..qud_trade_v1 import execute_trade,generate_trade_offers
@@ -37,6 +38,7 @@ CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller
 BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controller_v3.pt"
 COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
 SOCIETY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_society/strategist_v1.pt"
+TIMELINE_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_timeline/timeline_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
 QUICK_SAVE=PROJECT_ROOT/"saves/nature_campaign.nvs"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
@@ -49,7 +51,7 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device);self.society_runtime=NeuralSocietyRuntime.from_checkpoint(SOCIETY_CHECKPOINT,device=device)
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device);self.society_runtime=NeuralSocietyRuntime.from_checkpoint(SOCIETY_CHECKPOINT,device=device);self.timeline_runtime=NeuralTimelineRuntime.from_checkpoint(TIMELINE_CHECKPOINT,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
         self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
         self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=0;self.quests=QuestJournal()
@@ -64,7 +66,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -73,7 +75,7 @@ class NatureDemo:
         entry=(1.2 if dx>0 else 62.8 if dx<0 else float(player.position[0]),1.2 if dy>0 else 62.8 if dy<0 else float(player.position[1]));new_id=new.add_organism(player.genome,entry,energy=player.energy,parents=player.parent_ids);carried=new.organisms[new_id];carried.body=player.body;carried.reserve=player.reserve;carried.age=player.age;carried.stage=player.stage;carried.reproduction_cooldown=player.reproduction_cooldown;carried.velocity=player.velocity.copy()
         carried.heading=player.heading;carried.consumed=player.consumed.copy();carried.neural_contacts=player.neural_contacts.copy();carried.neural_muscles=player.neural_muscles.copy();carried.polyp_cursor=player.polyp_cursor
         for entity_id in old_world.organisms:self.runtime.forget(entity_id)
-        self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.world.colony_ecology.role_policy=self.colony_runtime;self.selected=new_id;self.camera=carried.position.copy();self.society=restored_society or SocietyLayer(new,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=self.world.tick_index if restored_society is not None else 0
+        self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.world.colony_ecology.role_policy=self.colony_runtime;self.selected=new_id;self.camera=carried.position.copy();self.society=restored_society or SocietyLayer(new,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=self.world.tick_index if restored_society is not None else 0;self.timeline_runtime.history.clear();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
         previous=self.adventure;self.adventure=AdventureState(seed=seed^0x414456,size=new.size);self.adventure.inventory.update(previous.inventory);self.adventure.discoveries|=previous.discoveries;self.adventure.score=previous.score;self.adventure.objectives=previous.objectives;self.adventure.artifacts=list(previous.artifacts);self.adventure.equipped=dict(previous.equipped);self.adventure.recipe_index=previous.recipe_index;self.adventure.craft_count=previous.craft_count
         if restored_adventure is not None:self.adventure.sites=restored_adventure.sites;self.adventure.encounters=restored_adventure.encounters;self.adventure.pending_encounter=restored_adventure.pending_encounter;self.adventure.discoveries|=restored_adventure.discoveries
         self.message=f"{'RESUMED' if resumed else 'DISCOVERED'} REGION {self.region.x:+},{self.region.y:+} // {self.atlas_world.describe(self.region).biome.upper()} // PERSISTENT ECOLOGY"
@@ -160,7 +162,7 @@ class NatureDemo:
                 elif event.key==pg.K_F5:
                     report=save_session(world=self.world,adventure=self.adventure,society=self.society,quests=self.quests,atlas=self.atlas_world,region=self.region,selected=self.selected,path=QUICK_SAVE);self.message=f"CAMPAIGN SAVED // CELLS + RELICS + SOCIETIES + CONTRACTS // {report['bytes']/1024:.1f} KIB"
                 elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
-                    restored=load_session(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime);self.world=restored["world"];self.adventure=restored["adventure"];self.society=restored["society"];self.quests=restored["quests"];self.atlas_world=restored["atlas"];self.region=restored["region"];self.selected=restored["selected"];self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.camera=self.world.organisms[self.selected].position.copy();self.last_society_tick=self.world.tick_index;self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=self.world.organisms[self.selected].genome.developmental.generation;self.message="CAMPAIGN RESTORED // CELLS + RELICS + SOCIETIES + CONTRACTS + ATLAS EXACT"
+                    restored=load_session(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime);self.world=restored["world"];self.adventure=restored["adventure"];self.society=restored["society"];self.quests=restored["quests"];self.atlas_world=restored["atlas"];self.region=restored["region"];self.selected=restored["selected"];self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.camera=self.world.organisms[self.selected].position.copy();self.last_society_tick=self.world.tick_index;self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=self.world.organisms[self.selected].genome.developmental.generation;self.timeline_runtime.history.clear();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self.message="CAMPAIGN RESTORED // CELLS + RELICS + SOCIETIES + CONTRACTS + ATLAS EXACT"
                     self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
                 elif event.key==pg.K_i:self.tool="inspect"
                 elif event.key==pg.K_j:self.tool="damage"
@@ -228,6 +230,7 @@ class NatureDemo:
         self.evolution.observe(self.world)
         if self.world.tick_index-self.last_society_tick>=60:
             self.society.step_history(1);self.last_society_tick=self.world.tick_index
+        if self.world.tick_index%15==0:self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
         if entity is not None and np.linalg.norm(self.manual)>0:self.camera+=(entity.position-self.camera)*min(1,delta*4)
 
     def _field_background(self):
@@ -353,7 +356,7 @@ class NatureDemo:
             self.screen.blit(self.font.render(faction.name.upper(),True,pg.Color(FAMILY_COLORS[faction.family])),(mid+18,y));y+=22;self.screen.blit(self.small.render(f"DOCTRINE {faction.doctrine.upper()}  COHESION {faction.cohesion:.2f}  KNOWLEDGE {faction.knowledge:.2f}",True,(169,154,185)),(mid+18,y));y+=17;self.screen.blit(self.small.render("TECH // "+"  ".join(sorted(faction.technologies))[:66].upper(),True,(146,129,164)),(mid+18,y));y+=20
             for settlement_id in sorted(faction.settlement_ids):
                 settlement=self.society.settlements[settlement_id];self.screen.blit(self.small.render(f"{settlement_id.upper()} POP {settlement.population} BUILDINGS {len(settlement.buildings)} PROJECTS {settlement.projects_completed} SHORTAGES {settlement.shortages}",True,(126,160,174)),(mid+30,y));y+=17
-        footer=f"LINEAGES {self.world.snapshot().lineage_count} // BIRTHS {self.world.births} // DEATHS {self.world.deaths} // MUTATIONS {self.world.mutation_count} // SOCIETIES {len(self.society.factions)} // CITIES {len(self.society.settlements)}";self.screen.blit(self.small.render(footer,True,(255,202,95)),(panel.x+28,panel.bottom-32))
+        forecast=self.timeline_forecast;footer=f"LINEAGES {self.world.snapshot().lineage_count} // BIRTHS {self.world.births} // DEATHS {self.world.deaths} // MUTATIONS {self.world.mutation_count} // SOCIETIES {len(self.society.factions)} // CITIES {len(self.society.settlements)} // NEURAL NEXT {forecast.event.upper()} {forecast.confidence:.0%}";self.screen.blit(self.small.render(footer,True,(255,202,95)),(panel.x+28,panel.bottom-32))
 
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,610);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
@@ -413,7 +416,7 @@ class NatureDemo:
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;network=self.world.ecosystem;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} SYM {network.pollinations}/{network.root_transfers}/{network.phase_couplings}"
+        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;forecast=self.timeline_forecast;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} NN>{forecast.event.upper()} {forecast.confidence:.0%}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  0 CITY SERVICE  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
@@ -448,7 +451,7 @@ def main()->None:
         demo.message=f"STRUCTURAL METAMORPH // {len(entity.genome.developmental.components)} COMPONENTS // {len(entity.genome.developmental.appendages)} APPENDAGES // WOUNDS PRESERVED"
     if args.chronicle:
         for _ in range(90):demo.world.step(.2,publish=False)
-        demo.society.step_history(3);demo.adventure.observe(demo.world);demo.evolution.observe(demo.world)
+        demo.society.step_history(3);demo.adventure.observe(demo.world);demo.evolution.observe(demo.world);demo.timeline_forecast=demo.timeline_runtime.observe(demo.world,demo.society)
     demo.run(capture=args.capture)
 
 
