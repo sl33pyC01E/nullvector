@@ -19,6 +19,8 @@ The model clears both persistence baselines and tracks creature/event motion on 
 
 The deterministic ecology remains the teacher and safety oracle. This model is one specialist in the planned ensemble; a later reverse-distilled action-DiT/VAE student may take over only after it matches the scaffold's cellular causality, organ damage, physics, reproduction, societies, and player agency.
 
+The native demo exposes the frozen v1 model through F6. It encodes the current raw world viewport, conditions on the selected action, WASD vector, aim vector, and 64 world-state features, predicts the +4-tick latent, then decodes it through the learned pixel-cell refiner. Predictions are cached for responsiveness, bordered in magenta, and labeled non-authoritative. Teacher recording continues to capture the raw scaffold, preventing the student from recursively training on its own artifacts.
+
 ## Residual v2 experiment
 
 A second 39.5M-parameter model replaced eight-step flow integration with a one-pass residual prediction and added changed-region, static-drift, and edge losses. On the identical held-out seed it improved latent MAE by 37.97% and decoded RGB MAE by 10.40% over persistence. It preserved the broad layout but did not beat v1's 38.52% / 15.70%, and visual inspection showed that the dominant softness remained in the shared VAE decoder. The v2 source and evaluation are retained as evidence, but no v2 runtime checkpoint is promoted. The next iteration targets the actual bottleneck with a latent-compatible neural pixel refiner.
