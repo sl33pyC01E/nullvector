@@ -45,7 +45,7 @@ def test_native_demo_and_launcher_are_present() -> None:
     assert (ROOT / "game/AnatomicalDemo.tscn").is_file()
     script = (ROOT / "game/scripts/anatomical_demo.gd").read_text("utf-8")
     for capability in (
-        "_apply_cut", "_apply_radial", "_draw_organs", "_draw_skeleton",
+        "_apply_scrape", "_apply_sever", "_detach_body_chunk", "detached_nodes", "_apply_radial", "_draw_organs", "_draw_skeleton",
         "_draw_contacts", "_systems", "_locomotion_integrity",
     ):
         assert capability in script

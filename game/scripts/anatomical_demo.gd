@@ -34,13 +34,14 @@ var manifest: Dictionary
 var creatures: Array[Dictionary] = []
 var puddles: Array[Dictionary] = []
 var fragments: Array[Dictionary] = []
+var body_chunks: Array[Dictionary] = []
 var selected := 0
 var paused := false
 var time := 0.0
 var show_neural := true
 var show_cells := false
-var show_organs := true
-var show_skeleton := true
+var show_organs := false
+var show_skeleton := false
 var show_contacts := true
 var tool := "inspect"
 var cut_start := Vector2.ZERO
@@ -69,6 +70,7 @@ func _ready() -> void:
 			"health": health, "energy": 1.0, "hunger": 0.12,
 			"action": "idle", "action_time": 0.0, "dead": false,
 			"wander": float(family) * 1.47, "scar": PackedByteArray(),
+			"severed_edges": {}, "detached_nodes": {},
 		})
 		var scars := PackedByteArray()
 		scars.resize(health.size())
@@ -122,6 +124,7 @@ func _process(delta: float) -> void:
 	message_time = maxf(0.0, message_time - delta)
 	_update_puddles(delta)
 	_update_fragments(delta)
+	_update_body_chunks(delta)
 	for index in range(creatures.size()):
 		_update_creature(index, delta)
 	queue_redraw()
@@ -261,7 +264,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif key == KEY_G:
 			show_contacts = not show_contacts
 		elif key == KEY_X:
-			tool = "cut"
+			tool = "scrape"
+		elif key == KEY_V:
+			tool = "sever"
 		elif key == KEY_D:
 			tool = "damage"
 		elif key == KEY_H:
@@ -275,7 +280,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
-				if tool == "cut":
+				if tool in ["scrape", "sever"]:
 					cutting = true
 					cut_start = event.position
 					cut_current = event.position
@@ -287,7 +292,10 @@ func _unhandled_input(event: InputEvent) -> void:
 					_select_nearest(event.position)
 			elif cutting:
 				cut_current = event.position
-				_apply_cut(cut_start, cut_current)
+				if tool == "sever":
+					_apply_sever(cut_start, cut_current)
+				else:
+					_apply_scrape(cut_start, cut_current)
 				cutting = false
 	if event is InputEventMouseMotion and cutting:
 		cut_current = event.position
@@ -326,7 +334,7 @@ func _distance_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
 	return point.distance_to(a + delta * t)
 
 
-func _apply_cut(from: Vector2, to: Vector2) -> void:
+func _apply_scrape(from: Vector2, to: Vector2) -> void:
 	var affected := 0
 	for creature_index in range(creatures.size()):
 		var creature := creatures[creature_index]
@@ -338,8 +346,165 @@ func _apply_cut(from: Vector2, to: Vector2) -> void:
 				affected += 1
 		creature["health"] = health
 		creatures[creature_index] = creature
-	message = "CUT SEVERED %d CELLS" % affected
+	message = "SCRAPE REMOVED %d SURFACE CELLS" % affected
 	message_time = 2.2
+
+
+func _edge_key(left: int, right: int) -> String:
+	return "%d:%d" % [mini(left, right), maxi(left, right)]
+
+
+func _apply_sever(from: Vector2, to: Vector2) -> void:
+	var severed_count := 0
+	var detached_count := 0
+	for creature_index in range(creatures.size()):
+		var creature := creatures[creature_index]
+		var creature_severed := 0
+		var specimen: Dictionary = creature["specimen"]
+		var skeleton: Dictionary = specimen["skeleton"]
+		var nodes: Array = skeleton["nodes"]
+		var edges: Array = skeleton["edges"]
+		var severed: Dictionary = creature["severed_edges"]
+		for edge_index in range(edges.size()):
+			var edge: Array = edges[edge_index]
+			var left: Array = nodes[int(edge[0])]
+			var right: Array = nodes[int(edge[1])]
+			var a := Vector2(creature["pos"]) + Vector2(float(left[0]), float(left[1])) * CELL_SCALE
+			var b := Vector2(creature["pos"]) + Vector2(float(right[0]), float(right[1])) * CELL_SCALE
+			var key := _edge_key(int(edge[0]), int(edge[1]))
+			if not severed.has(key) and (_distance_to_segment(a, from, to) <= 7.0 or _distance_to_segment(b, from, to) <= 7.0 or _distance_to_segment((a + b) * .5, from, to) <= 7.0):
+				severed[key] = true
+				severed_count += 1
+				creature_severed += 1
+		creature["severed_edges"] = severed
+		if creature_severed == 0:
+			creatures[creature_index] = creature
+			continue
+		var reachable: Dictionary = {0: true}
+		var changed := true
+		while changed:
+			changed = false
+			for edge in edges:
+				var left_index := int(edge[0])
+				var right_index := int(edge[1])
+				if severed.has(_edge_key(left_index, right_index)):
+					continue
+				if reachable.has(left_index) and not reachable.has(right_index):
+					reachable[right_index] = true
+					changed = true
+				elif reachable.has(right_index) and not reachable.has(left_index):
+					reachable[left_index] = true
+					changed = true
+		var detached_appendages: Dictionary = {}
+		var detached_nodes: Dictionary = {}
+		for node_index in range(nodes.size()):
+			if not reachable.has(node_index):
+				detached_nodes[node_index] = true
+		for edge_index in range(edges.size()):
+			var appendage := int(skeleton["edge_appendage"][edge_index])
+			if appendage < 0:
+				continue
+			var edge: Array = edges[edge_index]
+			if not reachable.has(int(edge[0])) or not reachable.has(int(edge[1])):
+				detached_appendages[appendage] = true
+		var indices: Array[int] = []
+		var component_count: int = specimen["components"].size()
+		var health: PackedFloat32Array = creature["health"]
+		for cell_index in range(health.size()):
+			if health[cell_index] <= 0:
+				continue
+			var cell: Dictionary = specimen["cells"][cell_index]
+			var component := int(cell["component"])
+			var appendage := int(cell["appendage"])
+			if (component < component_count and not reachable.has(component)) or detached_appendages.has(appendage):
+				indices.append(cell_index)
+		if not indices.is_empty():
+			creature["detached_nodes"] = detached_nodes
+			creatures[creature_index] = creature
+			_detach_body_chunk(creature_index, indices, detached_nodes.keys(), to - from)
+			detached_count += indices.size()
+		else:
+			creatures[creature_index] = creature
+	message = "SEVER // %d SKELETON LINKS // %d-CELL CHUNK" % [severed_count, detached_count]
+	message_time = 2.8
+
+
+func _detach_body_chunk(creature_index: int, indices: Array[int], node_indices: Array, impulse: Vector2) -> void:
+	var creature := creatures[creature_index]
+	var health: PackedFloat32Array = creature["health"]
+	var points: Array[Vector2] = []
+	var colors: Array[Color] = []
+	var centroid := Vector2.ZERO
+	for index in indices:
+		var point := _cell_world(creature, index)
+		points.append(point)
+		centroid += point
+		var tissue := str(creature["specimen"]["cells"][index]["tissue"])
+		colors.append(TISSUE_COLORS.get(tissue, Color.WHITE))
+		health[index] = 0.0
+		if tissue in ["vascular", "respiratory", "digestive", "neural"]:
+			puddles.append({"pos": point + Vector2(0, 14), "radius": 3.0, "life": 11.0, "color": colors[-1]})
+	centroid /= maxf(1.0, points.size())
+	var offsets: Array[Vector2] = []
+	for point in points:
+		offsets.append(point - centroid)
+	var specimen: Dictionary = creature["specimen"]
+	var skeleton: Dictionary = specimen["skeleton"]
+	var node_offsets: Dictionary = {}
+	var node_membership: Dictionary = {}
+	for node_index in node_indices:
+		var node: Array = skeleton["nodes"][int(node_index)]
+		var node_world := Vector2(creature["pos"]) + Vector2(float(node[0]), float(node[1])) * CELL_SCALE
+		node_offsets[int(node_index)] = node_world - centroid
+		node_membership[int(node_index)] = true
+	var chunk_edges: Array = []
+	for edge in skeleton["edges"]:
+		if node_membership.has(int(edge[0])) and node_membership.has(int(edge[1])):
+			chunk_edges.append([int(edge[0]), int(edge[1])])
+	creature["health"] = health
+	creatures[creature_index] = creature
+	body_chunks.append({
+		"source": creature_index, "indices": indices.duplicate(), "pos": centroid,
+		"rest_offset": centroid - Vector2(creature["pos"]), "offsets": offsets,
+		"node_indices": node_indices.duplicate(), "node_offsets": node_offsets, "edges": chunk_edges,
+		"colors": colors, "vel": impulse.normalized() * 34.0, "age": 0.0,
+		"reattach_window": [3.2, 3.8, 7.2, 9.0, 7.5][int(creature["family"])],
+		"fate": "detached",
+	})
+
+
+func _update_body_chunks(delta: float) -> void:
+	for index in range(body_chunks.size() - 1, -1, -1):
+		var chunk := body_chunks[index]
+		chunk["age"] = float(chunk["age"]) + delta
+		var source_index := int(chunk["source"])
+		var source: Dictionary = creatures[source_index]
+		var target := Vector2(source["pos"]) + Vector2(chunk["rest_offset"])
+		var distance := Vector2(chunk["pos"]).distance_to(target)
+		if float(chunk["age"]) < float(chunk["reattach_window"]):
+			var attraction := (target - Vector2(chunk["pos"])).limit_length(18.0)
+			chunk["vel"] = Vector2(chunk["vel"]) + attraction * delta * .85
+			if distance < 7.0:
+				var health: PackedFloat32Array = source["health"]
+				var scars: PackedByteArray = source["scar"]
+				for cell_index in chunk["indices"]:
+					health[int(cell_index)] = .34
+					scars[int(cell_index)] = 1
+				source["health"] = health
+				source["scar"] = scars
+				var detached_nodes: Dictionary = source["detached_nodes"]
+				for node_index in chunk["node_indices"]:
+					detached_nodes.erase(int(node_index))
+				source["detached_nodes"] = detached_nodes
+				creatures[source_index] = source
+				body_chunks.remove_at(index)
+				continue
+		else:
+			var family := int(source["family"])
+			chunk["fate"] = "POLYP" if family in [2, 3, 4] else "BIOMASS"
+		chunk["vel"] = Vector2(chunk["vel"]) * pow(.10, delta)
+		chunk["pos"] = Vector2(chunk["pos"]) + Vector2(chunk["vel"]) * delta
+		body_chunks[index] = chunk
 
 
 func _apply_radial(center: Vector2, radius: float, amount: float) -> void:
@@ -384,9 +549,14 @@ func _reset_creature(index: int) -> void:
 	creatures[index]["health"] = health
 	creatures[index]["scar"] = scars
 	creatures[index]["dead"] = false
+	creatures[index]["severed_edges"] = {}
+	creatures[index]["detached_nodes"] = {}
 	creatures[index]["energy"] = 1.0
 	creatures[index]["action"] = "regrown"
 	creatures[index]["action_time"] = 1.0
+	for chunk_index in range(body_chunks.size() - 1, -1, -1):
+		if int(body_chunks[chunk_index]["source"]) == index:
+			body_chunks.remove_at(chunk_index)
 	message = "%s RECONSTITUTED" % FAMILIES[index]
 	message_time = 2.0
 
@@ -403,6 +573,19 @@ func _draw() -> void:
 	for fragment in fragments:
 		var color: Color = fragment["color"]
 		draw_circle(fragment["pos"], 2.7, Color(color.r, color.g, color.b, clampf(float(fragment["life"]) / 2.0, 0.0, 1.0)))
+	for chunk in body_chunks:
+		draw_circle(Vector2(chunk["pos"]) + Vector2(0, 9), 13.0, Color(0, 0, 0, .35))
+		for edge in chunk["edges"]:
+			var a := Vector2(chunk["pos"]) + Vector2(chunk["node_offsets"][int(edge[0])])
+			var b := Vector2(chunk["pos"]) + Vector2(chunk["node_offsets"][int(edge[1])])
+			draw_line(a, b, Color(0.86, 0.91, 0.84, .42), 1.2)
+		for node_index in chunk["node_indices"]:
+			draw_circle(Vector2(chunk["pos"]) + Vector2(chunk["node_offsets"][int(node_index)]), 1.8, Color("#f2f7e4"))
+		for index in range(chunk["offsets"].size()):
+			var color: Color = chunk["colors"][index]
+			draw_circle(Vector2(chunk["pos"]) + Vector2(chunk["offsets"][index]), 2.25, Color(color.r, color.g, color.b, .84))
+		if str(chunk["fate"]) != "detached":
+			draw_string(ThemeDB.fallback_font, Vector2(chunk["pos"]) + Vector2(-28, -18), str(chunk["fate"]), HORIZONTAL_ALIGNMENT_CENTER, 56, 9, Color("#f0d18a"))
 	if cutting:
 		draw_line(cut_start, cut_current, Color("#ff4e72"), 2.0)
 		draw_circle(cut_current, 5.0, Color("#fff0f3"), false, 1.0)
@@ -457,10 +640,15 @@ func _draw_skeleton(creature: Dictionary, color: Color) -> void:
 	for edge in skeleton["edges"]:
 		var left: Array = nodes[int(edge[0])]
 		var right: Array = nodes[int(edge[1])]
+		if creature["severed_edges"].has(_edge_key(int(edge[0]), int(edge[1]))) or creature["detached_nodes"].has(int(edge[0])) or creature["detached_nodes"].has(int(edge[1])):
+			continue
 		var a := Vector2(creature["pos"]) + Vector2(float(left[0]), float(left[1])) * CELL_SCALE
 		var b := Vector2(creature["pos"]) + Vector2(float(right[0]), float(right[1])) * CELL_SCALE
 		draw_line(a, b, Color(color.r, color.g, color.b, .34), 1.2)
-	for node in nodes:
+	for node_index in range(nodes.size()):
+		if creature["detached_nodes"].has(node_index):
+			continue
+		var node: Array = nodes[node_index]
 		var point := Vector2(creature["pos"]) + Vector2(float(node[0]), float(node[1])) * CELL_SCALE
 		draw_circle(point, 2.0, Color("#f2f7e4"))
 
@@ -567,12 +755,12 @@ func _draw_panel() -> void:
 	y += 7
 	draw_string(ThemeDB.fallback_font, Vector2(992, y), "TOOLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#e5f2f4"))
 	y += 22
-	for item in [["I", "inspect"], ["X", "cut"], ["D", "damage"], ["H", "heal"]]:
+	for item in [["I", "inspect"], ["X", "scrape"], ["V", "sever"], ["D", "damage"], ["H", "heal"]]:
 		var active: bool = tool == item[1]
 		var tool_color := Color("#4ce7ff") if active else Color("#718995")
 		draw_string(ThemeDB.fallback_font, Vector2(992, y), "%s  %s" % [item[0], str(item[1]).to_upper()], HORIZONTAL_ALIGNMENT_LEFT, 100, 10, tool_color)
 		y += 17
-	var footer := "WASD MOVE  ARROWS ACTUATE  1-5 SELECT  TAB CYCLE\nN NEURAL  C CELLS  O ORGANS  K SKELETON  G CONTACTS\nR REGROW  SPACE PAUSE"
+	var footer := "WASD MOVE  ARROWS ACTUATE  1-5 SELECT  TAB CYCLE\nX SCRAPE  V SEVER  D DAMAGE  H HEAL  I INSPECT\nN NEURAL  C CELLS  O ORGANS  K SKELETON  G CONTACTS  R REGROW"
 	draw_multiline_string(ThemeDB.fallback_font, Vector2(28, 676), footer, HORIZONTAL_ALIGNMENT_LEFT, 930, 10, 12, Color("#8299a3"))
 	if message_time > 0:
 		draw_string(ThemeDB.fallback_font, Vector2(650, 42), message, HORIZONTAL_ALIGNMENT_RIGHT, 300, 11, Color("#f3cb68"))
