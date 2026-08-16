@@ -163,6 +163,13 @@ class NatureNeuralFeedingSystem:
         if clump is None or world_delta is None:
             state.constraint.attached = False; state.target_id = None; state.grasp_appendage = None
             return {"contact": False, "absorbed": 0.0, "attached": False, "target": -1}
+        # Another organism may consume the last measurable fraction earlier in
+        # this same world tick. Retire that remainder before constructing a
+        # positive-mass physics body; ghost clumps never reach the solver.
+        if not np.isfinite(clump.food.mass) or clump.food.mass <= 1e-5:
+            self.clumps.pop(clump.clump_id, None)
+            state.constraint.attached = False; state.target_id = None; state.grasp_appendage = None
+            return {"contact": False, "absorbed": 0.0, "attached": False, "target": -1}
         state.target_id = clump.clump_id
         local_target = world_delta * CELLS_PER_WORLD
         distance_cells = float(np.linalg.norm(local_target))

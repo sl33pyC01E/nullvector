@@ -33,6 +33,18 @@ def test_all_families_use_neural_grasper_and_physical_feeder() -> None:
         assert entity.reserve > 0, family
 
 
+def test_consumed_clump_is_retired_before_grasp_physics() -> None:
+    world, system, entity = _single(0, 93)
+    clump_id = max(system.clumps)
+    system.clumps[clump_id].food.mass = 1e-6
+    state = system._entity(entity)
+    state.target_id = clump_id
+    state.constraint.attached = True
+    result = system.step_entity(world, entity, .05)
+    assert result == {"contact": False, "absorbed": 0.0, "attached": False, "target": -1}
+    assert clump_id not in system.clumps
+
+
 def test_predation_produces_tangible_matter_not_instant_predator_energy() -> None:
     world, system, predator = _single(0)
     prey_genome = founder_genomes(variants_per_family=1)[2]
