@@ -17,8 +17,16 @@ SOURCE_FILES = (
     "forge/world_action_sparse_v5/model.py",
     "forge/world_action_cellular_v7/contract.py",
     "forge/world_action_cellular_v7/data.py",
+    "forge/world_action_cellular_v7/corpus.py",
     "forge/world_action_cellular_v7/model.py",
     "forge/world_action_cellular_v7/checkpoint.py",
+)
+CORPUS_SOURCE_FILES = (
+    "forge/action_teacher_v2/contract.py",
+    "forge/action_teacher_v2/recorder.py",
+    "forge/world_action_cellular_v7/contract.py",
+    "forge/world_action_cellular_v7/data.py",
+    "forge/world_action_cellular_v7/corpus.py",
 )
 
 
@@ -61,5 +69,12 @@ def config_dict(value) -> dict:
 def source_sha256() -> str:
     digest = hashlib.sha256(b"nullvector-cellular-temporal-action-v7\0")
     for relative in SOURCE_FILES:
+        digest.update(relative.encode() + b"\0" + (PROJECT_ROOT / relative).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def corpus_source_sha256() -> str:
+    digest = hashlib.sha256(b"nullvector-cellular-temporal-action-corpus-v7\0")
+    for relative in CORPUS_SOURCE_FILES:
         digest.update(relative.encode() + b"\0" + (PROJECT_ROOT / relative).read_bytes() + b"\0")
     return digest.hexdigest()

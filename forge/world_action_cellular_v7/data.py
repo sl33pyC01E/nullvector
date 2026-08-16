@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from ..action_teacher_v2 import validate_trajectory
-from .contract import CORPUS_FORMAT
+from .contract import CORPUS_FORMAT, corpus_source_sha256
 
 
 def temporal_action_and_settle_mask(actions: np.ndarray) -> np.ndarray:
@@ -69,7 +69,7 @@ def _encode_frames(frames: np.ndarray, vae_runtime) -> np.ndarray:
 def encode_cellular_episodes(paths, vae_runtime):
     episodes = []
     sources = []
-    digest = hashlib.sha256((CORPUS_FORMAT + "\0").encode())
+    digest = hashlib.sha256((CORPUS_FORMAT + "\0" + corpus_source_sha256() + "\0").encode())
     for path in map(Path, paths):
         manifest = validate_trajectory(path)
         with np.load(path / manifest["artifact"]["path"], allow_pickle=False) as archive:

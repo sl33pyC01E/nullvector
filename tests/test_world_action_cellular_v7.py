@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from forge.action_teacher_v2.contract import ACTOR_FEATURES, ACTOR_FIELD_SHAPE
-from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, align_temporal_cellular, load_recovery_checkpoint, load_v5_latent_editor, source_sha256
+from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, source_sha256, validate_encoded_corpus, write_encoded_corpus
 from forge.world_action_cellular_v7.contract import CHECKPOINT_FORMAT
 from forge.world_action_sparse_v5.contract import ModelConfig as V5ModelConfig
 from forge.world_action_sparse_v5.model import SparseActionDiT
@@ -80,3 +80,39 @@ def test_recovery_checkpoint_is_atomic_and_source_bound(tmp_path):
     assert restored["step"] == 500
     assert record["milestone"].endswith("step-00000500.pt")
     assert (tmp_path / "milestones" / "step-00000500.pt").read_bytes() == (tmp_path / "latest.pt").read_bytes()
+
+
+def test_encoded_corpus_roundtrips_and_rejects_tamper(tmp_path):
+    count = 4
+    episode = {
+        "previous": np.zeros((count, LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE), np.float32),
+        "current": np.ones((count, LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE), np.float32),
+        "target": np.full((count, LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE), 2, np.float32),
+        "previous_control": np.zeros((count, 4), np.float32),
+        "control": np.ones((count, 4), np.float32),
+        "previous_action": np.zeros(count, np.uint8),
+        "action": np.ones(count, np.uint8),
+        "state": np.zeros((count, 64), np.float32),
+        "actor_state": np.zeros((count, ACTOR_FEATURES), np.float32),
+        "target_actor_state": np.ones((count, ACTOR_FEATURES), np.float32),
+        "actor_field": np.zeros((count, *ACTOR_FIELD_SHAPE), np.float16),
+        "target_actor_field": np.ones((count, *ACTOR_FIELD_SHAPE), np.float16),
+        "current_frame": np.zeros((count, 256, 256, 3), np.uint8),
+        "target_frame": np.ones((count, 256, 256, 3), np.uint8),
+        "current_tick": np.arange(count, dtype=np.int64),
+        "target_tick": np.arange(1, count + 1, dtype=np.int64),
+    }
+    source = {"session_id": "synthetic-a", "manifest_sha256": "1" * 64, "arrays_sha256": "2" * 64}
+    root = tmp_path / "corpus"
+    manifest = write_encoded_corpus(root, (episode,), (source,), vae_checkpoint_sha256="3" * 64, vae_ema_sha256="4" * 64)
+    loaded, replay = load_encoded_corpus(root)
+    assert manifest["pairs"] == replay["pairs"] == count
+    assert np.array_equal(loaded[0]["target_actor_field"], episode["target_actor_field"])
+    artifact = root / manifest["shards"][0]["artifact"]["path"]
+    data = bytearray(artifact.read_bytes()); data[-1] ^= 1; artifact.write_bytes(data)
+    try:
+        validate_encoded_corpus(root)
+    except ValueError as error:
+        assert "artifact drifted" in str(error)
+    else:
+        raise AssertionError("tampered encoded corpus was accepted")

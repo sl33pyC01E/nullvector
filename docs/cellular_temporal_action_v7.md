@@ -11,4 +11,10 @@ V7 moves the ensemble toward the intended physical neural engine:
 - training will use the frozen parent latent mean/std rather than recomputing them;
 - atomic `latest.pt` checkpoints and immutable validation milestones limit interruption loss to one validation interval.
 
+VAE encoding is also published as an immutable, source-bound corpus with one
+compressed shard per teacher world. Every shard records its raw trajectory,
+VAE checkpoint and EMA identity, tensor shapes/dtypes, byte hash, and semantic
+array hash. A restart can therefore reuse validated latents instead of spending
+another full pass reconstructing them.
+
 The privileged model is an ensemble teacher, not the final product. Once it establishes that physical state transitions are learnable, a recurrent visual student can infer hidden state from frame history; the eventual monolithic Action-DiT/VAE student can then absorb both.
