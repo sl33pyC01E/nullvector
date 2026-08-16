@@ -296,6 +296,8 @@ class NatureDemo:
             self.screen.blit(self.small.render(f"{clade.clade_id[-5:].upper()} F{clade.family} N{clade.population:02} FIT {clade.fitness:.2f} G{clade.max_generation}",True,(99,194,158)),(x,y));y+=15
         selected_entity=self.world.organisms.get(self.selected);culture=None if selected_entity is None or selected_entity.colony_id is None else self.world.colony_culture.states.get(selected_entity.colony_id)
         if culture is not None:self.screen.blit(self.small.render("COLONY MEMORY // "+" ".join(f"{name[:2].upper()}{value:.2f}" for name,value in zip(("forage","defense","medicine","construct","disperse","brood"),culture.values)),True,(101,188,255)),(x,y));y+=15
+        ecology=None if selected_entity is None or selected_entity.colony_id is None else self.world.colony_ecology.states.get(selected_entity.colony_id)
+        if ecology is not None:self.screen.blit(self.small.render(f"COLONY CACHE // ENERGY {ecology.energy_store:.3f}  WAT {ecology.material_store[0]:.3f}  MIN {ecology.material_store[2]:.3f}  BIO {ecology.material_store[9]:.3f}",True,(112,211,154)),(x,y));y+=15
         y+=6;self.screen.blit(self.small.render(f"CONTRACTS [U] // COMPLETE {self.quests.completed}",True,(255,183,87)),(x,y));y+=17
         for quest in self.quests.active(2):self.screen.blit(self.small.render(f"{quest.metric[:5].upper()} {quest.progress:.0f}/{quest.target:.0f} {quest.description[:30].upper()}",True,(213,150,75)),(x,y));y+=15
         if self.society.settlements:
