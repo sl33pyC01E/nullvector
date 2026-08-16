@@ -156,7 +156,8 @@ class LivingBodyDynamicsNet(nn.Module):
         tick_cost = torch.sigmoid(raw[:, 2]) * .0012
         energy_after = (energy_before + released - tick_cost).clamp(0, 4.0)
         remaining_fraction = torch.where(mass > 1e-8, ((mass - absorbed) / mass).clamp(0, 1), torch.zeros_like(mass))
-        contact_logit = torch.where(contact >= .5, torch.full_like(contact, 12.0), torch.full_like(contact, -12.0))
+        reported_contact = contact * feed_action
+        contact_logit = torch.where(reported_contact >= .5, torch.full_like(contact, 12.0), torch.full_like(contact, -12.0))
         feeding = torch.stack((
             absorbed,
             nutrition / 4.0,

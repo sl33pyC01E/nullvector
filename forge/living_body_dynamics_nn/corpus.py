@@ -206,8 +206,8 @@ class BodyTransitionCorpus(Dataset[dict[str, torch.Tensor]]):
         # Contact examples are anchored to a literal live feeder pixel.  The
         # centroid can fall in empty space when a feeder has several lobes.
         anchor = feeder_points[int(rng.integers(0, len(feeder_points)))] if feeder_points.size else np.zeros(2, dtype=np.float64)
-        contact = bool(repeat % 4 != 1)
-        offset = rng.normal(0, .18, size=2) if contact else np.asarray((8.0, 8.0))
+        requested_contact = bool(repeat % 4 != 1)
+        offset = rng.normal(0, .18, size=2) if requested_contact else np.asarray((8.0, 8.0))
         clump = FoodClump(
             position=anchor + offset,
             velocity=np.zeros(2),
@@ -216,6 +216,8 @@ class BodyTransitionCorpus(Dataset[dict[str, torch.Tensor]]):
             nutrient_density=density,
             nutrition_by_family=tuple(float(value) for value in family_profile),
         )
+        distance = float(np.min(np.linalg.norm(feeder_points - clump.position, axis=1))) if feeder_points.size else math.inf
+        contact = distance <= 1.15 + clump.radius
         _apply(body, descriptor)
         absorbed = 0.0
         nutrition = 0.0
