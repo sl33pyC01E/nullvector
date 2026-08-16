@@ -9,6 +9,7 @@ import numpy as np
 from ..config import PROJECT_ROOT
 from ..creature_stage_developmental import FAMILIES,TISSUES
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
+from ..qud_society_v1 import SocietyLayer
 from .world import NatureWorld
 
 
@@ -25,6 +26,7 @@ class NatureDemo:
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
         self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device)
         self.world=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime);self.world.seed_founders(variants_per_family=3)
+        self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
         self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELL RASTER + LIVE 4.46M CONTACT/MUSCLE CONTROLLER";self.sprite_cache={}
 
     def world_to_screen(self,position):
@@ -77,6 +79,8 @@ class NatureDemo:
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2;entity.intent="player"
         self.world.step(min(.2,delta*2.2))
+        if self.world.tick_index-self.last_society_tick>=60:
+            self.society.step_history(1);self.last_society_tick=self.world.tick_index
         if entity is not None and np.linalg.norm(self.manual)>0:self.camera+=(entity.position-self.camera)*min(1,delta*4)
 
     def _field_background(self):
@@ -106,6 +110,16 @@ class NatureDemo:
         bar=pg.Rect(point[0]-28,point[1]+size*.42,56,4);pg.draw.rect(self.screen,(16,28,32),bar);pg.draw.rect(self.screen,color,pg.Rect(bar.x,bar.y,bar.w*systems["integrity"],bar.h))
         if entity.colony_id is not None:self.screen.blit(self.small.render(f"C{entity.colony_id}",True,color),(point[0]+22,point[1]-size*.58))
 
+    def _draw_settlements(self):
+        pg=self.pg
+        for settlement in self.society.settlements.values():
+            faction=self.society.factions[settlement.faction_id];color=pg.Color(FAMILY_COLORS[faction.family])
+            for building in settlement.buildings:
+                origin=self.world_to_screen(building.origin);rect=pg.Rect(origin[0],origin[1],building.width*self.zoom,building.height*self.zoom);pg.draw.rect(self.screen,(8,18,21),rect);pg.draw.rect(self.screen,color,rect,max(1,int(self.zoom*.16)))
+            for x,y in settlement.roads:
+                point=self.world_to_screen((x,y));pg.draw.circle(self.screen,(75,88,78),(int(point[0]),int(point[1])),max(1,int(self.zoom*.16)))
+            center=self.world_to_screen(settlement.center);self.screen.blit(self.small.render(faction.name.upper(),True,color),(center[0]-40,center[1]-18))
+
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,390);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health
@@ -123,10 +137,11 @@ class NatureDemo:
 
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
+        self._draw_settlements()
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COLONIES {snap.colony_count:02}  LINEAGES {snap.lineage_count:02}"
+        snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COL {snap.colony_count:02}  FAC {len(self.society.factions):02}  MUT {snap.mutation_count:02}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
