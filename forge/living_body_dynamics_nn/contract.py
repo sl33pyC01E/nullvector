@@ -3,10 +3,37 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-FORMAT = "nullvector-living-body-graph-dynamics/1.0.0"
-CHECKPOINT_FORMAT = "nullvector-living-body-graph-dynamics-checkpoint/1.0.0"
-FEATURES = 39
+FORMAT = "nullvector-living-body-graph-dynamics/2.0.0"
+CHECKPOINT_FORMAT = "nullvector-living-body-graph-dynamics-checkpoint/2.0.0"
+FEATURES = 56
 SYSTEMS = 7
+FEEDING_TARGETS = 9
+ACTION_KINDS = ("idle", "impact", "cut", "heal", "feed", "metabolize", "feed_and_metabolize")
+
+# The feature layout is deliberately public.  Runtime adapters and corpus
+# validators use these slices instead of relying on unexplained magic offsets.
+FAMILY_SLICE = slice(0, 5)
+TISSUE_SLICE = slice(5, 20)
+SYSTEM_SLICE = slice(20, 26)
+POSITION_SLICE = slice(26, 28)
+APPENDAGE_INDEX = 28
+SIDE_INDEX = 29
+CELL_STATE_SLICE = slice(30, 33)  # health, internal fluid, scar
+CONNECTED_INDEX = 33
+FEEDER_INDEX = 34
+DIGESTIVE_INDEX = 35
+ACTION_SLICE = slice(36, 43)
+LOCAL_ACTION_SLICE = slice(43, 46)  # impact, cut, heal fields
+CONTACT_INDEX = 46
+FOOD_MASS_INDEX = 47
+NUTRIENT_DENSITY_INDEX = 48
+FAMILY_NUTRITION_INDEX = 49
+RESERVE_INDEX = 50
+FULLNESS_INDEX = 51
+CONSUMED_INDEX = 52
+ENERGY_INDEX = 53
+ACTIVITY_INDEX = 54
+DELTA_INDEX = 55
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,7 +6,7 @@ import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
 
-from .contract import DynamicsConfig, FEATURES, SYSTEMS
+from .contract import CELL_STATE_SLICE, DynamicsConfig, FEATURES, FEEDING_TARGETS, SYSTEMS
 
 
 class MessageBlock(nn.Module):
@@ -53,15 +53,21 @@ class LivingBodyDynamicsNet(nn.Module):
             nn.Linear(config.width + config.family_width, config.width),
             nn.SiLU(), nn.Linear(config.width, SYSTEMS),
         )
+        self.feeding_head = nn.Sequential(
+            nn.LayerNorm(config.width + config.family_width),
+            nn.Linear(config.width + config.family_width, config.width * 2),
+            nn.SiLU(), nn.Dropout(config.dropout),
+            nn.Linear(config.width * 2, FEEDING_TARGETS),
+        )
 
-    def forward(self, batch: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+    def forward(self, batch: dict[str, Tensor]) -> tuple[Tensor, Tensor, Tensor]:
         value = self.input(batch["features"].float())
         family = self.family(batch["family"].long())
         for block in self.blocks:
             value = block(value, batch["edges"].long(), family, batch["graph_index"].long())
         # Residual next-state prediction keeps healthy identity transitions easy
         # while still allowing intervention-conditioned changes.
-        baseline = batch["features"][:, 30:33].float()
+        baseline = batch["features"][:, CELL_STATE_SLICE].float()
         delta = torch.tanh(self.cell_head(value)) * torch.tensor((.85, .45, .30), device=value.device)
         cell = (baseline + delta).clamp(0, 1)
         graph_count = len(batch["family"])
@@ -69,29 +75,53 @@ class LivingBodyDynamicsNet(nn.Module):
         pooled.index_add_(0, batch["graph_index"], value)
         counts = torch.bincount(batch["graph_index"], minlength=graph_count).to(value.dtype)[:, None]
         pooled = pooled / counts.clamp_min(1)
-        systems = torch.sigmoid(self.system_head(torch.cat((pooled, family), 1)))
-        return cell, systems
+        graph = torch.cat((pooled, family), 1)
+        systems = torch.sigmoid(self.system_head(graph))
+        raw_feeding = self.feeding_head(graph)
+        # Contact and route are logits for calibrated binary losses.  Every
+        # other field is a bounded normalized physical quantity.
+        feeding = torch.sigmoid(raw_feeding)
+        feeding = torch.cat((feeding[:, :6], raw_feeding[:, 6:8], feeding[:, 8:9]), 1)
+        return cell, systems, feeding
 
     def config_dict(self) -> dict[str, int | float]:
         return asdict(self.config)
 
 
 def loss(model: LivingBodyDynamicsNet, batch: dict[str, Tensor]) -> tuple[Tensor, dict[str, float]]:
-    cell, systems = model(batch)
+    cell, systems, feeding = model(batch)
     target = batch["target"].float()
-    action = batch["features"][:, 34:37].abs().sum(1)
+    action = batch["features"][:, 43:46].abs().sum(1)
     changed = (target[:, 0] - batch["features"][:, 30]).abs() > 1e-5
     weight = 1 + action * 3 + changed.float() * 4
     health = ((cell[:, 0] - target[:, 0]).abs() * weight).sum() / weight.sum()
     fluid = ((cell[:, 1] - target[:, 1]).abs() * (1 + changed.float() * 2)).mean()
     scar = F.smooth_l1_loss(cell[:, 2], target[:, 2])
     system = F.smooth_l1_loss(systems, batch["systems"].float())
+    feeding_target = batch["feeding_target"].float()
+    continuous_indices = torch.tensor((0, 1, 2, 3, 4, 5, 8), device=feeding.device)
+    feeding_continuous = F.smooth_l1_loss(
+        feeding.index_select(1, continuous_indices),
+        feeding_target.index_select(1, continuous_indices),
+    )
+    contacted = F.binary_cross_entropy_with_logits(feeding[:, 6], feeding_target[:, 6])
+    route = F.binary_cross_entropy_with_logits(feeding[:, 7], feeding_target[:, 7])
+    positive = feeding_target[:, 0] > 1e-7
+    absorption = (feeding[:, 0] - feeding_target[:, 0]).abs()
+    absorption_weight = 1 + positive.float() * 8
+    absorption_mae = (absorption * absorption_weight).sum() / absorption_weight.sum()
     # Cells beyond two graph hops of an intervention should remain stable.
     untouched = action <= 1e-6
     locality = (cell[untouched, 0] - batch["features"][untouched, 30]).abs().mean() if bool(untouched.any()) else cell.sum() * 0
-    total = 3.0 * health + 1.5 * fluid + scar + 2.0 * system + .35 * locality
+    total = (
+        3.0 * health + 1.5 * fluid + scar + 2.0 * system + .35 * locality
+        + 2.0 * feeding_continuous + 2.5 * absorption_mae + .35 * contacted + 1.5 * route
+    )
     return total, {
         "loss": float(total.detach()), "health_mae": float(health.detach()),
         "fluid_mae": float(fluid.detach()), "scar_smooth_l1": float(scar.detach()),
         "system_smooth_l1": float(system.detach()), "untouched_drift": float(locality.detach()),
+        "feeding_smooth_l1": float(feeding_continuous.detach()),
+        "absorption_mae": float(absorption_mae.detach()),
+        "contact_bce": float(contacted.detach()), "route_bce": float(route.detach()),
     }

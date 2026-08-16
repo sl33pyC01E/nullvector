@@ -26,6 +26,7 @@ SOURCE_FILES = (
     "forge/living_body_dynamics_nn/contract.py",
     "forge/living_body_dynamics_nn/corpus.py",
     "forge/living_body_dynamics_nn/model.py",
+    "forge/living_body_dynamics_nn/runtime.py",
     "forge/living_body_dynamics_nn/training.py",
     "forge/living_body_dynamics_nn/evaluation.py",
 )
@@ -58,19 +59,37 @@ def evaluate_rows(
     batch_size: int = 8,
 ) -> dict[str, float]:
     model.eval()
-    sums = {"health_mae": 0.0, "fluid_mae": 0.0, "scar_mae": 0.0, "system_mae": 0.0, "healthy_drift": 0.0, "fluid_total_error": 0.0}
+    sums = {
+        "health_mae": 0.0, "fluid_mae": 0.0, "scar_mae": 0.0,
+        "system_mae": 0.0, "healthy_drift": 0.0,
+        "fluid_total_error": 0.0, "feeding_mae": 0.0,
+        "absorption_mae": 0.0, "false_absorption": 0.0,
+        "route_correct": 0.0, "contact_correct": 0.0,
+    }
     healthy_nodes = 0
     graphs = 0
     for start in range(0, len(indices), batch_size):
         chosen = indices[start : start + batch_size]
         batch = _device_batch(collate_graphs([corpus[index] for index in chosen]), device)
         with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            cell, systems = model(batch)
+            cell, systems, feeding = model(batch)
         difference = (cell.float() - batch["target"].float()).abs()
         sums["health_mae"] += float(difference[:, 0].sum())
         sums["fluid_mae"] += float(difference[:, 1].sum())
         sums["scar_mae"] += float(difference[:, 2].sum())
         sums["system_mae"] += float((systems.float() - batch["systems"].float()).abs().sum())
+        feeding_value = feeding.float().clone()
+        feeding_value[:, 6:8] = torch.sigmoid(feeding_value[:, 6:8])
+        feeding_difference = (feeding_value - batch["feeding_target"].float()).abs()
+        sums["feeding_mae"] += float(feeding_difference.sum())
+        sums["absorption_mae"] += float(feeding_difference[:, 0].sum())
+        negative = batch["feeding_target"][:, 0] <= 1e-7
+        if bool(negative.any()):
+            sums["false_absorption"] += float(feeding_value[negative, 0].sum())
+            sums.setdefault("negative_feeding", 0.0)
+            sums["negative_feeding"] += int(negative.sum())
+        sums["route_correct"] += float(((feeding_value[:, 7] >= .5) == (batch["feeding_target"][:, 7] >= .5)).sum())
+        sums["contact_correct"] += float(((feeding_value[:, 6] >= .5) == (batch["feeding_target"][:, 6] >= .5)).sum())
         node_count = len(cell)
         graphs += len(chosen)
         healthy_graph = batch["action_kind"] == 0
@@ -85,6 +104,7 @@ def evaluate_rows(
         sums.setdefault("nodes", 0.0)
         sums["nodes"] += node_count
     nodes = sums.pop("nodes")
+    negative_feeding = sums.pop("negative_feeding", 0.0)
     return {
         "health_mae": round(sums["health_mae"] / nodes, 9),
         "fluid_mae": round(sums["fluid_mae"] / nodes, 9),
@@ -92,6 +112,11 @@ def evaluate_rows(
         "system_mae": round(sums["system_mae"] / (graphs * 7), 9),
         "healthy_drift": round(sums["healthy_drift"] / max(healthy_nodes, 1), 9),
         "fluid_total_error_per_cell": round(sums["fluid_total_error"] / graphs, 9),
+        "feeding_mae": round(sums["feeding_mae"] / (graphs * 9), 9),
+        "absorption_mae": round(sums["absorption_mae"] / graphs, 9),
+        "false_absorption": round(sums["false_absorption"] / max(negative_feeding, 1), 9),
+        "route_accuracy": round(sums["route_correct"] / graphs, 9),
+        "contact_accuracy": round(sums["contact_correct"] / graphs, 9),
     }
 
 
@@ -103,6 +128,17 @@ def train_segment(root: Path, plan: TrainingPlan = TrainingPlan()) -> Path:
     device = torch.device("cuda")
     corpus = BodyTransitionCorpus(repeats=4)
     train_indices = [index for index, row in enumerate(corpus.rows) if row[0] not in VALIDATION_IDENTITIES]
+    # Successful absorption is intentionally rare in the natural corpus: it
+    # requires contact, diet compatibility, free capacity, and an intact route.
+    # Oversample only the training split so the model cannot minimize loss by
+    # always predicting no intake; validation retains the natural frequency.
+    positive_feeding = [
+        index for index in train_indices
+        if corpus.rows[index][2] in (4, 6)
+        and corpus.rows[index][3] == 0
+        and corpus.rows[index][1] in (0, 1, 4)
+    ]
+    train_indices = train_indices + positive_feeding * 8
     validation_indices = [index for index, row in enumerate(corpus.rows) if row[0] in VALIDATION_IDENTITIES]
     source = source_sha256()
     latest = _latest(root)
@@ -196,7 +232,17 @@ def train_segment(root: Path, plan: TrainingPlan = TrainingPlan()) -> Path:
         "predecessor_sha256": predecessor,
         "checkpoint": {"path": checkpoint.name, "sha256": _sha(checkpoint), "bytes": checkpoint.stat().st_size, "model_state_sha256": payload["model_state_sha256"], "ema_state_sha256": payload["ema_state_sha256"]},
         "runtime": payload["runtime"], "training": segment_history[-1], "validation": validation,
-        "gates": {"finite": True, "healthy_drift_below_005": validation["healthy_drift"] < .005, "system_mae_below_05": validation["system_mae"] < .05, "fluid_total_error_below_02": validation["fluid_total_error_per_cell"] < .02, "production_promotion_allowed": False},
+        "gates": {
+            "finite": True,
+            "healthy_drift_below_005": validation["healthy_drift"] < .005,
+            "system_mae_below_05": validation["system_mae"] < .05,
+            "fluid_total_error_below_02": validation["fluid_total_error_per_cell"] < .02,
+            "feeding_mae_below_03": validation["feeding_mae"] < .03,
+            "absorption_mae_below_015": validation["absorption_mae"] < .015,
+            "false_absorption_below_01": validation["false_absorption"] < .01,
+            "route_accuracy_above_97": validation["route_accuracy"] > .97,
+            "production_promotion_allowed": False,
+        },
     }
     manifest["manifest_sha256"] = hashlib.sha256(_canonical(manifest)).hexdigest()
     (staging / "segment_manifest.json").write_bytes(_canonical(manifest))
