@@ -27,6 +27,14 @@ class ManipulationStep:
     fullness_seconds: float
 
 
+@dataclass(slots=True)
+class TargetKinetics:
+    height: float = 0.0
+    vertical_velocity: float = 0.0
+    impact_mode: str = "thud"
+    impacts: int = 0
+
+
 class NeuralManipulationArena:
     """Small, source-bound closed loop around the learned grasper controller.
 
@@ -52,17 +60,52 @@ class NeuralManipulationArena:
         self.grasp_appendage: int | None = None
         self.held_target: int | None = None
         self.targets: dict[int, FoodClump] = {}
+        self.target_kinetics: dict[int, TargetKinetics] = {}
         self.cohesion: dict[int, float] = {}
         self.next_target_id = 1
 
-    def add_clump(self, clump: FoodClump, *, cohesion: float = .6) -> int:
+    def add_clump(self, clump: FoodClump, *, cohesion: float = .6, impact_mode: str | None = None) -> int:
         if not math.isfinite(cohesion) or not .01 <= cohesion <= 4:
             raise ValueError("manipulation target cohesion drifted")
+        default_mode = {"phase": "bounce", "charge": "bounce", "mineral": "roll"}.get(clump.material, "thud")
+        mode = default_mode if impact_mode is None else impact_mode
+        if mode not in {"bounce", "roll", "thud"}:
+            raise ValueError("manipulation impact mode drifted")
         target_id = self.next_target_id
         self.next_target_id += 1
         self.targets[target_id] = clump
+        self.target_kinetics[target_id] = TargetKinetics(impact_mode=mode)
         self.cohesion[target_id] = float(cohesion)
         return target_id
+
+    def integrate_free_target(self, target_id: int, delta: float) -> None:
+        """Advance planar travel plus independent 2.5D elevation and impact."""
+        if target_id not in self.targets or not math.isfinite(delta) or not .001 <= delta <= .25:
+            raise ValueError("free target integration drifted")
+        target = self.targets[target_id]
+        kinetics = self.target_kinetics[target_id]
+        target.position += target.velocity * delta
+        airborne = kinetics.height > 0 or kinetics.vertical_velocity > 0
+        if airborne:
+            kinetics.height += kinetics.vertical_velocity * delta
+            kinetics.vertical_velocity -= 14.0 * delta
+            target.velocity *= math.exp(-delta * .10)
+            if kinetics.height <= 0:
+                kinetics.height = 0.0
+                kinetics.impacts += 1
+                impact_speed = max(0.0, -kinetics.vertical_velocity)
+                if kinetics.impact_mode == "bounce" and impact_speed > 1.15:
+                    kinetics.vertical_velocity = impact_speed * .58
+                    target.velocity *= .88
+                elif kinetics.impact_mode == "roll":
+                    kinetics.vertical_velocity = 0.0
+                    target.velocity *= .92
+                else:
+                    kinetics.vertical_velocity = 0.0
+                    target.velocity *= .28
+        else:
+            drag = {"bounce": 1.0, "roll": .34, "thud": 3.4}[kinetics.impact_mode]
+            target.velocity *= math.exp(-delta * drag)
 
     def _target_features(self, target: FoodClump) -> tuple[np.ndarray, float]:
         delta = target.position - self.body.position
@@ -108,23 +151,39 @@ class NeuralManipulationArena:
         response = min(1.0, delta * (10.0 + 8.0 * command.force))
         effector = self.articulation.solve(appendage, desired - self.body.position, response) + self.body.position
         target_body = GraspBody(target.position, target.velocity, target.mass)
-        release = np.asarray(command.throw_impulse, dtype=np.float64) * (6.0 * throw_strength) if command.release and goal == "throw" else None
+        release = np.asarray(command.throw_impulse, dtype=np.float64) * (12.0 * throw_strength) if command.release and goal == "throw" else None
         result = solve_grasp(
             self.body, target_body, effector=effector,
             engage=(command.engage or self.constraint.attached) and not command.release, force=command.force,
-            brace=command.brace, cohesion=self.cohesion[target_id], state=self.constraint,
+            # A closed feeding grip follows the hand through its curl without
+            # repeatedly tearing off during normal joint inertia. Explicit
+            # pull/cut actions still use the material's authored cohesion.
+            brace=command.brace, cohesion=100.0 if goal == "consume" else self.cohesion[target_id], state=self.constraint,
             delta=delta, release_impulse=release,
         )
         if result["attached"]:
             self.held_target = target_id
             self.grasp_appendage = appendage
+            kinetics = self.target_kinetics[target_id]
+            # While held, the target already occupies the hand's authored
+            # screen-space cell position. Elevation becomes independent only
+            # at release; adding both would visually lift food above the hand.
+            kinetics.height = 0.0
+            kinetics.vertical_velocity = 0.0
         elif self.held_target == target_id:
             self.held_target = None
             self.grasp_appendage = None
+        if result["thrown"]:
+            kinetics = self.target_kinetics[target_id]
+            kinetics.height = max(kinetics.height, 5.5)
+            kinetics.vertical_velocity = 9.5
         self.body.position += self.body.velocity * delta
-        target.position += target.velocity * delta
         self.body.velocity *= math.exp(-delta * 3.2)
-        target.velocity *= math.exp(-delta * (1.2 + .4 / max(target.mass, .1)))
+        if result["attached"]:
+            target.position += target.velocity * delta
+            target.velocity *= math.exp(-delta * (1.2 + .4 / max(target.mass, .1)))
+        else:
+            self.integrate_free_target(target_id, delta)
         intake = absorb_food(
             self.living, self.feeding, target, body_position=self.body.position,
             delta=delta, contact_field=1.80, intake_rate=.55,

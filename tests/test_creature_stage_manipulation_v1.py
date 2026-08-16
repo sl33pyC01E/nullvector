@@ -24,6 +24,21 @@ def test_humanoid_graspers_are_locomotor_peer_limbs() -> None:
     assert .80 < np.mean([limb.cell_count for limb in arms]) / np.mean([limb.cell_count for limb in legs]) < 1.20
 
 
+def test_grasper_chain_has_inertia_and_preserves_bone_lengths() -> None:
+    articulation = ArticulatedBody.from_organism(develop(review_genomes()[0]))
+    appendage = 0
+    before = articulation.endpoint(appendage).copy()
+    target = articulation.root(appendage) + np.asarray((-7.0, -1.5))
+    first = articulation.solve(appendage, target, .65)
+    assert np.linalg.norm(first - before) > .05
+    assert np.linalg.norm(first - target) > .05  # no kinematic pose snap
+    for _ in range(80):
+        final = articulation.solve(appendage, target, .65)
+    assert np.linalg.norm(final - target) < .35
+    assert np.linalg.norm(articulation.velocities[articulation.chain_ids[appendage][1:]], axis=1).max() > 0
+    assert articulation.max_length_error() < 1e-4
+
+
 def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
     for genome in review_genomes()[::2]:
         arena = NeuralManipulationArena(develop(genome), device="cpu")
@@ -46,7 +61,7 @@ def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
 def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:
     organism = develop(review_genomes()[8])
     arena = NeuralManipulationArena(organism, device="cpu")
-    target_id = arena.add_clump(_food((12.0, 0.0)), cohesion=2.0)
+    target_id = arena.add_clump(_food((12.0, 0.0)), cohesion=2.0, impact_mode="bounce")
     for _ in range(500):
         step = arena.step(target_id, goal="carry", delta=.05)
         if step.attached:
@@ -61,6 +76,37 @@ def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:
     # but cannot create more pair momentum than the commanded impulse.
     momentum_after = arena.body.velocity * arena.body.mass + arena.targets[target_id].velocity * arena.targets[target_id].mass
     assert float(np.linalg.norm(momentum_after - momentum_before)) < 6.1
+    release_x = float(arena.targets[target_id].position[0])
+    peak_height = arena.target_kinetics[target_id].height
+    for _ in range(150):
+        arena.integrate_free_target(target_id, .05)
+        peak_height = max(peak_height, arena.target_kinetics[target_id].height)
+    assert float(arena.targets[target_id].position[0]) - release_x > 20.0
+    assert peak_height > 8.0 and arena.target_kinetics[target_id].impacts > 1
+
+
+def test_2p5d_impacts_bounce_roll_or_thud() -> None:
+    distances = {}
+    for mode in ("bounce", "roll", "thud"):
+        arena = NeuralManipulationArena(develop(review_genomes()[0]), device="cpu")
+        target_id = arena.add_clump(_food((0.0, 0.0)), impact_mode=mode)
+        target = arena.targets[target_id]
+        target.velocity[:] = (7.0, 0.0)
+        kinetics = arena.target_kinetics[target_id]
+        kinetics.height = 5.5
+        kinetics.vertical_velocity = 9.5
+        rebound_height = 0.0
+        for _ in range(200):
+            arena.integrate_free_target(target_id, .05)
+            if kinetics.impacts:
+                rebound_height = max(rebound_height, kinetics.height)
+        distances[mode] = float(target.position[0])
+        assert kinetics.impacts >= 1 and kinetics.height >= 0
+        if mode == "bounce":
+            assert rebound_height > 2.0 and kinetics.impacts > 1
+        else:
+            assert kinetics.impacts == 1 and kinetics.vertical_velocity == 0
+    assert distances["bounce"] > distances["roll"] > distances["thud"] + 10.0
 
 
 def test_live_feeder_damage_still_blocks_arena_absorption() -> None:

@@ -5,9 +5,6 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..creature_stage_developmental.development import DevelopedOrganism
-from ..creature_stage_developmental.motion import _fabrik
-
-
 @dataclass(frozen=True, slots=True)
 class LimbGeometry:
     kind: str
@@ -24,6 +21,7 @@ class ArticulatedBody:
     nodes: np.ndarray
     chain_ids: tuple[np.ndarray, ...]
     root_nodes: tuple[int, ...]
+    velocities: np.ndarray
 
     @classmethod
     def from_organism(cls, organism: DevelopedOrganism) -> "ArticulatedBody":
@@ -36,19 +34,66 @@ class ArticulatedBody:
             edges = organism.skeleton_edges[edge_ids]
             roots.append(int(edges[0, 0]))
             chains.append(np.asarray([int(edges[0, 1]), *[int(edge[1]) for edge in edges[1:]]], np.int16))
-        return cls(organism, organism.skeleton_nodes.copy(), tuple(chains), tuple(roots))
+        return cls(
+            organism,
+            organism.skeleton_nodes.copy(),
+            tuple(chains),
+            tuple(roots),
+            np.zeros_like(organism.skeleton_nodes[:, :2], dtype=np.float32),
+        )
 
     def endpoint(self, appendage: int) -> np.ndarray:
         return self.nodes[self.chain_ids[appendage][-1], :2].astype(np.float64)
 
     def solve(self, appendage: int, target: np.ndarray, response: float) -> np.ndarray:
+        """Advance one inertial, length-constrained limb toward a hand target.
+
+        This is the same physical vocabulary used by grounded locomotors:
+        recurrent node velocity, damped muscle drive and iterative bone-length
+        projection.  A grasp target attracts the terminal hand; it does not
+        overwrite a pose or teleport intermediate joints.
+        """
         gene = self.organism.genome.appendages[appendage]
         chain_ids = self.chain_ids[appendage]
-        root = self.nodes[self.root_nodes[appendage], :2] + np.asarray(gene.root_offset, np.float32)
-        rest_chain = self.organism.skeleton_nodes[chain_ids, :2]
-        solved = _fabrik(rest_chain, root, np.asarray(target, np.float32), gene.bend)
-        blended_endpoint = self.nodes[chain_ids[-1], :2] + (solved[-1] - self.nodes[chain_ids[-1], :2]) * float(np.clip(response, 0, 1))
-        self.nodes[chain_ids, :2] = _fabrik(rest_chain, root, blended_endpoint, gene.bend)
+        root = self.nodes[self.root_nodes[appendage], :2].astype(np.float32) + np.asarray(gene.root_offset, np.float32)
+        rest = self.organism.skeleton_nodes[chain_ids, :2].astype(np.float32)
+        positions = self.nodes[chain_ids, :2].astype(np.float32, copy=True)
+        velocity = self.velocities[chain_ids].astype(np.float32, copy=True)
+        lengths = np.linalg.norm(rest[1:] - rest[:-1], axis=1).astype(np.float32)
+        desired = np.asarray(target, np.float32)
+        reach = float(lengths.sum())
+        delta = desired - root
+        distance = float(np.linalg.norm(delta))
+        if distance > reach and distance > 1e-6:
+            desired = root + delta * (reach / distance)
+        gain = float(np.clip(response, 0.0, 1.0))
+        for _ in range(3):
+            previous = positions.copy()
+            # Terminal muscle drive; weak distributed posture tone prevents the
+            # chain folding into a numerically limp knot while retaining sway.
+            velocity[-1] += (desired - positions[-1]) * (.10 + .18 * gain)
+            velocity[1:-1] += (rest[1:-1] - positions[1:-1]) * .012
+            velocity[1:] *= .70
+            positions[1:] += velocity[1:] * (.42 + .28 * gain)
+            positions[0] = root
+            for _constraint in range(8):
+                positions[0] = root
+                for segment, length in enumerate(lengths):
+                    left = segment
+                    right = segment + 1
+                    edge = positions[right] - positions[left]
+                    current = max(float(np.linalg.norm(edge)), 1e-7)
+                    correction = edge * ((current - float(length)) / current)
+                    if left == 0:
+                        positions[right] -= correction
+                    else:
+                        positions[left] += correction * .5
+                        positions[right] -= correction * .5
+                positions[0] = root
+            velocity = velocity * .30 + (positions - previous) * .70
+            velocity[0] = 0
+        self.nodes[chain_ids, :2] = positions
+        self.velocities[chain_ids] = velocity
         return self.endpoint(appendage)
 
     def cells(self) -> np.ndarray:

@@ -45,24 +45,31 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ### Articulated neural manipulation
 
-![Cell-thick articulated arm carrying food to mouth cells](showcase/articulated_neural_feeding_v2.gif)
+![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v3.gif)
 
 The accepted neural controller selects the appendage, reach, force, and brace.
-A segment-local skin keeps the cellular arm as thick as the legs while its
-fixed-length joint chain curls the held clump back to actual mouth cells.
+A segment-local skin keeps the cellular arm as thick as the legs. Recurrent
+joint velocity, muscle-like terminal drive, and iterative length constraints
+curl the held clump back to actual mouth cells without pose snapping.
 
-![Articulated throw with follow-through and recoil](showcase/articulated_neural_throw_v2.gif)
+![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v3.gif)
 
-The released clump retains its impulse, the body receives recoil, and the arm
-retracts under its own articulated chain rather than remaining attached by a
-display tether.
+The released clump retains its impulse, gains independent elevation, casts a
+ground-plane shadow, falls under gravity, and transfers recoil to the body.
+Horizontal air drag is low enough for a meaningful throw arc.
 
-![Destroyed feeder blocks absorption](showcase/articulated_severed_feeder_v2.gif)
+![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v3.gif)
+
+Phase/charge matter rebounds, rounded mineral matter keeps rolling, and soft
+biomass absorbs impact and thuds. These use the same neural throw command with
+different physical material responses.
+
+![Destroyed feeder blocks absorption](showcase/articulated_severed_feeder_v3.gif)
 
 Damage to the feeder cells prevents reserve gain even after physical contact.
-Source: `outputs/creature_stage_manipulation_v1/showcase_v2/`.
+Source: `outputs/creature_stage_manipulation_v1/showcase_v3/`.
 
-![Five-family articulated neural feeding](showcase/articulated_five_family_feeding_v2.gif)
+![Five-family articulated neural feeding](showcase/articulated_five_family_feeding_v3.gif)
 
 One synchronized replay exposes the morphology-specific arm, limb, root/frond,
 tendril, and hardpoint paths. All five share the accepted neural controller;

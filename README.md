@@ -26,16 +26,21 @@ too large for an ordinary GitHub repository.
 |---|---|---|
 | ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
 
-| Articulated neural feeding | Articulated neural throw | Severed feeder gate |
+| Inertial neural feeding | 2.5D ballistic throw | Severed feeder gate |
 |---|---|---|
-| ![Cell-thick articulated arm carrying food to mouth cells](examples/showcase/articulated_neural_feeding_v2.gif) | ![Articulated throw with follow-through and recoil](examples/showcase/articulated_neural_throw_v2.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_severed_feeder_v2.gif) |
+| ![Cell-thick inertial arm carrying food to mouth cells](examples/showcase/articulated_inertial_feeding_v3.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v3.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_severed_feeder_v3.gif) |
 
 The arm is a chassis-rooted cellular tube with fixed segment lengths, the same
-physical class as the legs. No visible tether or telekinetic transfer is used.
+physical class as the legs. Joint velocity, muscle drive, and projected bone
+lengths make it an inertial limb rather than a pose-swapped animation. No
+visible tether or telekinetic transfer is used.
 The hand cells carry the clump to live feeder cells; the throw releases it into
-free motion while the arm retracts.
+2.5D ballistic motion while the arm retracts. Thrown matter has independent
+elevation, a ground shadow, gravity, and bounce/roll/thud landing responses.
 
-![Five-family articulated neural feeding](examples/showcase/articulated_five_family_feeding_v2.gif)
+![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v3.gif)
+
+![Five-family articulated neural feeding](examples/showcase/articulated_five_family_feeding_v3.gif)
 
 The same controller operates five different appendage/feeder/diet structures
 without replacing their family morphology with a universal manipulator.

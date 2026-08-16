@@ -52,12 +52,14 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
         radius = 3 if feeder else 2
         draw.rectangle((x - radius, y - radius, x + radius, y + radius), fill=color)
     target = arena.targets[target_id]
-    tx, ty = _point(target.position)
+    kinetics = arena.target_kinetics[target_id]
+    tx, ground_y = _point(target.position)
+    ty = int(round(ground_y - kinetics.height * SCALE))
     radius = max(3, int(round(target.radius * SCALE)))
+    shadow_width = max(3, int(round(radius * (1.15 + min(kinetics.height, 12.0) * .025))))
+    shadow_height = max(1, int(round(radius * .30)))
+    draw.ellipse((tx - shadow_width, ground_y - shadow_height, tx + shadow_width, ground_y + shadow_height), fill=(0, 0, 0, 115), outline=(25, 61, 66, 180))
     draw.ellipse((tx - radius, ty - radius, tx + radius, ty + radius), fill=FOOD, outline=(224, 255, 175, 255), width=1)
-    chain = arena.articulation.chain(appendage) + arena.body.position
-    ex, ey = _point(chain[-1])
-    draw.ellipse((ex - 4, ey - 4, ex + 4, ey + 4), outline=INK, width=2)
     reserve = min(1.0, arena.feeding.reserve / arena.feeding.reserve_capacity)
     fullness = min(1.0, arena.feeding.fullness_seconds / arena.feeding.fullness_capacity_seconds)
     draw.text((14, HEIGHT - 36), f"FOOD {target.mass:4.2f}  INTAKE {arena.feeding.consumed_mass:4.2f}", fill=(188, 204, 214, 255))
@@ -65,7 +67,7 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
     draw.rectangle((191, HEIGHT - 33, 191 + int(158 * reserve), HEIGHT - 29), fill=FOOD)
     draw.rectangle((190, HEIGHT - 22, 350, HEIGHT - 16), outline=(54, 84, 91, 255))
     draw.rectangle((191, HEIGHT - 21, 191 + int(158 * fullness), HEIGHT - 17), fill=INK)
-    state = "THROWN" if step.thrown else "FEEDING" if step.absorbed_mass > 0 else "GRASPED" if step.attached else "REACHING"
+    state = f"AIR {kinetics.height:3.1f}" if kinetics.height > .05 and not step.attached else "THROWN" if step.thrown else "FEEDING" if step.absorbed_mass > 0 else "GRASPED" if step.attached else "REACHING"
     draw.text((14, HEIGHT - 20), state, fill=HOT if state in {"THROWN", "FEEDING"} else INK)
     return image
 
@@ -82,12 +84,12 @@ def _encode(frames: list[Image.Image], destination: Path, fps: int = 20) -> None
         subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-framerate", str(fps), "-i", str(root / "frame_%04d.png"), "-filter_complex", "[0:v]split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer:bayer_scale=3", "-loop", "0", str(destination)], check=True)
 
 
-def _arena(genome_index: int, food_position: tuple[float, float]) -> tuple[NeuralManipulationArena, int]:
+def _arena(genome_index: int, food_position: tuple[float, float], *, material: str = "biomass", impact_mode: str | None = None) -> tuple[NeuralManipulationArena, int]:
     arena = NeuralManipulationArena(develop(review_genomes()[genome_index]), device="cpu")
     arena.feeding.reserve = 0.0
     arena.feeding.fullness_seconds = 0.0
-    target = FoodClump(np.asarray(food_position), np.zeros(2), 1.0, .55, 1.0, (1, 1, 1, 1, 1))
-    return arena, arena.add_clump(target, cohesion=2.0)
+    target = FoodClump(np.asarray(food_position), np.zeros(2), 1.0, .55, 1.0, (1, 1, 1, 1, 1), material)
+    return arena, arena.add_clump(target, cohesion=2.0, impact_mode=impact_mode)
 
 
 def _feed_clip() -> list[Image.Image]:
@@ -103,7 +105,7 @@ def _feed_clip() -> list[Image.Image]:
 
 
 def _throw_clip() -> list[Image.Image]:
-    arena, target_id = _arena(0, (12.0, 0.0))
+    arena, target_id = _arena(0, (12.0, 0.0), material="phase", impact_mode="bounce")
     frames: list[Image.Image] = []
     attached = False
     for tick in range(360):
@@ -111,20 +113,59 @@ def _throw_clip() -> list[Image.Image]:
         step = arena.step(target_id, goal=goal, delta=.05, throw_strength=1.0)
         attached |= step.attached
         if tick % 2 == 0:
-            frames.append(_frame(arena, target_id, "NEURAL THROW + BODY RECOIL", "constraint, momentum, ground bracing", step))
+            frames.append(_frame(arena, target_id, "NEURAL THROW + 2.5D BALLISTICS", "elevation, shadow, recoil, material impact", step))
         if step.thrown:
-            for _ in range(80):
+            for _ in range(150):
                 target = arena.targets[target_id]
                 arena.body.position += arena.body.velocity * .05
-                target.position += target.velocity * .05
                 arena.body.velocity *= np.exp(-.05 * 3.2)
-                target.velocity *= np.exp(-.05 * (1.2 + .4 / max(target.mass, .1)))
+                arena.integrate_free_target(target_id, .05)
                 rest = np.asarray(arena.organism.genome.appendages[step.appendage].endpoint, np.float64)
                 arena.articulation.solve(step.appendage, rest, .11)
                 step = ManipulationStep(step.appendage, False, True, False, float(np.linalg.norm(target.position - arena.body.position)), False, 0.0, arena.feeding.reserve, arena.feeding.fullness_seconds)
-                frames.append(_frame(arena, target_id, "NEURAL THROW + BODY RECOIL", "released target retains impulse", step))
+                frames.append(_frame(arena, target_id, "NEURAL THROW + 2.5D BALLISTICS", "phase matter bounces; mineral rolls; biomass thuds", step))
             break
     return frames
+
+
+def _impact_modes_clip() -> list[Image.Image]:
+    modes = (("bounce", "phase"), ("roll", "mineral"), ("thud", "biomass"))
+    entries = []
+    for mode, material in modes:
+        arena, target_id = _arena(0, (12.0, 0.0), material=material, impact_mode=mode)
+        entries.append({"arena": arena, "target": target_id, "mode": mode, "attached": False, "released": False, "step": None})
+    frames: list[Image.Image] = []
+    free_frames = 0
+    for tick in range(360):
+        tiles = []
+        for entry in entries:
+            arena = entry["arena"]
+            target_id = entry["target"]
+            if not entry["released"]:
+                goal = "throw" if entry["attached"] and tick > 25 else "carry"
+                step = arena.step(target_id, goal=goal, delta=.05, throw_strength=1.0)
+                entry["attached"] = bool(entry["attached"] or step.attached)
+                entry["released"] = bool(step.thrown)
+            else:
+                arena.integrate_free_target(target_id, .05)
+                appendage = int(entry["step"].appendage)
+                rest = np.asarray(arena.organism.genome.appendages[appendage].endpoint, np.float64)
+                arena.articulation.solve(appendage, rest, .11)
+                target = arena.targets[target_id]
+                step = ManipulationStep(appendage, False, True, False, float(np.linalg.norm(target.position - arena.body.position)), False, 0.0, arena.feeding.reserve, arena.feeding.fullness_seconds)
+            entry["step"] = step
+            tile = _frame(arena, target_id, f"{entry['mode'].upper()} IMPACT", "same neural throw // different matter", step).resize((256, 192), Image.Resampling.NEAREST)
+            tiles.append(tile)
+        if all(bool(entry["released"]) for entry in entries):
+            free_frames += 1
+        if tick % 2 == 0:
+            sheet = Image.new("RGBA", (768, 192), BG)
+            for index, tile in enumerate(tiles):
+                sheet.alpha_composite(tile, (index * 256, 0))
+            frames.append(sheet)
+        if free_frames >= 145:
+            break
+    return frames + frames[-10:]
 
 
 def _blocked_clip() -> list[Image.Image]:
@@ -167,13 +208,19 @@ def _five_family_clip() -> list[Image.Image]:
 def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    clips = {"articulated_neural_feeding_v2.gif": _feed_clip(), "articulated_neural_throw_v2.gif": _throw_clip(), "articulated_severed_feeder_v2.gif": _blocked_clip(), "articulated_five_family_feeding_v2.gif": _five_family_clip()}
+    clips = {
+        "articulated_inertial_feeding_v3.gif": _feed_clip(),
+        "articulated_ballistic_throw_v3.gif": _throw_clip(),
+        "articulated_impact_modes_v3.gif": _impact_modes_clip(),
+        "articulated_severed_feeder_v3.gif": _blocked_clip(),
+        "articulated_five_family_feeding_v3.gif": _five_family_clip(),
+    }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name
         _encode(frames, path)
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
-    report = {"format": "nullvector-neural-manipulation-showcase/1.0.0", "artifacts": artifacts}
+    report = {"format": "nullvector-neural-manipulation-showcase/2.0.0", "artifacts": artifacts}
     (destination / "showcase_report.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return report
 
