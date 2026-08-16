@@ -5,7 +5,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 ## What is live
 
 - Every organism is a connected cellular body with skeleton, muscle graph, organs, fluids, wounds, scars, severing, detached polyps, decomposition, and family-specific matter.
-- Eight trained neural specialists currently provide grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, settlement strategy, 24-step world-timeline forecasting, action-conditioned counterfactual planning, continuous full-viewport VAE rasterization, and four-tick action-conditioned latent future prediction.
+- Nine trained neural specialists currently provide grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, settlement strategy, 24-step world-timeline forecasting, action-conditioned counterfactual planning, continuous full-viewport VAE rasterization, learned pixel-cell refinement, and four-tick action-conditioned latent future prediction.
 - Reproduction recombines heritable developmental and ecological genomes. Courtship avoids close inbreeding, hybrids are rare, and structural mutations can grow symmetric organs or appendage pairs.
 - Colonies gather finite field matter, share energy, feed starving kin, heal with cached resources, consolidate visible powder caches, inherit culture, fission, and can become societies.
 - Societies construct collidable/destructible cities, process finite stockpiles, discover technology, issue contracts, trade, and provide building services.
