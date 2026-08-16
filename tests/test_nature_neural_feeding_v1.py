@@ -33,6 +33,25 @@ def test_all_families_use_neural_grasper_and_physical_feeder() -> None:
         assert entity.reserve > 0, family
 
 
+def test_persistent_held_clump_is_exactly_constrained_to_the_hand() -> None:
+    world, system, entity = _single(0, 88)
+    attached_frames = 0
+    for _ in range(500):
+        world.step(.05, publish=False)
+        state = system.entities[entity.entity_id]
+        if not state.constraint.attached or state.target_id not in system.clumps:
+            continue
+        clump = system.clumps[int(state.target_id)]
+        appendage = int(state.grasp_appendage)
+        expected = state.articulation.endpoint(appendage) / 12.0
+        actual = world._delta(entity.position, clump.food.position)
+        assert np.linalg.norm(actual - expected) < 1e-6
+        attached_frames += 1
+        if attached_frames >= 24:
+            break
+    assert attached_frames >= 24
+
+
 def test_consumed_clump_is_retired_before_grasp_physics() -> None:
     world, system, entity = _single(0, 93)
     clump_id = max(system.clumps)

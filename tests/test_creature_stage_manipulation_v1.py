@@ -30,13 +30,36 @@ def test_grasper_chain_has_inertia_and_preserves_bone_lengths() -> None:
     before = articulation.endpoint(appendage).copy()
     target = articulation.root(appendage) + np.asarray((-7.0, -1.5))
     first = articulation.solve(appendage, target, .65)
-    assert np.linalg.norm(first - before) > .05
+    assert np.linalg.norm(first - before) > .035
     assert np.linalg.norm(first - target) > .05  # no kinematic pose snap
     for _ in range(80):
         final = articulation.solve(appendage, target, .65)
     assert np.linalg.norm(final - target) < .35
     assert np.linalg.norm(articulation.velocities[articulation.chain_ids[appendage][1:]], axis=1).max() > 0
     assert articulation.max_length_error() < 1e-4
+
+
+def test_grasper_motion_is_acceleration_bounded_like_grounded_limbs() -> None:
+    articulation = ArticulatedBody.from_organism(develop(review_genomes()[0]))
+    target = articulation.root(0) + np.asarray((-7.0, -1.5))
+    chains = []
+    endpoints = []
+    for _ in range(120):
+        endpoints.append(articulation.solve(0, target, .65, delta=.05))
+        chains.append(articulation.chain(0))
+    endpoints = np.stack(endpoints)
+    chains = np.stack(chains)
+    velocity = np.diff(endpoints, axis=0)
+    acceleration = np.diff(velocity, axis=0)
+    assert np.linalg.norm(velocity, axis=1).max() < .55
+    assert np.linalg.norm(acceleration, axis=1).max() < .18
+    assert np.linalg.norm(endpoints[-1] - target) < .20
+    # Every articulated joint shares the same inertial vocabulary; a smooth
+    # endpoint may not conceal a snapping elbow.
+    joint_velocity = np.diff(chains[:, 1:], axis=0)
+    joint_acceleration = np.diff(joint_velocity, axis=0)
+    assert np.linalg.norm(joint_velocity, axis=2).max() < .55
+    assert np.linalg.norm(joint_acceleration, axis=2).max() < .18
 
 
 def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
@@ -56,6 +79,45 @@ def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
         assert arena.feeding.consumed_mass > .15 and arena.feeding.reserve > .15, genome.genome_id
         assert arena.targets[target_id].mass < .85, genome.genome_id
         assert arena.articulation.max_length_error() < 1e-4, genome.genome_id
+
+
+def test_grasped_payload_is_rigidly_constrained_to_the_hand() -> None:
+    arena = NeuralManipulationArena(develop(review_genomes()[0]), device="cpu")
+    target_id = arena.add_clump(_food((12.0, 1.0)), cohesion=2.0)
+    attached_frames = 0
+    for _ in range(500):
+        step = arena.step(target_id, goal="consume", delta=.05)
+        if step.attached:
+            hand = arena.articulation.endpoint(step.appendage) + arena.body.position
+            assert np.linalg.norm(arena.targets[target_id].position - hand) < .01
+            attached_frames += 1
+            if attached_frames >= 40:
+                break
+    assert attached_frames >= 40
+
+
+def test_five_families_collect_ground_food_through_distinct_physics() -> None:
+    positions = (5.5, 0.0, 4.0, 8.0, 8.5)
+    materials = ("biomass", "biomass", "mineral", "phase", "charge")
+    strategies = ("kneel_grasp", "ground_bite", "root_siphon", "phase_tractor", "suspension_tool")
+    attached = []
+    for family, genome in enumerate(review_genomes()[::2]):
+        arena = NeuralManipulationArena(develop(genome), device="cpu")
+        target = _food((positions[family], arena.ground_plane_y()))
+        target.material = materials[family]
+        target_id = arena.add_clump(target, cohesion=2.0)
+        saw_attachment = False
+        for _ in range(800):
+            step = arena.step_family_acquisition(target_id, delta=.05)
+            saw_attachment |= step.attached
+            if arena.feeding.consumed_mass >= .20:
+                break
+        assert arena.acquisition_strategy() == strategies[family]
+        assert arena.feeding.consumed_mass >= .20, strategies[family]
+        attached.append(saw_attachment)
+    # Humanoid and machine must physically grasp. Mouth, roots, and anomaly
+    # field intentionally use direct feeder contact instead.
+    assert attached == [True, False, False, False, True]
 
 
 def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:
@@ -83,6 +145,35 @@ def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:
         peak_height = max(peak_height, arena.target_kinetics[target_id].height)
     assert float(arena.targets[target_id].position[0]) - release_x > 20.0
     assert peak_height > 8.0 and arena.target_kinetics[target_id].impacts > 1
+    assert abs(float(arena.targets[target_id].position[1]) - arena.ground_plane_y()) < .02
+
+
+def test_severed_arm_is_free_falling_and_damaged_arms_cannot_carry() -> None:
+    organism = develop(review_genomes()[0])
+    arena = NeuralManipulationArena(organism, device="cpu")
+    appendage = arena.grasper_indices()[0]
+    before = arena.articulation.chain(appendage)
+    arena.sever_appendage(appendage)
+    assert not arena.articulation.attached[appendage]
+    for _ in range(140):
+        arena._step_detached_limbs(.05)
+    after = arena.articulation.chain(appendage)
+    assert arena.articulation.detached_age[appendage] > 6.9
+    assert np.linalg.norm(after - before) > 2.0
+    assert float(after[:, 1].max()) <= arena.ground_plane_y() + 1e-5
+
+    damaged = NeuralManipulationArena(organism, device="cpu")
+    target_id = damaged.add_clump(_food((10.0, 1.0)), cohesion=2.0)
+    for grasper in damaged.grasper_indices():
+        damaged.damage_appendage(grasper, remaining_health=.18)
+    start = damaged.targets[target_id].position.copy()
+    attached = False
+    for _ in range(240):
+        step = damaged.step(target_id, goal="consume", delta=.05)
+        attached |= step.attached
+    assert not attached
+    assert np.linalg.norm(damaged.targets[target_id].position - start) < .05
+    assert damaged.feeding.consumed_mass == 0
 
 
 def test_2p5d_impacts_bounce_roll_or_thud() -> None:

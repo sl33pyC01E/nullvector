@@ -45,35 +45,49 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ### Articulated neural manipulation
 
-![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v3.gif)
+![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v6.gif)
 
 The accepted neural controller selects the appendage, reach, force, and brace.
 A segment-local skin keeps the cellular arm as thick as the legs. Recurrent
-joint velocity, muscle-like terminal drive, and iterative length constraints
-curl the held clump back to actual mouth cells without pose snapping.
+joint velocity, a critically damped reach governor, distributed curved muscle
+forces, and iterative length constraints curl the held clump back to actual
+mouth cells without pose snapping. The grasp is a positional hand constraint,
+so carried material cannot lag or float behind the arm.
 
-![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v3.gif)
+![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v6.gif)
 
 The released clump retains its impulse, gains independent elevation, casts a
-ground-plane shadow, falls under gravity, and transfers recoil to the body.
-Horizontal air drag is low enough for a meaningful throw arc.
+feet-plane shadow, falls under gravity, and transfers recoil to the body.
+Horizontal air drag is low enough for a long, legible throw arc.
 
-![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v3.gif)
+![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v6.gif)
 
 Phase/charge matter rebounds, rounded mineral matter keeps rolling, and soft
 biomass absorbs impact and thuds. These use the same neural throw command with
 different physical material responses.
 
-![Destroyed feeder blocks absorption](showcase/articulated_severed_feeder_v3.gif)
+![Severed articulated arm drops its payload, twitches briefly, and settles](showcase/articulated_severed_grasper_v6.gif)
+
+The arm is fully disconnected at its root bridge. Its cells and bone chain fall
+under gravity, retain only a brief decaying residual twitch, and then become
+inert. The released payload follows its own material physics.
+
+![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v6.gif)
+
+Severe muscle/neural damage leaves a weak residual motion but insufficient
+capacity to attach or transport the clump.
+
+![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v6.gif)
 
 Damage to the feeder cells prevents reserve gain even after physical contact.
-Source: `outputs/creature_stage_manipulation_v1/showcase_v3/`.
+Source: `outputs/creature_stage_manipulation_v1/showcase_v6/`.
 
-![Five-family articulated neural feeding](showcase/articulated_five_family_feeding_v3.gif)
+![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v6.gif)
 
-One synchronized replay exposes the morphology-specific arm, limb, root/frond,
-tendril, and hardpoint paths. All five share the accepted neural controller;
-their cells, joints, feeder apertures, and compatible nutrients remain distinct.
+One synchronized replay exposes distinct ground-acquisition strategies:
+humanoid kneel-and-grasp, animal ground bite, plant root siphon, anomaly phase
+tractor, and machine suspension/tool collection. Their cells, joints, feeder
+apertures, and compatible nutrients remain distinct.
 
 ![Cellular breeding and soft symmetry](showcase/cellular_breeding_symmetry.png)
 

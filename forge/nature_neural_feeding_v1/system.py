@@ -189,9 +189,17 @@ class NatureNeuralFeedingSystem:
 
     def step_environment(self, world, delta: float) -> None:
         self.seed_from_fields(world)
+        held = {
+            int(state.target_id) for state in self.entities.values()
+            if state.constraint.attached and state.target_id is not None
+        }
         for clump_id in sorted(tuple(self.clumps)):
             clump = self.clumps[clump_id]
-            self._integrate_clump(clump, world, delta)
+            # A held clump belongs to the hand constraint.  Advancing it as an
+            # independent ballistic body before the creature update produced
+            # the old one-frame trailing/float artifact.
+            if clump_id not in held:
+                self._integrate_clump(clump, world, delta)
             if clump.food.mass <= 1e-5:
                 del self.clumps[clump_id]
         # Bounded conversion of field abundance into tangible matter prevents
@@ -233,8 +241,20 @@ class NatureNeuralFeedingSystem:
             cohesion=min(1.0, clump.cohesion), mobility=1.0, attached=state.constraint.attached,
         )
         appendage = min(command.appendage, len(state.articulation.chain_ids) - 1)
+        if entity.family == 2:
+            preferred = tuple(range(len(state.articulation.chain_ids)))
+        else:
+            preferred = tuple(
+                index for index, gene in enumerate(entity.body.organism.genome.appendages)
+                if gene.kind not in {"leg", "root", "wheel"}
+            ) or tuple(range(len(state.articulation.chain_ids)))
+        if appendage not in preferred:
+            appendage = min(
+                preferred,
+                key=lambda index: (float(np.linalg.norm(state.articulation.endpoint(index) - local_target)), index),
+            )
         if not state.articulation.feasible(appendage, local_target):
-            feasible = [index for index in range(len(state.articulation.chain_ids)) if state.articulation.feasible(index, local_target)]
+            feasible = [index for index in preferred if state.articulation.feasible(index, local_target)]
             if feasible:
                 appendage = min(feasible, key=lambda index: (float(np.linalg.norm(state.articulation.endpoint(index) - local_target)), index))
         if state.constraint.attached and state.grasp_appendage is not None:
@@ -246,16 +266,39 @@ class NatureNeuralFeedingSystem:
             desired = min(feasible_feeders, key=lambda point: float(np.linalg.norm(point - state.articulation.endpoint(appendage)))) if feasible_feeders else np.asarray(command.reach, np.float64) * 24
         else:
             desired = np.asarray(command.reach, np.float64) * 24
-        effector = state.articulation.solve(appendage, desired, min(1.0, delta * (10 + 8 * command.force)))
+        limb_cells = state.articulation._skinned_cell_ids(appendage)
+        capacity = float(np.mean(entity.body.health[limb_cells])) if limb_cells.size else 0.0
+        capacity = float(np.clip(capacity * (.18 + .82 * entity.body.systems()["neural"]), 0, 1))
+        effector = state.articulation.solve(
+            appendage, desired, min(1.0, delta * (10 + 8 * command.force)),
+            delta=delta, actuation=capacity, load=clump.food.mass if state.constraint.attached else 0.0,
+        )
         body = GraspBody(np.zeros(2), entity.velocity.copy() * CELLS_PER_WORLD, max(1.0, entity.body.organism.cell_count * .08))
         target = GraspBody(local_target.copy(), clump.food.velocity.copy() * CELLS_PER_WORLD, clump.food.mass)
         was_attached = state.constraint.attached
         # Consume-mode grasp is a closed hand/contact patch. Ordinary carrying
         # cannot repeatedly tear and reattach the same clump; explicit pull/
         # cut actions retain the lower material cohesion path elsewhere.
-        result = solve_grasp(body, target, effector=effector, engage=command.engage or state.constraint.attached, force=command.force, brace=command.brace, cohesion=100.0, state=state.constraint, delta=delta)
+        can_hold = capacity >= .12 and clump.food.mass <= .10 + capacity * 2.2
+        result = solve_grasp(
+            body, target, effector=effector,
+            engage=(command.engage or state.constraint.attached) and can_hold,
+            force=command.force * capacity, brace=command.brace, cohesion=100.0,
+            state=state.constraint, delta=delta,
+        )
         entity.velocity = body.velocity / CELLS_PER_WORLD
-        clump.food.velocity = target.velocity / CELLS_PER_WORLD
+        if state.constraint.attached:
+            # Convert the exact cell-space hand pose back into the persistent
+            # toroidal world.  Position and velocity are both inherited from
+            # the hand; no secondary spring is allowed to trail behind it.
+            clump.food.position = (entity.position + effector / CELLS_PER_WORLD) % world.size
+            clump.food.velocity = entity.velocity + state.articulation.endpoint_velocity(appendage) / CELLS_PER_WORLD
+            clump.height = 0.0
+            clump.vertical_velocity = 0.0
+            target.position[:] = effector
+            target.velocity[:] = clump.food.velocity * CELLS_PER_WORLD
+        else:
+            clump.food.velocity = target.velocity / CELLS_PER_WORLD
         if state.constraint.attached and not was_attached:
             self.grasps += 1
             state.grasp_appendage = appendage
@@ -305,6 +348,13 @@ class NatureNeuralFeedingSystem:
                 "fullness": state.feeding.fullness_seconds, "fullness_capacity": state.feeding.fullness_capacity_seconds,
                 "consumed": state.feeding.consumed_mass, "posed_nodes": state.articulation.nodes.tolist(),
                 "node_velocities": state.articulation.velocities.tolist(),
+                "reach_targets": state.articulation.targets.tolist(),
+                "reach_target_velocities": state.articulation.target_velocities.tolist(),
+                "component_offsets": state.articulation.component_offsets.tolist(),
+                "component_velocities": state.articulation.component_velocities.tolist(),
+                "limb_attached": state.articulation.attached.tolist(),
+                "detached_age": state.articulation.detached_age.tolist(),
+                "articulation_elapsed": state.articulation.elapsed,
                 "attached": state.constraint.attached, "target_kind": state.constraint.target_kind,
                 "constraint_target": state.constraint.target_id, "strain": state.constraint.strain,
                 "target_id": state.target_id, "identity": state.identity, "grasp_appendage": state.grasp_appendage,
@@ -336,6 +386,29 @@ class NatureNeuralFeedingSystem:
             if velocities.shape != articulation.velocities.shape or not np.isfinite(velocities).all():
                 raise ValueError("neural feeding articulation velocity drifted")
             articulation.velocities[:] = velocities
+            reach_targets = np.asarray(raw.get("reach_targets", articulation.targets), np.float32)
+            reach_velocities = np.asarray(raw.get("reach_target_velocities", articulation.target_velocities), np.float32)
+            component_offsets = np.asarray(raw.get("component_offsets", articulation.component_offsets), np.float32)
+            component_velocities = np.asarray(raw.get("component_velocities", articulation.component_velocities), np.float32)
+            limb_attached = np.asarray(raw.get("limb_attached", articulation.attached), np.bool_)
+            detached_age = np.asarray(raw.get("detached_age", articulation.detached_age), np.float32)
+            if reach_targets.shape != articulation.targets.shape or reach_velocities.shape != articulation.target_velocities.shape:
+                raise ValueError("neural feeding reach governor drifted")
+            if component_offsets.shape != articulation.component_offsets.shape or component_velocities.shape != articulation.component_velocities.shape:
+                raise ValueError("neural feeding component posture drifted")
+            if limb_attached.shape != articulation.attached.shape or detached_age.shape != articulation.detached_age.shape:
+                raise ValueError("neural feeding limb state drifted")
+            if not np.isfinite(reach_targets).all() or not np.isfinite(reach_velocities).all() or not np.isfinite(component_offsets).all() or not np.isfinite(component_velocities).all() or not np.isfinite(detached_age).all():
+                raise ValueError("neural feeding articulation state became non-finite")
+            articulation.targets[:] = reach_targets
+            articulation.target_velocities[:] = reach_velocities
+            articulation.component_offsets[:] = component_offsets
+            articulation.component_velocities[:] = component_velocities
+            component_count = len(articulation.organism.genome.components)
+            articulation.nodes[:component_count, :2] = articulation.organism.skeleton_nodes[:component_count, :2] + component_offsets
+            articulation.attached[:] = limb_attached
+            articulation.detached_age[:] = detached_age
+            articulation.elapsed = float(raw.get("articulation_elapsed", 0.0))
             self.entities[int(raw["id"])] = EntityFeeding(feeding, articulation, constraint, raw["target_id"], str(raw["identity"]), raw.get("grasp_appendage"))
         if payload.get("semantic_sha256") != self.semantic_sha256():
             raise ValueError("neural feeding save semantic hash drifted")

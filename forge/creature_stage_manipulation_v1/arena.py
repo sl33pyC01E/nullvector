@@ -25,6 +25,8 @@ class ManipulationStep:
     absorbed_mass: float
     reserve: float
     fullness_seconds: float
+    actuation: float = 1.0
+    detached: bool = False
 
 
 @dataclass(slots=True)
@@ -66,6 +68,109 @@ class NeuralManipulationArena:
         self.cohesion: dict[int, float] = {}
         self.next_target_id = 1
 
+    def ground_plane_y(self) -> float:
+        contacts = [
+            float(gene.endpoint[1]) for gene in self.organism.genome.appendages
+            if gene.kind in {"leg", "root", "wheel"}
+        ]
+        local = max(contacts, default=float(self.organism.cell_xy[:, 1].max() + 1.0))
+        return float(self.body.position[1] + local)
+
+    @property
+    def family(self) -> int:
+        return int(np.argmax(self.organism.genome.family_mix))
+
+    def acquisition_strategy(self) -> str:
+        return ("kneel_grasp", "ground_bite", "root_siphon", "phase_tractor", "suspension_tool")[self.family]
+
+    def pose_for_acquisition(self, amount: float, *, delta: float) -> None:
+        """Apply a vertical-only 2.5D acquisition posture for this chassis."""
+        amount = float(np.clip(amount, 0, 1))
+        offsets = np.zeros_like(self.articulation.component_offsets)
+        for index, component in enumerate(self.organism.genome.components):
+            if self.family == 0:  # pelvis folds; torso/head descend to the hand's ground reach
+                drop = 4.5 if component.kind == "pelvis" else 9.5
+            elif self.family == 1:  # lower head/mouth rather than inventing a universal arm
+                if component.kind in {"head", "mouth", "sensor_crown"} or component.organ in {"jaw", "vision"}:
+                    drop = 28.0
+                elif float(component.anchor[1]) < 0:
+                    drop = 8.0
+                else:
+                    drop = 0.0
+            elif self.family == 4:  # compress wheel/track suspension under a tool hardpoint
+                drop = 3.5 if component.kind == "pelvis" else 10.5
+            else:
+                drop = 0.0
+            offsets[index, 1] = drop * amount
+        self.articulation.pose_components(offsets, delta=delta, response=.92)
+
+    def posed_feeder_points(self) -> np.ndarray:
+        status = feeder_status(self.living)
+        return self.articulation.cells()[status.feeder_mask & self.living.alive_mask].astype(np.float64) + self.body.position
+
+    def grasper_indices(self) -> tuple[int, ...]:
+        # Plant roots are both locomotors and literal feeder/manipulators.
+        if int(np.argmax(self.organism.genome.family_mix)) == 2:
+            return tuple(range(len(self.organism.genome.appendages)))
+        non_locomotor = tuple(
+            index for index, gene in enumerate(self.organism.genome.appendages)
+            if gene.kind not in {"leg", "root", "wheel"}
+        )
+        return non_locomotor or tuple(range(len(self.organism.genome.appendages)))
+
+    def appendage_capacity(self, appendage: int) -> float:
+        if not self.articulation.attached[appendage]:
+            return 0.0
+        cells = self.articulation._skinned_cell_ids(appendage)
+        if cells.size == 0:
+            return 0.0
+        connected = self.living._connected_to_core()[cells]
+        structural = float(np.mean(self.living.health[cells] * connected))
+        neural = float(self.living.systems()["neural"])
+        return float(np.clip(structural * (.18 + .82 * neural), 0, 1))
+
+    def damage_appendage(self, appendage: int, *, remaining_health: float = .22) -> None:
+        if not 0 <= remaining_health <= 1:
+            raise ValueError("appendage damage drifted")
+        cells = self.articulation._skinned_cell_ids(appendage)
+        self.living.health[cells] = np.minimum(self.living.health[cells], np.float32(remaining_health))
+        wounded = cells[self.living.fluid[cells] > 0]
+        self.living._emit_leaks(wounded[:: max(1, len(wounded) // 6)], impulse=.45)
+
+    def sever_appendage(self, appendage: int, *, impulse: tuple[float, float] = (.6, -1.2)) -> None:
+        """Break the root bridge while preserving the detached limb's cells."""
+        cells = self.articulation._skinned_cell_ids(appendage)
+        if cells.size == 0:
+            raise ValueError("cannot sever an empty appendage")
+        root = self.articulation.root(appendage)
+        distance = np.linalg.norm(self.organism.cell_xy[cells] - root, axis=1)
+        bridge = cells[distance <= max(1.35, float(np.quantile(distance, .16)))]
+        self.living.health[bridge] = 0
+        self.living._emit_leaks(bridge, impulse=.9)
+        dropped_target = self.held_target if self.grasp_appendage == appendage else None
+        if dropped_target is not None and dropped_target in self.targets:
+            target = self.targets[dropped_target]
+            kinetics = self.target_kinetics[dropped_target]
+            plane = self.ground_plane_y()
+            kinetics.height = max(.0, plane - float(target.position[1]))
+            kinetics.vertical_velocity = 0.0
+            target.position[1] = plane
+            target.velocity[:] = self.articulation.endpoint_velocity(appendage) + self.body.velocity
+            target.velocity[1] = 0.0
+        self.articulation.sever(appendage, impulse=np.asarray(impulse, np.float32))
+        if self.grasp_appendage == appendage:
+            self.constraint.attached = False
+            self.held_target = None
+            self.grasp_appendage = None
+
+    def _step_detached_limbs(self, delta: float) -> None:
+        for appendage in np.flatnonzero(~self.articulation.attached):
+            cells = self.articulation._skinned_cell_ids(int(appendage))
+            residual = float(np.mean(self.living.health[cells])) if cells.size else 0.0
+            self.articulation.step_detached(
+                int(appendage), delta=delta, ground_y=self.ground_plane_y(), residual=residual,
+            )
+
     def add_clump(self, clump: FoodClump, *, cohesion: float = .6, impact_mode: str | None = None) -> int:
         if not math.isfinite(cohesion) or not .01 <= cohesion <= 4:
             raise ValueError("manipulation target cohesion drifted")
@@ -97,7 +202,7 @@ class NeuralManipulationArena:
                 kinetics.height = 0.0
                 kinetics.impacts += 1
                 impact_speed = max(0.0, -kinetics.vertical_velocity)
-                if kinetics.impact_mode == "bounce" and impact_speed > 1.15:
+                if kinetics.impact_mode == "bounce" and impact_speed > 2.2:
                     kinetics.vertical_velocity = impact_speed * .58
                     target.velocity *= .88
                     kinetics.angular_velocity += float(target.velocity[0]) * .12
@@ -126,17 +231,73 @@ class NeuralManipulationArena:
 
     def _feeder_target(self, appendage: int) -> np.ndarray:
         status = feeder_status(self.living)
-        candidates = self.organism.cell_xy[status.feeder_mask & self.living.alive_mask].astype(np.float64)
+        candidates = self.articulation.cells()[status.feeder_mask & self.living.alive_mask].astype(np.float64)
         feasible = [point for point in candidates if self.articulation.feasible(appendage, point, contact_radius=1.8)]
         if not feasible:
             return np.asarray(self.organism.genome.appendages[appendage].endpoint, np.float64)
         endpoint = self.articulation.endpoint(appendage)
         return min(feasible, key=lambda point: float(np.linalg.norm(point - endpoint)))
 
+    def _absorb_at_posed_feeder(self, target_id: int, delta: float) -> IntakeResult:
+        """Reuse physiology while making contact against the posed cell skin."""
+        target = self.targets[target_id]
+        kinetics = self.target_kinetics[target_id]
+        visual_position = target.position.copy()
+        if not (self.constraint.attached and self.held_target == target_id):
+            visual_position[1] -= kinetics.height
+        posed = self.posed_feeder_points()
+        contacted = bool(
+            posed.size and float(np.min(np.linalg.norm(posed - visual_position, axis=1)))
+            <= 1.80 + target.radius
+        )
+        if self.acquisition_strategy() in {"kneel_grasp", "suspension_tool"}:
+            contacted = contacted and self.constraint.attached and self.held_target == target_id
+        if not contacted:
+            return IntakeResult(False, feeder_status(self.living).route_intact, 0.0, 0.0, self.feeding.reserve, self.feeding.fullness_seconds)
+        original = target.position.copy()
+        # absorb_food remains the single metabolic/route authority. Move only
+        # its contact probe onto a live static feeder cell, then restore the
+        # physical clump position immediately.
+        static = self.organism.cell_xy[feeder_status(self.living).feeder_mask & self.living.alive_mask]
+        target.position[:] = static[0].astype(np.float64) + self.body.position
+        try:
+            return absorb_food(
+                self.living, self.feeding, target, body_position=self.body.position,
+                delta=delta, contact_field=1.80, intake_rate=.55,
+            )
+        finally:
+            target.position[:] = original
+
+    def step_family_acquisition(self, target_id: int, *, delta: float = .05) -> ManipulationStep:
+        """Family-specific ground collection on top of shared cell physiology."""
+        strategy = self.acquisition_strategy()
+        self.pose_for_acquisition(1.0 if strategy in {"kneel_grasp", "ground_bite", "suspension_tool"} else 0.0, delta=delta)
+        target = self.targets[target_id]
+        kinetics = self.target_kinetics[target_id]
+        if strategy in {"kneel_grasp", "suspension_tool"}:
+            return self.step(target_id, goal="consume", delta=delta)
+        if strategy == "phase_tractor":
+            feeders = self.posed_feeder_points()
+            destination = feeders.mean(axis=0)
+            desired_height = max(0.0, self.ground_plane_y() - float(destination[1]))
+            target.velocity[0] += (float(destination[0]) - float(target.position[0])) * delta * 3.0
+            target.velocity[0] *= math.exp(-delta * 4.0)
+            target.position[0] += target.velocity[0] * delta
+            kinetics.vertical_velocity += (desired_height - kinetics.height) * delta * 5.0
+            kinetics.vertical_velocity *= math.exp(-delta * 4.0)
+            kinetics.height = max(0.0, kinetics.height + kinetics.vertical_velocity * delta)
+        intake = self._absorb_at_posed_feeder(target_id, delta)
+        return ManipulationStep(
+            0, False, False, False,
+            float(np.linalg.norm(target.position - self.body.position)), intake.contacted,
+            intake.absorbed_mass, intake.reserve, intake.fullness_seconds,
+        )
+
     def step(self, target_id: int, *, goal: str, delta: float = .05, throw_strength: float = .85) -> ManipulationStep:
         if target_id not in self.targets or not math.isfinite(delta) or not .005 <= delta <= .25:
             raise ValueError("manipulation step drifted")
         target = self.targets[target_id]
+        self._step_detached_limbs(delta)
         if target.mass <= 1e-8:
             self.constraint.attached = False
             self.held_target = None
@@ -152,20 +313,42 @@ class NeuralManipulationArena:
         )
         predicted_appendage = min(command.appendage, len(self.articulation.chain_ids) - 1)
         local_target = target.position - self.body.position
+        preferred = self.grasper_indices()
+        available = [index for index in preferred if self.articulation.attached[index]]
+        if predicted_appendage not in available and available:
+            predicted_appendage = min(
+                available,
+                key=lambda index: (float(np.linalg.norm(self.articulation.endpoint(index) - local_target)), index),
+            )
         if not self.articulation.feasible(predicted_appendage, local_target):
-            feasible = [index for index in range(len(self.articulation.chain_ids)) if self.articulation.feasible(index, local_target)]
+            feasible = [index for index in available if self.articulation.feasible(index, local_target)]
             if feasible:
                 predicted_appendage = min(feasible, key=lambda index: (float(np.linalg.norm(self.articulation.endpoint(index) - local_target)), index))
         appendage = self.grasp_appendage if self.constraint.attached and self.grasp_appendage is not None else predicted_appendage
+        capacity = self.appendage_capacity(appendage)
+        if self.constraint.attached and capacity < .08:
+            self.constraint.attached = False
+            self.held_target = None
+            self.grasp_appendage = None
         desired_local = self._feeder_target(appendage) if self.constraint.attached and goal == "consume" else np.asarray(command.reach, dtype=np.float64) * 24.0
         desired = self.body.position + desired_local
         response = min(1.0, delta * (10.0 + 8.0 * command.force))
-        effector = self.articulation.solve(appendage, desired - self.body.position, response) + self.body.position
+        effector = self.articulation.solve(
+            appendage, desired - self.body.position, response, delta=delta,
+            actuation=capacity, load=target.mass if self.constraint.attached else 0.0,
+        ) + self.body.position
         target_body = GraspBody(target.position, target.velocity, target.mass)
-        release = np.asarray(command.throw_impulse, dtype=np.float64) * (12.0 * throw_strength) if command.release and goal == "throw" else None
+        release = np.asarray(command.throw_impulse, dtype=np.float64) * (19.0 * throw_strength) if command.release and goal == "throw" else None
+        if release is not None:
+            magnitude = float(np.linalg.norm(release))
+            if magnitude > 12.0:
+                release *= 12.0 / magnitude
+        effective_force = float(command.force * capacity)
+        can_hold = capacity >= .12 and target.mass <= .10 + capacity * 2.2
         result = solve_grasp(
             self.body, target_body, effector=effector,
-            engage=(command.engage or self.constraint.attached) and not command.release, force=command.force,
+            engage=(command.engage or self.constraint.attached) and not command.release and can_hold,
+            force=effective_force,
             # A closed feeding grip follows the hand through its curl without
             # repeatedly tearing off during normal joint inertia. Explicit
             # pull/cut actions still use the material's authored cohesion.
@@ -181,24 +364,25 @@ class NeuralManipulationArena:
             # at release; adding both would visually lift food above the hand.
             kinetics.height = 0.0
             kinetics.vertical_velocity = 0.0
+            # A grasp is a positional hand constraint. The payload inherits the
+            # endpoint velocity and cannot lag behind a faster arm.
+            target.position[:] = effector
+            target.velocity[:] = self.body.velocity + self.articulation.endpoint_velocity(appendage)
         elif self.held_target == target_id:
             self.held_target = None
             self.grasp_appendage = None
         if result["thrown"]:
             kinetics = self.target_kinetics[target_id]
-            kinetics.height = max(kinetics.height, 5.5)
-            kinetics.vertical_velocity = 9.5
+            plane = self.ground_plane_y()
+            kinetics.height = max(.5, plane - float(target.position[1]))
+            target.position[1] = plane
+            target.velocity[1] = 0.0
+            kinetics.vertical_velocity = 11.5 + min(4.0, abs(float(command.throw_impulse[1])) * 4.0)
         self.body.position += self.body.velocity * delta
         self.body.velocity *= math.exp(-delta * 3.2)
-        if result["attached"]:
-            target.position += target.velocity * delta
-            target.velocity *= math.exp(-delta * (1.2 + .4 / max(target.mass, .1)))
-        else:
+        if not result["attached"]:
             self.integrate_free_target(target_id, delta)
-        intake = absorb_food(
-            self.living, self.feeding, target, body_position=self.body.position,
-            delta=delta, contact_field=1.80, intake_rate=.55,
-        )
+        intake = self._absorb_at_posed_feeder(target_id, delta)
         if intake.absorbed_mass > 0 and target.mass <= 1e-8:
             self.constraint.attached = False
             self.held_target = None
@@ -206,4 +390,5 @@ class NeuralManipulationArena:
             appendage, bool(result["attached"]), bool(result["thrown"]), bool(result["torn"]),
             float(np.linalg.norm(target.position - self.body.position)), intake.contacted,
             intake.absorbed_mass, intake.reserve, intake.fullness_seconds,
+            capacity, not bool(self.articulation.attached[appendage]),
         )

@@ -26,24 +26,34 @@ too large for an ordinary GitHub repository.
 |---|---|---|
 | ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
 
-| Inertial neural feeding | 2.5D ballistic throw | Severed feeder gate |
+| Inertial neural feeding | 2.5D ballistic throw | True arm severing |
 |---|---|---|
-| ![Cell-thick inertial arm carrying food to mouth cells](examples/showcase/articulated_inertial_feeding_v3.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v3.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_severed_feeder_v3.gif) |
+| ![Cell-thick inertial arm carrying food to mouth cells](examples/showcase/articulated_inertial_feeding_v6.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v6.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v6.gif) |
 
 The arm is a chassis-rooted cellular tube with fixed segment lengths, the same
-physical class as the legs. Joint velocity, muscle drive, and projected bone
-lengths make it an inertial limb rather than a pose-swapped animation. No
-visible tether or telekinetic transfer is used.
+physical class as the legs. A critically damped reach governor, distributed
+curved muscle forces, recurrent joint velocity, and projected bone lengths
+make it an inertial limb rather than a pose-swapped animation. No visible
+tether or telekinetic transfer is used. Held matter is constrained directly to
+the hand, so it cannot trail behind a faster arm.
 The hand cells carry the clump to live feeder cells; the throw releases it into
-2.5D ballistic motion while the arm retracts. Thrown matter has independent
-elevation, a ground shadow, gravity, and bounce/roll/thud landing responses.
+2.5D ballistic motion while the arm follows through. Thrown matter has
+independent elevation, a feet-plane shadow, gravity, long horizontal travel,
+and bounce/roll/thud landing responses.
 
-![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v3.gif)
+| Damaged grasper | Feeder ablation |
+|---|---|
+| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v6.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v6.gif) |
 
-![Five-family articulated neural feeding](examples/showcase/articulated_five_family_feeding_v3.gif)
+![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v6.gif)
 
-The same controller operates five different appendage/feeder/diet structures
-without replacing their family morphology with a universal manipulator.
+![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v6.gif)
+
+Ground matter is acquired through five distinct physical strategies rather
+than a universal manipulator: humanoids kneel and grasp, animals lower their
+mouth to bite, plants siphon through live roots, machines compress their
+suspension under a tool hardpoint, and anomalies alone may lift matter through
+a visible phase field. All retain family-specific feeder and diet physiology.
 
 See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
 VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
