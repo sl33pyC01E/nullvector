@@ -5,7 +5,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 ## What is live
 
 - Every organism is a connected cellular body with skeleton, muscle graph, organs, fluids, wounds, scars, severing, detached polyps, decomposition, and family-specific matter.
-- Six trained neural specialists currently control grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, settlement strategy, 24-step world-timeline forecasting, and action-conditioned counterfactual planning.
+- Seven trained neural specialists currently provide grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, settlement strategy, 24-step world-timeline forecasting, action-conditioned counterfactual planning, and continuous full-viewport VAE rasterization.
 - Reproduction recombines heritable developmental and ecological genomes. Courtship avoids close inbreeding, hybrids are rare, and structural mutations can grow symmetric organs or appendage pairs.
 - Colonies gather finite field matter, share energy, feed starving kin, heal with cached resources, consolidate visible powder caches, inherit culture, fission, and can become societies.
 - Societies construct collidable/destructible cities, process finite stockpiles, discover technology, issue contracts, trade, and provide building services.
@@ -34,6 +34,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 | I / J / H / X / V / B / P | Inspect, impact, heal, scrape, sever, beam, projectile tools |
 | C / O / L / M | Toggle cells, organs, sensory fields, region atlas |
 | Space | Pause |
+| F7 | Toggle high-fidelity continuous world VAE / raw scaffold comparison |
 | F8 | Start / seal an action-conditioned teacher trajectory |
 | F5 / F9 | Save / restore the complete campaign |
 

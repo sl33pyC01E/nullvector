@@ -6,7 +6,7 @@ seal an episode. Recording is local and bounded to 900 frames per episode.
 
 Each sample contains:
 
-- a 256×160 RGB frame of the complete playable viewport;
+- a 256×256 RGB frame of the cellular world viewport, excluding deterministic HUD;
 - the 64-channel cellular/ecology world feature vector;
 - normalized movement and cursor-aim controls;
 - one of 22 discrete player actions;
