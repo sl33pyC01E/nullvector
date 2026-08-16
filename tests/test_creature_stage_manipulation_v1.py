@@ -5,11 +5,23 @@ import numpy as np
 from forge.creature_stage_developmental.development import develop
 from forge.creature_stage_developmental.genomes import review_genomes
 from forge.creature_stage_manipulation_v1 import NeuralManipulationArena
+from forge.creature_stage_manipulation_v1.articulation import ArticulatedBody
 from forge.creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
 
 
 def _food(position) -> FoodClump:
     return FoodClump(np.asarray(position, dtype=np.float64), np.zeros(2), 1.0, .45, 1.0, (1, 1, 1, 1, 1))
+
+
+def test_humanoid_graspers_are_locomotor_peer_limbs() -> None:
+    organism = develop(review_genomes()[0])
+    articulation = ArticulatedBody.from_organism(organism)
+    articulation.require_peer_limbs({"arm"}, {"leg"})
+    arms = [articulation.geometry(index) for index, gene in enumerate(organism.genome.appendages) if gene.kind == "arm"]
+    legs = [articulation.geometry(index) for index, gene in enumerate(organism.genome.appendages) if gene.kind == "leg"]
+    assert {limb.segments for limb in arms} == {limb.segments for limb in legs} == {2}
+    assert .90 < np.mean([limb.length for limb in arms]) / np.mean([limb.length for limb in legs]) < 1.0
+    assert .80 < np.mean([limb.cell_count for limb in arms]) / np.mean([limb.cell_count for limb in legs]) < 1.20
 
 
 def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:

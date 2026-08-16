@@ -8,6 +8,14 @@ from ..creature_stage_developmental.development import DevelopedOrganism
 from ..creature_stage_developmental.motion import _fabrik
 
 
+@dataclass(frozen=True, slots=True)
+class LimbGeometry:
+    kind: str
+    segments: int
+    length: float
+    cell_count: int
+
+
 @dataclass(slots=True)
 class ArticulatedBody:
     """Cell-skinned appendage chains with fixed chassis roots and bone lengths."""
@@ -46,16 +54,7 @@ class ArticulatedBody:
     def cells(self) -> np.ndarray:
         points = self.organism.cell_xy.astype(np.float32, copy=True)
         for appendage, chain_ids in enumerate(self.chain_ids):
-            cell_ids = np.flatnonzero(self.organism.appendage_index == appendage)
-            if cell_ids.size == 0:
-                continue
-            gene = self.organism.genome.appendages[appendage]
-            root_component = next(component for component in self.organism.genome.components if component.component_id == gene.root_component)
-            root_delta = (points[cell_ids] - np.asarray(root_component.anchor, np.float32)) / np.asarray(root_component.radius, np.float32)
-            core_distance = np.max(np.abs(root_delta), axis=1) if int(np.argmax(self.organism.genome.family_mix)) == 4 else np.linalg.norm(root_delta, axis=1)
-            # Cells inside the load-bearing root component remain torso/chassis
-            # even when their nearest edge metadata names this appendage.
-            cell_ids = cell_ids[core_distance >= .92]
+            cell_ids = self._skinned_cell_ids(appendage)
             if cell_ids.size == 0:
                 continue
             rest = self.organism.skeleton_nodes[chain_ids, :2].astype(np.float32)
@@ -79,6 +78,49 @@ class ArticulatedBody:
             posed_normal /= np.maximum(np.linalg.norm(posed_normal, axis=1, keepdims=True), 1e-8)
             points[cell_ids] = posed[segment] + chosen_along[:, None] * posed_vector + lateral[:, None] * posed_normal
         return points
+
+    def _skinned_cell_ids(self, appendage: int) -> np.ndarray:
+        """Return limb cells without reclassifying load-bearing torso cells.
+
+        The same selection is used for rendering and limb-proportion gates, so
+        a grasper cannot appear muscular merely because its root crosses the
+        chassis.  Distal arms and legs retain the developmental tube thickness.
+        """
+        cell_ids = np.flatnonzero(self.organism.appendage_index == appendage)
+        if cell_ids.size == 0:
+            return cell_ids
+        gene = self.organism.genome.appendages[appendage]
+        root_component = next(component for component in self.organism.genome.components if component.component_id == gene.root_component)
+        points = self.organism.cell_xy.astype(np.float32, copy=False)
+        root_delta = (points[cell_ids] - np.asarray(root_component.anchor, np.float32)) / np.asarray(root_component.radius, np.float32)
+        core_distance = np.max(np.abs(root_delta), axis=1) if int(np.argmax(self.organism.genome.family_mix)) == 4 else np.linalg.norm(root_delta, axis=1)
+        return cell_ids[core_distance >= .92]
+
+    def geometry(self, appendage: int) -> LimbGeometry:
+        gene = self.organism.genome.appendages[appendage]
+        return LimbGeometry(gene.kind, gene.segments, self.length(appendage), int(self._skinned_cell_ids(appendage).size))
+
+    def require_peer_limbs(self, grasp_kinds: set[str], locomotor_kinds: set[str]) -> None:
+        """Fail closed when ordinary graspers stop reading as locomotor peers.
+
+        Specialized tails, tendrils, roots and hardpoints intentionally opt out.
+        For arm-and-leg chassis, reach, articulated joints and visible cell mass
+        remain comparable; only the terminal contact role differs.
+        """
+        graspers = [self.geometry(index) for index, gene in enumerate(self.organism.genome.appendages) if gene.kind in grasp_kinds]
+        locomotors = [self.geometry(index) for index, gene in enumerate(self.organism.genome.appendages) if gene.kind in locomotor_kinds]
+        if not graspers or not locomotors:
+            return
+        grasp_length = float(np.mean([limb.length for limb in graspers]))
+        locomotor_length = float(np.mean([limb.length for limb in locomotors]))
+        grasp_cells = float(np.mean([limb.cell_count for limb in graspers]))
+        locomotor_cells = float(np.mean([limb.cell_count for limb in locomotors]))
+        if {limb.segments for limb in graspers} != {limb.segments for limb in locomotors}:
+            raise ValueError("grasper and locomotor joint vocabularies diverged")
+        if not .80 <= grasp_length / locomotor_length <= 1.20:
+            raise ValueError("grasper and locomotor reaches diverged")
+        if not .70 <= grasp_cells / max(locomotor_cells, 1.0) <= 1.30:
+            raise ValueError("grasper and locomotor cell masses diverged")
 
     def chain(self, appendage: int) -> np.ndarray:
         return self.nodes[self.chain_ids[appendage], :2].copy()

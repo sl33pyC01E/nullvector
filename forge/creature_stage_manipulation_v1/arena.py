@@ -44,6 +44,8 @@ class NeuralManipulationArena:
         mass = max(1.0, organism.cell_count * .08)
         self.body = GraspBody(np.zeros(2, dtype=np.float64), np.zeros(2, dtype=np.float64), mass)
         self.articulation = ArticulatedBody.from_organism(organism)
+        if int(np.argmax(organism.genome.family_mix)) == 0:
+            self.articulation.require_peer_limbs({"arm"}, {"leg"})
         if not 1 <= len(self.articulation.chain_ids) <= 8:
             raise ValueError("manipulation arena appendage census drifted")
         self.constraint = GraspConstraint()
