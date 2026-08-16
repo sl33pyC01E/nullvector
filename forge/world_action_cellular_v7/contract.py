@@ -46,7 +46,7 @@ class ModelConfig:
 @dataclass(frozen=True, slots=True)
 class TrainingConfig:
     steps: int = 12000
-    batch_size: int = 12
+    batch_size: int = 10
     learning_rate: float = 8e-5
     ema_decay: float = 0.999
     validate_every: int = 500
@@ -63,6 +63,11 @@ class TrainingConfig:
     contrastive_batch: int = 6
     input_noise: float = 0.002
     milestone_every: int = 2000
+    validation_batch_size: int = 8
+    cpu_threads: int = 8
+    cuda_memory_fraction: float = 0.85
+    max_process_memory_gib: float = 32.0
+    target_duty_cycle: float = 0.90
     seed: int = 0x43454C4C554C4152
 
 

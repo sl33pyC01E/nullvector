@@ -26,4 +26,15 @@ Training writes an atomic resumable checkpoint every 500 updates and immutable
 best/2,000-update milestones, including optimizer, EMA, and random-generator
 state.
 
+The default workstation profile uses the machine without monopolizing it:
+batch size 10, validation batches of 8, eight CPU math threads, an 85% CUDA
+allocator ceiling, a 32 GiB resident-process guard, below-normal Windows
+priority, and a 90% training duty cycle. Training can stop at any 500-update
+boundary and resume in a fresh process with the same total-step contract. This
+contains a native-process fault to one short segment while preserving useful
+4090 throughput. Final reports record observed peak host RSS and CUDA
+allocated/reserved bytes. The duty-cycle sleep reduces average GPU load when a
+hardware wattage cap is unavailable; it is not represented as an NVIDIA power
+limit.
+
 The privileged model is an ensemble teacher, not the final product. Once it establishes that physical state transitions are learnable, a recurrent visual student can infer hidden state from frame history; the eventual monolithic Action-DiT/VAE student can then absorb both.

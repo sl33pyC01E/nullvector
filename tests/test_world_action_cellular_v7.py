@@ -4,8 +4,9 @@ import numpy as np
 import torch
 
 from forge.action_teacher_v2.contract import ACTOR_FEATURES, ACTOR_FIELD_SHAPE
-from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, selection_score, source_sha256, validate_encoded_corpus, write_encoded_corpus
+from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, TrainingConfig, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, selection_score, source_sha256, validate_encoded_corpus, write_encoded_corpus
 from forge.world_action_cellular_v7.contract import CHECKPOINT_FORMAT
+from forge.world_action_cellular_v7.training import ResourceGuard
 from forge.world_action_sparse_v5.contract import ModelConfig as V5ModelConfig
 from forge.world_action_sparse_v5.model import SparseActionDiT
 from forge.world_latent_dit.contract import LATENT_CHANNELS, LATENT_SIZE
@@ -124,3 +125,17 @@ def test_selection_requires_visual_and_physiological_improvement():
     inverted = {**good, "correct_action_advantage": -.03, "targeted_control_advantage": -.02}
     assert selection_score(good) < selection_score(bad_physiology)
     assert selection_score(good) < selection_score(inverted)
+
+
+def test_resource_guard_rejects_unsafe_limits_and_reports_cpu_usage():
+    try:
+        ResourceGuard(TrainingConfig(cuda_memory_fraction=1.0), torch.device("cpu"))
+    except ValueError as error:
+        assert "CUDA memory fraction" in str(error)
+    else:
+        raise AssertionError("unsafe CUDA memory fraction was accepted")
+    guard = ResourceGuard(TrainingConfig(cpu_threads=8, max_process_memory_gib=32.0), torch.device("cpu"))
+    report = guard.report()
+    assert report["cpu_threads"] == 8
+    assert report["maximum_rss_bytes"] > 0
+    assert report["maximum_cuda_allocated_bytes"] == 0

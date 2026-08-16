@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
+import os
 from pathlib import Path
 import random
+import time
 
 import numpy as np
 import torch
@@ -18,6 +21,102 @@ from .checkpoint import RecoveryCheckpointStore, load_recovery_checkpoint
 from .contract import CHECKPOINT_FORMAT, REPORT_FORMAT, ModelConfig, TrainingConfig, canonical, config_dict, source_sha256
 from .corpus import load_encoded_corpus
 from .model import CellularTemporalActionDiT, load_v5_latent_editor
+
+
+def _process_rss_bytes() -> int:
+    """Return resident process memory without a third-party dependency."""
+    if os.name == "nt":
+        class Counters(ctypes.Structure):
+            _fields_ = (
+                ("cb", ctypes.c_ulong),
+                ("page_fault_count", ctypes.c_ulong),
+                ("peak_working_set_size", ctypes.c_size_t),
+                ("working_set_size", ctypes.c_size_t),
+                ("quota_peak_paged_pool_usage", ctypes.c_size_t),
+                ("quota_paged_pool_usage", ctypes.c_size_t),
+                ("quota_peak_non_paged_pool_usage", ctypes.c_size_t),
+                ("quota_non_paged_pool_usage", ctypes.c_size_t),
+                ("pagefile_usage", ctypes.c_size_t),
+                ("peak_pagefile_usage", ctypes.c_size_t),
+            )
+        counters = Counters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        psapi.GetProcessMemoryInfo.argtypes = (ctypes.c_void_p, ctypes.POINTER(Counters), ctypes.c_ulong)
+        psapi.GetProcessMemoryInfo.restype = ctypes.c_int
+        handle = kernel32.GetCurrentProcess()
+        if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+            raise OSError("unable to read cellular action process memory")
+        return int(counters.working_set_size)
+    statm = Path("/proc/self/statm")
+    if statm.is_file():
+        return int(statm.read_text().split()[1]) * int(os.sysconf("SC_PAGE_SIZE"))
+    return 0
+
+
+class ResourceGuard:
+    """Enforce bounded host/GPU usage and report actual peaks."""
+
+    def __init__(self, training: TrainingConfig, device: torch.device):
+        if not 1 <= training.cpu_threads <= 24:
+            raise ValueError("cellular action cpu thread limit is invalid")
+        if not 0.1 <= training.cuda_memory_fraction <= 0.95:
+            raise ValueError("cellular action CUDA memory fraction is invalid")
+        if not 1.0 <= training.max_process_memory_gib <= 128.0:
+            raise ValueError("cellular action process memory limit is invalid")
+        if not 0.1 <= training.target_duty_cycle <= 1.0:
+            raise ValueError("cellular action duty cycle is invalid")
+        if training.validation_batch_size < 1:
+            raise ValueError("cellular action validation batch size is invalid")
+        self.training = training
+        self.device = device
+        self.maximum_rss_bytes = 0
+        self.maximum_cuda_allocated_bytes = 0
+        self.maximum_cuda_reserved_bytes = 0
+        torch.set_num_threads(training.cpu_threads)
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+        if device.type == "cuda":
+            torch.cuda.set_per_process_memory_fraction(training.cuda_memory_fraction, device)
+        if os.name == "nt":
+            # BELOW_NORMAL_PRIORITY_CLASS. Failure is harmless and reported by
+            # the absent effect rather than treated as a training failure.
+            ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x00004000)
+        self.sample()
+
+    @property
+    def memory_limit_bytes(self) -> int:
+        return int(self.training.max_process_memory_gib * 1024**3)
+
+    def sample(self) -> None:
+        rss = _process_rss_bytes()
+        self.maximum_rss_bytes = max(self.maximum_rss_bytes, rss)
+        if rss > self.memory_limit_bytes:
+            raise MemoryError(f"cellular action process memory limit exceeded: {rss} > {self.memory_limit_bytes}")
+        if self.device.type == "cuda":
+            self.maximum_cuda_allocated_bytes = max(self.maximum_cuda_allocated_bytes, torch.cuda.max_memory_allocated(self.device))
+            self.maximum_cuda_reserved_bytes = max(self.maximum_cuda_reserved_bytes, torch.cuda.max_memory_reserved(self.device))
+
+    def throttle(self, active_seconds: float) -> None:
+        self.sample()
+        if self.training.target_duty_cycle < 1.0 and active_seconds > 0:
+            time.sleep(active_seconds * (1.0 / self.training.target_duty_cycle - 1.0))
+
+    def report(self) -> dict:
+        self.sample()
+        return {
+            "cpu_threads": self.training.cpu_threads,
+            "cuda_memory_fraction": self.training.cuda_memory_fraction,
+            "max_process_memory_gib": self.training.max_process_memory_gib,
+            "target_duty_cycle": self.training.target_duty_cycle,
+            "maximum_rss_bytes": self.maximum_rss_bytes,
+            "maximum_cuda_allocated_bytes": self.maximum_cuda_allocated_bytes,
+            "maximum_cuda_reserved_bytes": self.maximum_cuda_reserved_bytes,
+        }
 
 
 def _state_hash(state) -> str:
@@ -61,12 +160,12 @@ def selection_score(metrics: dict) -> float:
     return float(sum(ratios) / len(ratios) + penalty)
 
 
-def _predict(model, group, latent_mean, latent_std, actor_mean, actor_std, device):
+def _predict(model, group, latent_mean, latent_std, actor_mean, actor_std, device, *, batch_size=24):
     outputs = {name: [] for name in ("latent", "actor_state", "actor_field", "gate", "wrong_action", "wrong_control")}
     wrong_actions = (group["action"].astype(np.int64) + 7) % len(ACTIONS)
     wrong_controls = counterfactual_control(group["control"])
-    for start in range(0, len(group["current"]), 24):
-        stop = start + 24
+    for start in range(0, len(group["current"]), batch_size):
+        stop = start + batch_size
         current = torch.from_numpy(group["current"][start:stop]).to(device)
         previous = torch.from_numpy(group["previous"][start:stop]).to(device)
         current_n = (current - latent_mean) / latent_std
@@ -93,9 +192,9 @@ def _predict(model, group, latent_mean, latent_std, actor_mean, actor_std, devic
     return {name: torch.cat(value) for name, value in outputs.items()}
 
 
-def evaluate(model, episodes, latent_mean, latent_std, actor_mean, actor_std, device):
+def evaluate(model, episodes, latent_mean, latent_std, actor_mean, actor_std, device, *, batch_size=24):
     group = _group(episodes)
-    output = _predict(model, group, latent_mean, latent_std, actor_mean, actor_std, device)
+    output = _predict(model, group, latent_mean, latent_std, actor_mean, actor_std, device, batch_size=batch_size)
     current = torch.from_numpy(group["current"])
     target = torch.from_numpy(group["target"])
     actor = torch.from_numpy(group["actor_state"])
@@ -157,13 +256,16 @@ def _checkpoint_payload(*, corpus_sha, model_config, training_config, warm, step
     }
 
 
-def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, validation_sessions, test_sessions, training=TrainingConfig(), resume: Path | None = None):
+def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, validation_sessions, test_sessions, training=TrainingConfig(), resume: Path | None = None, stop_after_step: int | None = None):
     output = Path(output)
     if resume is None:
         output.mkdir(parents=True, exist_ok=False)
     elif not output.is_dir():
         raise ValueError("cellular action resume output missing")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    resources = ResourceGuard(training, device)
     episodes, manifest = load_encoded_corpus(corpus)
+    resources.sample()
     train_episodes, validation_episodes, test_episodes = _split(episodes, manifest, train_sessions, validation_sessions, test_sessions)
     corpus_sha = manifest["manifest_sha256"]
     warm_payload = torch.load(Path(warm_start), map_location="cpu", weights_only=True)
@@ -171,7 +273,6 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
         raise ValueError("cellular action v5 warm-start provenance drifted")
     parent_config = V5ModelConfig(**warm_payload["model_config"])
     model_config = ModelConfig(width=parent_config.width, layers=parent_config.layers, heads=parent_config.heads, patch=parent_config.patch, spatial_channels=parent_config.spatial_channels, gate_bias=parent_config.gate_bias)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.manual_seed(training.seed)
     np.random.seed(training.seed & 0xFFFFFFFF)
@@ -205,7 +306,11 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
     store = RecoveryCheckpointStore(output / "checkpoints")
     validation_model = CellularTemporalActionDiT(model_config).to(device).eval()
     warm_record = {"path": str(warm_start), "source_sha256": warm_payload["source_sha256"], "ema_sha256": warm_payload["ema_sha256"], "latent_mean": warm_payload["latent_mean"], "latent_std": warm_payload["latent_std"]}
-    for step in range(start_step + 1, training.steps + 1):
+    segment_end = training.steps if stop_after_step is None else min(training.steps, int(stop_after_step))
+    if segment_end <= start_step:
+        raise ValueError("cellular action segment end must advance the checkpoint")
+    for step in range(start_step + 1, segment_end + 1):
+        step_started = time.perf_counter()
         indices = rng.integers(0, len(train_group["current"]), training.batch_size)
         current_raw = torch.from_numpy(train_group["current"][indices]).to(device); previous_raw = torch.from_numpy(train_group["previous"][indices]).to(device); target_raw = torch.from_numpy(train_group["target"][indices]).to(device)
         current = (current_raw - latent_mean) / latent_std; previous = (previous_raw - latent_mean) / latent_std; target = (target_raw - latent_mean) / latent_std
@@ -230,26 +335,76 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
         if step == 1 or step % 250 == 0 or step == training.steps:
             row = {"step": step, "loss": round(float(loss), 6), "latent": round(float(latent_loss), 6), "actor_state": round(float(actor_loss), 6), "actor_field": round(float(field_loss), 6), "gate": round(float(gate_bce + gate_dice), 6), "leakage": round(float(leakage), 6), "contrastive": round(float(contrastive), 6)}; history.append(row); print(json.dumps(row), flush=True)
         validate_now = step % training.validate_every == 0 or step == training.steps
-        checkpoint_now = step % training.checkpoint_every == 0 or validate_now or step == training.steps
+        checkpoint_now = step % training.checkpoint_every == 0 or validate_now or step == segment_end
         if validate_now:
-            validation_model.load_state_dict(ema); metrics = evaluate(validation_model, validation_episodes, latent_mean, latent_std, actor_mean, actor_std, device); score = selection_score(metrics); validation_history.append({"step": step, "selection": score, **metrics}); print(json.dumps({"validation_step": step, "selection": round(score, 6), "latent_improvement": round(metrics["latent_improvement"], 6), "actor_state_improvement": round(metrics["actor_state_improvement"], 6), "actor_field_improvement": round(metrics["actor_field_improvement"], 6)}, sort_keys=True), flush=True)
+            validation_model.load_state_dict(ema); metrics = evaluate(validation_model, validation_episodes, latent_mean, latent_std, actor_mean, actor_std, device, batch_size=training.validation_batch_size); score = selection_score(metrics); validation_history.append({"step": step, "selection": score, **metrics}); print(json.dumps({"validation_step": step, "selection": round(score, 6), "latent_improvement": round(metrics["latent_improvement"], 6), "actor_state_improvement": round(metrics["actor_state_improvement"], 6), "actor_field_improvement": round(metrics["actor_field_improvement"], 6)}, sort_keys=True), flush=True)
             if score < best_score:
                 best_score = score; best_step = step; best_ema = {name: value.detach().cpu().to(torch.bfloat16) if value.is_floating_point() else value.detach().cpu() for name, value in ema.items()}
             model.train()
         if checkpoint_now:
             payload = _checkpoint_payload(corpus_sha=corpus_sha, model_config=model_config, training_config=training, warm=warm_record, step=step, model=model, ema=ema, optimizer=optimizer, rng=rng, actor_mean=actor_mean_array, actor_std=actor_std_array, history=history, validation_history=validation_history, best_score=best_score, best_step=best_step, best_ema=best_ema)
             store.save(payload, step=step, milestone=validate_now and (step % training.milestone_every == 0 or step == best_step))
+        resources.throttle(time.perf_counter() - step_started)
+    if segment_end < training.steps:
+        return {
+            "format": REPORT_FORMAT,
+            "status": "segment_complete",
+            "source_sha256": source_sha256(),
+            "corpus_sha256": corpus_sha,
+            "step": segment_end,
+            "total_steps": training.steps,
+            "resource_usage": resources.report(),
+            "latest_history": history[-1] if history else None,
+            "latest_validation": validation_history[-1] if validation_history else None,
+        }
     if best_ema is None:
         raise RuntimeError("cellular action training selected no checkpoint")
-    validation_model.load_state_dict(best_ema); validation_model.to(device).eval(); validation_metrics = evaluate(validation_model, validation_episodes, latent_mean, latent_std, actor_mean, actor_std, device); test_metrics = evaluate(validation_model, test_episodes, latent_mean, latent_std, actor_mean, actor_std, device)
+    validation_model.load_state_dict(best_ema); validation_model.to(device).eval(); validation_metrics = evaluate(validation_model, validation_episodes, latent_mean, latent_std, actor_mean, actor_std, device, batch_size=training.validation_batch_size); test_metrics = evaluate(validation_model, test_episodes, latent_mean, latent_std, actor_mean, actor_std, device, batch_size=training.validation_batch_size)
     gates = {"latent_beats_persistence": test_metrics["latent_improvement"] > 0, "actor_state_beats_persistence": test_metrics["actor_state_improvement"] > 0, "actor_field_beats_persistence": test_metrics["actor_field_improvement"] > 0, "correct_beats_wrong_action": test_metrics["correct_action_advantage"] > 0, "targeted_control_beats_wrong_control": test_metrics["targeted_control_advantage"] > 0}; gates["all_passed"] = all(gates.values())
-    report = {"format": REPORT_FORMAT, "source_sha256": source_sha256(), "corpus_sha256": corpus_sha, "warm_start": warm_record, "model_config": config_dict(model_config), "training_config": config_dict(training), "device": str(device), "parameters": sum(value.numel() for value in model.parameters()), "best_step": best_step, "best_validation_score": best_score, "splits": {"train": list(train_sessions), "validation": list(validation_sessions), "test": list(test_sessions)}, "validation": validation_metrics, "test": test_metrics, "gates": gates, "history": history, "validation_history": validation_history}
+    report = {"format": REPORT_FORMAT, "source_sha256": source_sha256(), "corpus_sha256": corpus_sha, "warm_start": warm_record, "model_config": config_dict(model_config), "training_config": config_dict(training), "resource_usage": resources.report(), "device": str(device), "parameters": sum(value.numel() for value in model.parameters()), "best_step": best_step, "best_validation_score": best_score, "splits": {"train": list(train_sessions), "validation": list(validation_sessions), "test": list(test_sessions)}, "validation": validation_metrics, "test": test_metrics, "gates": gates, "history": history, "validation_history": validation_history}
     final = _checkpoint_payload(corpus_sha=corpus_sha, model_config=model_config, training_config=training, warm=warm_record, step=training.steps, model=model, ema=ema, optimizer=optimizer, rng=rng, actor_mean=actor_mean_array, actor_std=actor_std_array, history=history, validation_history=validation_history, best_score=best_score, best_step=best_step, best_ema=best_ema); final.update({"status": "evaluated", "runtime_ema_state": best_ema, "runtime_ema_sha256": _state_hash(best_ema), "report": report})
     torch.save(final, output / "evaluated.pt"); (output / "report.json").write_bytes(canonical(report)); return report
 
 
 def main():
-    parser = argparse.ArgumentParser(); parser.add_argument("--output", type=Path, required=True); parser.add_argument("--corpus", type=Path, required=True); parser.add_argument("--warm-start", type=Path, required=True); parser.add_argument("--train-sessions", nargs="+", required=True); parser.add_argument("--validation-sessions", nargs="+", required=True); parser.add_argument("--test-sessions", nargs="+", required=True); parser.add_argument("--steps", type=int, default=12000); parser.add_argument("--batch-size", type=int, default=12); parser.add_argument("--resume", type=Path); args = parser.parse_args(); print(json.dumps(train(args.output, args.corpus, args.warm_start, train_sessions=args.train_sessions, validation_sessions=args.validation_sessions, test_sessions=args.test_sessions, training=TrainingConfig(steps=args.steps, batch_size=args.batch_size), resume=args.resume), indent=2))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--corpus", type=Path, required=True)
+    parser.add_argument("--warm-start", type=Path, required=True)
+    parser.add_argument("--train-sessions", nargs="+", required=True)
+    parser.add_argument("--validation-sessions", nargs="+", required=True)
+    parser.add_argument("--test-sessions", nargs="+", required=True)
+    parser.add_argument("--total-steps", type=int, default=12000)
+    parser.add_argument("--stop-after-step", type=int)
+    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument("--validation-batch-size", type=int, default=8)
+    parser.add_argument("--cpu-threads", type=int, default=8)
+    parser.add_argument("--cuda-memory-fraction", type=float, default=.85)
+    parser.add_argument("--max-process-memory-gib", type=float, default=32.0)
+    parser.add_argument("--target-duty-cycle", type=float, default=.90)
+    parser.add_argument("--resume", type=Path)
+    args = parser.parse_args()
+    training = TrainingConfig(
+        steps=args.total_steps,
+        batch_size=args.batch_size,
+        validation_batch_size=args.validation_batch_size,
+        cpu_threads=args.cpu_threads,
+        cuda_memory_fraction=args.cuda_memory_fraction,
+        max_process_memory_gib=args.max_process_memory_gib,
+        target_duty_cycle=args.target_duty_cycle,
+    )
+    report = train(
+        args.output,
+        args.corpus,
+        args.warm_start,
+        train_sessions=args.train_sessions,
+        validation_sessions=args.validation_sessions,
+        test_sessions=args.test_sessions,
+        training=training,
+        resume=args.resume,
+        stop_after_step=args.stop_after_step,
+    )
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__": main()
