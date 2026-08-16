@@ -36,6 +36,7 @@ class PersistentRegionStore:
         """Save a region without duplicating the travelling player inside it."""
         removed = None
         colony_memberships: list[int] = []
+        feeding_state = None
         if exclude_entity_id is not None:
             removed = world.organisms.pop(int(exclude_entity_id), None)
             if removed is None:
@@ -44,6 +45,8 @@ class PersistentRegionStore:
                 if exclude_entity_id in colony.member_ids:
                     colony.member_ids.remove(exclude_entity_id)
                     colony_memberships.append(colony_id)
+            if world.feeding_system is not None and hasattr(world.feeding_system,"entities"):
+                feeding_state=world.feeding_system.entities.pop(int(exclude_entity_id),None)
         try:
             report = save_world(world, self.path(key))
         finally:
@@ -51,17 +54,18 @@ class PersistentRegionStore:
                 world.organisms[removed.entity_id] = removed
                 for colony_id in colony_memberships:
                     world.colonies[colony_id].member_ids.add(removed.entity_id)
+                if feeding_state is not None:world.feeding_system.entities[removed.entity_id]=feeding_state
         if society is not None:
             society_payload=_society_payload(society)
             if exclude_entity_id is not None:society_payload["assignments"].pop(str(exclude_entity_id),None);society_payload["assignments"].pop(exclude_entity_id,None)
             payload={"format":"nullvector-region-civilization/1.0.0","atlas_seed":self.atlas_seed,"region":[key.x,key.y,key.depth],"world_sha256":report["sha256"],"society":society_payload,"adventure_region":None if adventure is None else _adventure_payload(adventure)};payload["semantic_sha256"]=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest();path=self.civilization_path(key);path.parent.mkdir(parents=True,exist_ok=True);temporary=path.parent/("."+path.name+".tmp-"+uuid.uuid4().hex);temporary.write_text(json.dumps(payload,sort_keys=True,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8");os.replace(temporary,path)
         return {**report, "region": (key.x, key.y, key.depth), "excluded": exclude_entity_id,"civilization":society is not None,"adventure":adventure is not None}
 
-    def load(self, key: RegionKey, *, motion_policy=None, behavior_policy=None, colony_policy=None, society_policy=None, include_society:bool=False):
+    def load(self, key: RegionKey, *, motion_policy=None, behavior_policy=None, colony_policy=None, feeding_system=None, society_policy=None, include_society:bool=False):
         path = self.path(key)
         if not path.is_file():
             return None
-        world=load_world(path, motion_policy=motion_policy, behavior_policy=behavior_policy, colony_policy=colony_policy)
+        world=load_world(path, motion_policy=motion_policy, behavior_policy=behavior_policy, colony_policy=colony_policy, feeding_system=feeding_system)
         if not include_society:return world
         civilization=self.civilization_path(key)
         if not civilization.is_file():return world,None,None

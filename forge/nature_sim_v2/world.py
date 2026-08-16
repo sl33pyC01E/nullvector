@@ -25,7 +25,7 @@ from .colony_culture import ColonyCultureSystem
 class NatureWorld:
     """Persistent deterministic ecology authority and neural teacher."""
 
-    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180, motion_policy: object|None = None, behavior_policy: object|None = None) -> None:
+    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180, motion_policy: object|None = None, behavior_policy: object|None = None, feeding_system: object|None = None) -> None:
         if not 24 <= size <= 512 or not 20 <= max_population <= 10_000:
             raise ValueError("nature world bounds drifted")
         self.seed, self.size, self.max_population = int(seed), int(size), int(max_population)
@@ -42,6 +42,7 @@ class NatureWorld:
         self.events: list[dict[str, object]] = []
         self.motion_policy = motion_policy
         self.behavior_policy = behavior_policy
+        self.feeding_system = feeding_system
         self.materials = MaterialGrid(size,size,seed=seed^0x504F57444552)
         self.colony_ecology = ColonyEcology()
         self.climate = ClimateSystem(seed^0x434C494D415445)
@@ -120,6 +121,11 @@ class NatureWorld:
             closest=min(hostiles,key=lambda o:np.linalg.norm(self._delta(entity.position,o.position)))
             return -self._delta(entity.position,closest.position)
         if hunger>.04:
+            if self.feeding_system is not None and hasattr(self.feeding_system, "forage_direction"):
+                physical_direction = self.feeding_system.forage_direction(self, entity)
+                if physical_direction is not None:
+                    entity.intent = "forage"
+                    return np.asarray(physical_direction, dtype=np.float64)
             resource=int(np.argmax(np.asarray(entity.genome.diet)*self.fields[:,self._cell(entity.position)[0],self._cell(entity.position)[1]]))
             entity.intent=("photosynthesize" if family==2 else "phase_feed" if family==3 else "mine" if family==4 else "forage")
             direction=self._local_gradient(resource,entity.position)
@@ -187,13 +193,29 @@ class NatureWorld:
         diet=np.asarray(entity.genome.diet)
         available=self.fields[:,y,x]
         uptake=np.minimum(available,diet*(.004+.012*entity.genome.developmental.traits[10])*delta)
+        if self.feeding_system is not None:
+            # Tangible flora/biomass is handled only by grasper -> live feeder
+            # contact. Ambient water/gases/light and family-specific inorganic
+            # uptake remain continuous environmental physiology.
+            uptake[8:10] = 0
         systems=entity.body.systems();uptake[8:]*=.08+.92*systems["digestion"];uptake[5]*=.08+.92*systems["respiration"];uptake*=.18+.82*systems["circulation"]
         if entity.family==2: uptake[8:]=0
         if entity.family==3: uptake[[0,1,5,8,9]]=0
         if entity.family==4: uptake[[0,1,4,5,8,9]]=0
         self.fields[:,y,x]-=uptake
         entity.consumed+=uptake
-        quality=float(np.dot(uptake,diet)/max(diet.sum(),1e-8))
+        caloric_uptake = uptake
+        if self.feeding_system is not None:
+            caloric_uptake = uptake.copy()
+            if entity.family in (0, 1):
+                caloric_uptake[:] = 0  # water/oxygen sustain systems but are not food
+            elif entity.family == 2:
+                caloric_uptake[[3, 4, 6, 7, 8, 9]] = 0
+            elif entity.family == 3:
+                caloric_uptake[[0, 1, 2, 5, 7, 8, 9]] = 0
+            else:
+                caloric_uptake[[0, 1, 4, 5, 7, 8, 9]] = 0
+        quality=float(np.dot(caloric_uptake,diet)/max(diet.sum(),1e-8))
         entity.energy=min(1.2,entity.energy+quality*2.4)
         entity.body.energy=min(1.2,entity.body.energy+quality*1.35)
         entity.reserve=min(1.0,entity.reserve+quality*.85)
@@ -211,9 +233,12 @@ class NatureWorld:
             if prey is not None:
                 damage=(.04+.09*entity.genome.trait("aggression"))*delta
                 prey.body.impact((0,0),2.5,min(.22,damage))
-                stolen=min(prey.energy,damage*.65)
-                prey.energy-=stolen
-                entity.energy=min(1.2,entity.energy+stolen*.72)
+                if self.feeding_system is not None and hasattr(self.feeding_system, "on_predation"):
+                    self.feeding_system.on_predation(self, entity, prey, damage)
+                else:
+                    stolen=min(prey.energy,damage*.65)
+                    prey.energy-=stolen
+                    entity.energy=min(1.2,entity.energy+stolen*.72)
                 self.predation_events+=1
         elif entity.family==3 and entity.energy<.56 and nearby:
             # Anomalies metabolize phase gradients and can nonlocally drain a
@@ -318,6 +343,8 @@ class NatureWorld:
                 entity.stage="dead"
                 entity.velocity*=.18
                 self.deaths+=1
+                if self.feeding_system is not None and hasattr(self.feeding_system, "on_death"):
+                    self.feeding_system.on_death(self, entity)
                 self.events.append({"tick":self.tick_index,"type":"death","entity":entity.entity_id,"lineage":entity.genome.lineage_id})
         else:
             entity.decomposition=min(1,entity.decomposition+delta*(.004+.012*(1-entity.genome.trait("cohesion"))))
@@ -443,6 +470,8 @@ class NatureWorld:
         if not math.isfinite(delta) or not .01<=delta<=.5: raise ValueError("nature timestep drifted")
         self.tick_index+=1;self.time+=delta
         self._environment(delta)
+        if self.feeding_system is not None and hasattr(self.feeding_system, "step_environment"):
+            self.feeding_system.step_environment(self, delta)
         self.climate.step(self,delta)
         entity_ids=sorted(list(self.organisms))
         for entity_id in entity_ids:
@@ -461,6 +490,8 @@ class NatureWorld:
                 direction=directions[entity_id]
                 self._move(entity,direction,delta,neural_targets.get(entity_id))
                 self._consume(entity,delta)
+                if self.feeding_system is not None and hasattr(self.feeding_system, "step_entity"):
+                    self.feeding_system.step_entity(self, entity, delta)
                 self._interactions(entity,delta)
                 if (self.tick_index+entity.entity_id*31)%180==0:self._vegetative_spread(entity)
                 basal=(.00045+.0018*entity.genome.trait("basal_metabolism"))*delta
@@ -490,6 +521,7 @@ class NatureWorld:
         records=[]
         for o in sorted(self.organisms.values(),key=lambda x:x.entity_id):
             records.append((o.entity_id,o.genome.semantic_sha256(),tuple(np.round(o.position,6)),tuple(np.round(o.velocity,6)),round(o.age,6),round(o.energy,6),round(o.reserve,6),o.stage,o.intent,o.colony_id,o.alive,round(o.decomposition,6),o.body.snapshot().semantic_sha256))
-        payload={"tick":self.tick_index,"time":round(self.time,6),"fields":hashlib.sha256(self.fields.astype("<f8").tobytes()).hexdigest(),"materials":self.materials.semantic_sha256(),"organisms":records,"colonies":[(c.colony_id,c.family,sorted(c.member_ids),tuple(np.round(c.center,6)),c.generation,c.fissions) for c in sorted(self.colonies.values(),key=lambda c:c.colony_id)],"stats":(self.births,self.deaths,self.predation_events,self.mutation_count)}
+        feeding_hash = self.feeding_system.semantic_sha256() if self.feeding_system is not None and hasattr(self.feeding_system, "semantic_sha256") else None
+        payload={"tick":self.tick_index,"time":round(self.time,6),"fields":hashlib.sha256(self.fields.astype("<f8").tobytes()).hexdigest(),"materials":self.materials.semantic_sha256(),"feeding":feeding_hash,"organisms":records,"colonies":[(c.colony_id,c.family,sorted(c.member_ids),tuple(np.round(c.center,6)),c.generation,c.fissions) for c in sorted(self.colonies.values(),key=lambda c:c.colony_id)],"stats":(self.births,self.deaths,self.predation_events,self.mutation_count)}
         digest=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),default=list).encode()).hexdigest()
         return WorldSnapshot(self.tick_index,round(self.time,6),len(living),self.births,self.deaths,self.predation_events,len(self.colonies),lineages,family_counts,resource_totals,self.mutation_count,digest)
