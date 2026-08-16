@@ -88,6 +88,7 @@ class LivingBodyDynamicsNet(nn.Module):
             weight = torch.ones((len(value), 1), device=value.device, dtype=value.dtype)
         elif weight.ndim == 1:
             weight = weight[:, None]
+        weight = weight.to(dtype=value.dtype)
         total = torch.zeros((graph_count, value.shape[1]), device=value.device, dtype=value.dtype)
         count = torch.zeros((graph_count, 1), device=value.device, dtype=value.dtype)
         total.index_add_(0, graph_index, value * weight)
