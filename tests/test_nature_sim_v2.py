@@ -110,3 +110,16 @@ def test_native_nature_demo_and_launcher_are_present() -> None:
     for capability in ("NeuralLocomotionRuntime","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
+
+
+def test_body_leaks_death_and_weapons_enter_material_world() -> None:
+    world=NatureWorld(seed=61,size=32);founders=founder_genomes(variants_per_family=1)
+    attacker=world.add_organism(founders[4],(8,16),energy=.9);target=world.add_organism(founders[1],(15,16),energy=.8)
+    before=world.organisms[target].body.snapshot().alive_cells
+    result=world.fire_beam(attacker,(22,16),energy=8,width=.8)
+    assert result["bodies_hit"]==1 and world.organisms[target].body.snapshot().alive_cells<before
+    world.organisms[target].body.impact((0,0),4,.9);world.step(.2)
+    assert float(world.materials.mass.sum())>0
+    projectile=world.fire_projectile(attacker,(22,16),speed=20,energy=2)
+    for _ in range(5):world.step(.1)
+    assert all(p.projectile_id!=projectile for p in world.materials.projectiles)

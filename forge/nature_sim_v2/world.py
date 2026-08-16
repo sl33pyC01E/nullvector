@@ -8,6 +8,7 @@ import math
 import numpy as np
 
 from ..creature_stage_developmental import FAMILIES
+from ..powder_world_v1 import MaterialGrid
 from .contract import ECO_TRAITS, RESOURCE_NAMES, EcoGenome, WorldSnapshot
 from .genetics import founder_genomes, recombine
 from .state import ColonyState, OrganismState
@@ -31,6 +32,7 @@ class NatureWorld:
         self.births = self.deaths = self.predation_events = self.mutation_count = 0
         self.events: list[dict[str, object]] = []
         self.motion_policy = motion_policy
+        self.materials = MaterialGrid(size,size,seed=seed^0x504F57444552)
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -231,6 +233,12 @@ class NatureWorld:
     def _death_and_decay(self, entity: OrganismState, delta: float) -> None:
         if entity.alive:
             snap=entity.body.tick(min(delta,.5))
+            for puddle in entity.body.external_puddle:
+                exported=min(float(puddle["amount"]),.018*delta)
+                if exported<=0:continue
+                puddle["amount"]=float(puddle["amount"])-exported
+                material={"vascular":"blood","digestive":"biomass","neural":"blood","phase":"crystal","machine":"oil","root":"sap"}.get(str(puddle["tissue"]),"water")
+                self.materials.deposit(material,tuple(entity.position),exported,max(.5,float(puddle["radius"])*.25))
             entity.body.energy=min(entity.body.energy,entity.energy)
             longevity=90+entity.genome.trait("longevity")*310
             if snap.dead or entity.energy<=.002 or entity.age>longevity*1.18:
@@ -244,7 +252,33 @@ class NatureWorld:
             y,x=self._cell(entity.position)
             transfer=min(.004*delta,1-entity.decomposition)
             self.fields[9,y,x]=min(1,self.fields[9,y,x]+transfer*entity.body.organism.cell_count*.02)
+            self.materials.deposit("biomass",tuple(entity.position),transfer*entity.body.organism.cell_count*.012,.8+entity.decomposition*1.8)
             entity.update_stage()
+
+    @staticmethod
+    def _segment_distance(point:np.ndarray,start:np.ndarray,end:np.ndarray)->float:
+        delta=end-start;t=float(np.clip(np.dot(point-start,delta)/max(float(np.dot(delta,delta)),1e-8),0,1));return float(np.linalg.norm(point-(start+delta*t)))
+
+    def fire_projectile(self,owner_id:int,target:tuple[float,float],*,speed:float=18,energy:float=1.2)->int:
+        owner=self.organisms[owner_id];delta=self._delta(owner.position,np.asarray(target,float));norm=max(float(np.linalg.norm(delta)),1e-8);return self.materials.fire_projectile(tuple(owner.position),tuple(delta/norm*speed),energy=energy,owner_id=owner_id)
+
+    def fire_beam(self,owner_id:int,target:tuple[float,float],*,energy:float=4,width:float=.7)->dict[str,int|float]:
+        owner=self.organisms[owner_id];start=owner.position.copy();delta=self._delta(start,np.asarray(target,float));end=start+delta;material_result=self.materials.beam(tuple(start),tuple(end),energy=energy,width=width);bodies=0
+        for entity in self.organisms.values():
+            if entity.entity_id==owner_id or not entity.alive:continue
+            if self._segment_distance(entity.position,start,end)>1.1+width:continue
+            local_direction=delta/max(float(np.linalg.norm(delta)),1e-8);normal=np.asarray((-local_direction[1],local_direction[0]));entity.body.cut(tuple(-normal*24),tuple(normal*24),width=min(2.2,.55+width));bodies+=1
+        return {**material_result,"bodies_hit":bodies}
+
+    def _step_projectiles(self,delta:float)->None:
+        previous={p.projectile_id:np.asarray(p.position,float) for p in self.materials.projectiles};self.materials.step(delta)
+        for projectile in self.materials.projectiles:
+            start=previous.get(projectile.projectile_id,np.asarray(projectile.position,float));end=np.asarray(projectile.position,float)
+            for entity in self.organisms.values():
+                if not entity.alive or entity.entity_id==projectile.owner_id:continue
+                if self._segment_distance(entity.position,start,end)>1+projectile.radius:continue
+                relative=self._delta(entity.position,end);local=tuple(relative*5);entity.body.impact(local,2+projectile.radius*2,min(1,projectile.energy*.45));projectile.alive=False;break
+        self.materials.projectiles=[p for p in self.materials.projectiles if p.alive]
 
     def _update_colonies(self) -> None:
         alive=[o for o in self.organisms.values() if o.alive]
@@ -312,6 +346,7 @@ class NatureWorld:
             if not entity.finite():raise FloatingPointError(f"entity {entity_id} became non-finite")
         self._update_colonies()
         self._resolve_collisions()
+        self._step_projectiles(delta)
         # Decomposed records can leave the active representation after their ledger is complete.
         for entity_id in [i for i,o in self.organisms.items() if o.stage=="decomposed"]:
             del self.organisms[entity_id]
@@ -326,6 +361,6 @@ class NatureWorld:
         records=[]
         for o in sorted(self.organisms.values(),key=lambda x:x.entity_id):
             records.append((o.entity_id,o.genome.semantic_sha256(),tuple(np.round(o.position,6)),tuple(np.round(o.velocity,6)),round(o.age,6),round(o.energy,6),round(o.reserve,6),o.stage,o.intent,o.colony_id,o.alive,round(o.decomposition,6),o.body.snapshot().semantic_sha256))
-        payload={"tick":self.tick_index,"time":round(self.time,6),"fields":hashlib.sha256(self.fields.astype("<f8").tobytes()).hexdigest(),"organisms":records,"colonies":[(c.colony_id,c.family,sorted(c.member_ids),tuple(np.round(c.center,6)),c.generation,c.fissions) for c in sorted(self.colonies.values(),key=lambda c:c.colony_id)],"stats":(self.births,self.deaths,self.predation_events,self.mutation_count)}
+        payload={"tick":self.tick_index,"time":round(self.time,6),"fields":hashlib.sha256(self.fields.astype("<f8").tobytes()).hexdigest(),"materials":self.materials.semantic_sha256(),"organisms":records,"colonies":[(c.colony_id,c.family,sorted(c.member_ids),tuple(np.round(c.center,6)),c.generation,c.fissions) for c in sorted(self.colonies.values(),key=lambda c:c.colony_id)],"stats":(self.births,self.deaths,self.predation_events,self.mutation_count)}
         digest=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),default=list).encode()).hexdigest()
         return WorldSnapshot(self.tick_index,round(self.time,6),len(living),self.births,self.deaths,self.predation_events,len(self.colonies),lineages,family_counts,resource_totals,self.mutation_count,digest)

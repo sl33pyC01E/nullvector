@@ -17,6 +17,7 @@ CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v1/neural_motion_atlas.png"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
 FAMILY_COLORS=("#35dcff","#ff5ca9","#91ff42","#b778ff","#ffb236")
+MATERIAL_COLORS=((0,0,0,0),(92,73,46,150),(105,113,117,210),(42,126,174,150),(180,20,58,190),(91,176,62,175),(76,66,43,180),(151,166,178,225),(119,73,63,185),(87,232,148,190),(255,107,26,230),(125,140,150,130),(155,92,255,210))
 
 
 class NatureDemo:
@@ -41,6 +42,11 @@ class NatureDemo:
         if living:self.selected=min(living,key=lambda o:np.linalg.norm(self.world._delta(point,o.position))).entity_id
 
     def _damage_at(self,mouse,kind):
+        if kind in ("beam","projectile"):
+            target=tuple(self.screen_to_world(mouse))
+            if kind=="beam":result=self.world.fire_beam(self.selected,target,energy=8,width=.8);self.message=f"BEAM // {result['cells_hit']} MATERIAL CELLS // {result['bodies_hit']} BODIES"
+            else:self.world.fire_projectile(self.selected,target,speed=22,energy=2.4);self.message="PROJECTILE // PHYSICAL CELL COLLISION"
+            return
         self._select(mouse);entity=self.world.organisms.get(self.selected)
         if entity is None:return
         screen=self.world_to_screen(entity.position);local=(np.asarray(mouse)-screen)/3.0;point=(float(local[0]),float(local[1]))
@@ -69,6 +75,8 @@ class NatureDemo:
                 elif event.key==pg.K_h:self.tool="heal"
                 elif event.key==pg.K_x:self.tool="scrape"
                 elif event.key==pg.K_v:self.tool="cut"
+                elif event.key==pg.K_b:self.tool="beam"
+                elif event.key==pg.K_p:self.tool="projectile"
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -89,6 +97,14 @@ class NatureDemo:
         pg.surfarray.blit_array(surface,np.transpose(rgb,(1,0,2)));surface=pg.transform.scale(surface,(int(64*self.zoom),int(64*self.zoom)))
         origin=self.world_to_screen((0,0));self.screen.blit(surface,(int(origin[0]),int(origin[1])))
         self.screen.fill((4,11,15),special_flags=pg.BLEND_RGB_ADD)
+
+    def _draw_materials(self):
+        pg=self.pg;surface=pg.Surface((64,64),pg.SRCALPHA)
+        for y,x in zip(*np.nonzero(self.world.materials.material)):
+            index=int(self.world.materials.material[y,x]);color=MATERIAL_COLORS[index];alpha=int(min(255,color[3]*min(1,float(self.world.materials.mass[y,x]))));surface.set_at((int(x),int(y)),(*color[:3],alpha))
+        scaled=pg.transform.scale(surface,(int(64*self.zoom),int(64*self.zoom)));origin=self.world_to_screen((0,0));self.screen.blit(scaled,(int(origin[0]),int(origin[1])))
+        for projectile in self.world.materials.projectiles:
+            point=self.world_to_screen(projectile.position);pg.draw.circle(self.screen,(255,220,112),(int(point[0]),int(point[1])),max(2,int(projectile.radius*self.zoom)))
 
     def _sprite(self,entity):
         pg=self.pg;phase=int((self.world.time*(3.2+np.linalg.norm(entity.velocity)*2)+entity.entity_id*.7)%16);alive=int(entity.body.snapshot().alive_cells);health_key=int(float(entity.body.health.mean())*20);key=(entity.entity_id,phase,alive,health_key)
@@ -137,12 +153,13 @@ class NatureDemo:
 
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
+        self._draw_materials()
         self._draw_settlements()
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COL {snap.colony_count:02}  FAC {len(self.society.factions):02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
