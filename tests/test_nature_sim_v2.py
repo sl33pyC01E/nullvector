@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from forge.creature_stage_developmental import develop
-from forge.nature_sim_v2 import NatureWorld, founder_genomes, recombine
+from forge.nature_sim_v2 import NatureWorld,cohort_conservation,demote_to_cohort,founder_genomes,recombine
 
 
 def test_founders_cover_families_and_spawn_without_cascade() -> None:
@@ -79,3 +79,25 @@ def test_death_decomposes_gradually_without_explosion() -> None:
     start=entity.decomposition
     for _ in range(20):world.step(.25)
     assert entity.decomposition>start and entity.decomposition<1
+
+
+def test_animals_physically_harvest_plant_entities() -> None:
+    world=NatureWorld(seed=44,size=32)
+    founders=founder_genomes(variants_per_family=1)
+    animal_id=world.add_organism(founders[1],(12,12),energy=.28)
+    plant_id=world.add_organism(founders[2],(12.4,12),energy=.62)
+    before=world.organisms[plant_id].body.snapshot().systems["integrity"]
+    for _ in range(12):world.step(.25)
+    after=world.organisms[plant_id].body.snapshot().systems["integrity"]
+    assert world.predation_events>0 and after<before
+    assert world.organisms[animal_id].intent=="hunt"
+
+
+def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
+    world=NatureWorld(seed=8,size=32)
+    genome=founder_genomes(variants_per_family=1)[2]
+    ids=[world.add_organism(genome,(10+i*.2,10),energy=.4+i*.05) for i in range(4)]
+    organisms=[world.organisms[i] for i in ids]
+    cohort=demote_to_cohort(organisms,region_id="garden-4-9")
+    assert cohort.count==4 and cohort.family==2
+    assert all(cohort_conservation(cohort,organisms).values())

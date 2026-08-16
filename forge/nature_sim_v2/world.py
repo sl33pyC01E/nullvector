@@ -86,21 +86,21 @@ class NatureWorld:
 
     def _choose_intent(self, entity: OrganismState) -> np.ndarray:
         nearby=self._neighbors(entity, 4+entity.genome.trait("perception")*10)
-        hunger=max(0.0,.58-entity.energy)
+        hunger=max(0.0,.74-entity.energy)
         family=entity.family
         if entity.body.incapacitated or entity.energy < .12:
             entity.intent="repair" if entity.genome.trait("repair")>.35 else "rest"
             return np.zeros(2)
-        hostiles=[o for o in nearby if o.family != family and o.energy > entity.energy*1.2]
+        hostiles=[o for o in nearby if o.family in (0,1,3,4) and o.family != family and o.energy > entity.energy*1.2]
         if hostiles and family in (1,2):
             entity.intent="flee"
             closest=min(hostiles,key=lambda o:np.linalg.norm(self._delta(entity.position,o.position)))
             return -self._delta(entity.position,closest.position)
-        if hunger>.08:
+        if hunger>.04:
             resource=int(np.argmax(np.asarray(entity.genome.diet)*self.fields[:,self._cell(entity.position)[0],self._cell(entity.position)[1]]))
             entity.intent=("photosynthesize" if family==2 else "phase_feed" if family==3 else "mine" if family==4 else "forage")
             direction=self._local_gradient(resource,entity.position)
-            prey=[o for o in nearby if o.family!=family and o.alive and family in (0,1) and o.energy < entity.energy*.92]
+            prey=[o for o in nearby if self._can_harvest(entity,o)]
             if prey and entity.genome.trait("aggression")>.45:
                 entity.intent="hunt"
                 return self._delta(entity.position,min(prey,key=lambda o:np.linalg.norm(self._delta(entity.position,o.position))).position)
@@ -118,6 +118,13 @@ class NatureWorld:
         entity.intent="explore"
         angle=(entity.genome.developmental.seed*.0001+self.time*.17+entity.entity_id*.71)%math.tau
         return np.asarray((math.cos(angle),math.sin(angle)))
+
+    @staticmethod
+    def _can_harvest(predator:OrganismState,prey:OrganismState)->bool:
+        if not prey.alive or predator.family==prey.family:return False
+        if predator.family==0:return prey.family in (1,2,4) or (prey.family==3 and predator.genome.trait("perception")>.72)
+        if predator.family==1:return prey.family==2 or (prey.family in (0,1) and prey.energy<predator.energy*.72)
+        return False
 
     def _move(self, entity: OrganismState, direction: np.ndarray, delta: float) -> None:
         norm=float(np.linalg.norm(direction))
@@ -161,7 +168,7 @@ class NatureWorld:
     def _interactions(self, entity: OrganismState, delta: float) -> None:
         nearby=self._neighbors(entity,1.15)
         if entity.intent=="hunt" and nearby:
-            prey=next((o for o in sorted(nearby,key=lambda o:o.entity_id) if o.family!=entity.family and o.alive),None)
+            prey=next((o for o in sorted(nearby,key=lambda o:o.entity_id) if self._can_harvest(entity,o)),None)
             if prey is not None:
                 damage=(.04+.09*entity.genome.trait("aggression"))*delta
                 prey.body.impact((0,0),2.5,min(.22,damage))
@@ -169,6 +176,13 @@ class NatureWorld:
                 prey.energy-=stolen
                 entity.energy=min(1.2,entity.energy+stolen*.72)
                 self.predation_events+=1
+        elif entity.family==3 and entity.energy<.56 and nearby:
+            # Anomalies metabolize phase gradients and can nonlocally drain a
+            # little organized energy without behaving like ordinary mouths.
+            target=min(nearby,key=lambda o:np.linalg.norm(self._delta(entity.position,o.position)))
+            drained=min(target.energy,.012*delta*(.5+entity.genome.developmental.traits[14]))
+            target.energy-=drained;entity.energy=min(1.2,entity.energy+drained*.82)
+            y,x=self._cell(entity.position);self.fields[4,y,x]=min(1,self.fields[4,y,x]+drained*.3)
         if entity.intent=="mate" and entity.gestation_remaining<=0:
             mate=next((o for o in sorted(nearby,key=lambda o:o.entity_id) if o.family==entity.family and o.stage=="mature" and o.reproduction_cooldown<=0 and o.energy>.62),None)
             if mate is not None:
@@ -178,6 +192,20 @@ class NatureWorld:
                 mate.reproduction_cooldown=entity.reproduction_cooldown*.75
                 entity.energy-=.12+.16*entity.genome.trait("offspring_investment")
                 mate.energy-=.05
+
+    def _resolve_collisions(self) -> None:
+        living=sorted((o for o in self.organisms.values() if o.alive),key=lambda o:o.entity_id)
+        for left_index,left in enumerate(living):
+            for right in living[left_index+1:]:
+                if left.family==right.family:continue  # kin can overlap to mate/cluster
+                delta=self._delta(left.position,right.position);distance=float(np.linalg.norm(delta))
+                if not 1e-6<distance<.72:continue
+                normal=delta/distance;push=(.72-distance)*.5
+                left.position=(left.position-normal*push)%self.size;right.position=(right.position+normal*push)%self.size
+                relative=right.velocity-left.velocity
+                impulse=float(np.dot(relative,normal))
+                if impulse<0:
+                    left.velocity+=normal*impulse*.28;right.velocity-=normal*impulse*.28
 
     def _birth(self, parent: OrganismState) -> None:
         mate=self.organisms.get(parent.mate_id or -1)
@@ -283,6 +311,7 @@ class NatureWorld:
             self._death_and_decay(entity,delta)
             if not entity.finite():raise FloatingPointError(f"entity {entity_id} became non-finite")
         self._update_colonies()
+        self._resolve_collisions()
         # Decomposed records can leave the active representation after their ledger is complete.
         for entity_id in [i for i,o in self.organisms.items() if o.stage=="decomposed"]:
             del self.organisms[entity_id]
