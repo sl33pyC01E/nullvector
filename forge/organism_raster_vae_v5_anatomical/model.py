@@ -171,7 +171,8 @@ def _authority_nll(
     local_target = (target - start).clamp(0, stop - start - 1)
     selected = -probability.gather(2, local_target[:, :, None]).squeeze(2).log()
     nll = selected[valid].mean() if bool(valid.any()) else selected.sum() * 0
-    correct = ((attention.argmax(2) == target) & valid).sum()
+    predicted = probability.argmax(2) + start
+    correct = ((predicted == target) & valid).sum()
     return nll, correct, int(valid.sum())
 
 
