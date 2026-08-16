@@ -10,6 +10,7 @@ from ..config import PROJECT_ROOT
 from ..creature_stage_developmental import FAMILIES,TISSUES
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
+from ..nature_colony_nn import NeuralColonyRuntime
 from ..qud_society_v1 import SocietyLayer
 from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
@@ -22,6 +23,7 @@ from .world import NatureWorld
 
 CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller_1200_runtime.pt"
 BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controller_v3.pt"
+COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
 FAMILY_COLORS=("#35dcff","#ff5ca9","#91ff42","#b778ff","#ffb236")
@@ -33,9 +35,9 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device)
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
-        self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
+        self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
         self.adventure=AdventureState(seed=seed^0x414456,size=self.world.size)
         if showcase:
             self.adventure.inventory.update({"biomass":5.0,"rock":4.0,"metal":4.0,"crystal":3.0,"water":4.0,"knowledge":2.0})
@@ -45,13 +47,13 @@ class NatureDemo:
                 center=np.asarray((20.0,22.0));members=set()
                 for index,entity in enumerate(founders):entity.position=center+np.asarray((index*.7,-index*.35));entity.colony_id=1;members.add(entity.entity_id)
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior)
         entry=(1.2 if dx>0 else 62.8 if dx<0 else float(player.position[0]),1.2 if dy>0 else 62.8 if dy<0 else float(player.position[1]));new_id=new.add_organism(player.genome,entry,energy=player.energy,parents=player.parent_ids);carried=new.organisms[new_id];carried.body=player.body;carried.reserve=player.reserve;carried.age=player.age;carried.stage=player.stage;carried.reproduction_cooldown=player.reproduction_cooldown;carried.velocity=player.velocity.copy();new.seed_founders(variants_per_family=2)
         for entity_id in old_world.organisms:self.runtime.forget(entity_id)
-        self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.selected=new_id;self.camera=carried.position.copy();self.society=SocietyLayer(new,seed=seed^0x515544);self.last_society_tick=0
+        self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.world.colony_ecology.role_policy=self.colony_runtime;self.selected=new_id;self.camera=carried.position.copy();self.society=SocietyLayer(new,seed=seed^0x515544);self.last_society_tick=0
         previous=self.adventure;self.adventure=AdventureState(seed=seed^0x414456,size=new.size);self.adventure.inventory.update(previous.inventory);self.adventure.discoveries|=previous.discoveries;self.adventure.score=previous.score;self.adventure.objectives=previous.objectives;self.adventure.artifacts=list(previous.artifacts);self.adventure.equipped=dict(previous.equipped);self.adventure.recipe_index=previous.recipe_index;self.adventure.craft_count=previous.craft_count
         self.message=f"ENTERED REGION {self.region.x:+},{self.region.y:+} // {self.atlas_world.describe(self.region).biome.upper()}"
 
