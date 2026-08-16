@@ -62,6 +62,12 @@ display tether.
 Damage to the feeder cells prevents reserve gain even after physical contact.
 Source: `outputs/creature_stage_manipulation_v1/showcase_v2/`.
 
+![Five-family articulated neural feeding](showcase/articulated_five_family_feeding_v2.gif)
+
+One synchronized replay exposes the morphology-specific arm, limb, root/frond,
+tendril, and hardpoint paths. All five share the accepted neural controller;
+their cells, joints, feeder apertures, and compatible nutrients remain distinct.
+
 ![Cellular breeding and soft symmetry](showcase/cellular_breeding_symmetry.png)
 
 Breeding, soft-organic symmetry, additive chassis growth, organ/fluid fields,

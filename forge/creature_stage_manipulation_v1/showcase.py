@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw
 
 from ..creature_stage_developmental.development import develop
 from ..creature_stage_developmental.genomes import review_genomes
+from ..creature_stage_developmental.contract import FAMILIES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
 from .arena import ManipulationStep, NeuralManipulationArena
 
@@ -138,10 +139,35 @@ def _blocked_clip() -> list[Image.Image]:
     return frames
 
 
+def _five_family_clip() -> list[Image.Image]:
+    arenas = [_arena(index, (10.0, 1.0)) for index in (0, 2, 4, 6, 8)]
+    frames: list[Image.Image] = []
+    for tick in range(420):
+        tiles: list[Image.Image] = []
+        complete = True
+        for family, (arena, target_id) in enumerate(arenas):
+            step = arena.step(target_id, goal="consume", delta=.05)
+            complete &= arena.feeding.consumed_mass >= .20
+            tile = _frame(arena, target_id, FAMILIES[family].upper(), "articulated neural feeding", step).resize((256, 192), Image.Resampling.NEAREST)
+            tiles.append(tile)
+        if tick % 3 == 0:
+            sheet = Image.new("RGBA", (768, 384), BG)
+            for index, tile in enumerate(tiles):
+                sheet.alpha_composite(tile, ((index % 3) * 256, (index // 3) * 192))
+            draw = ImageDraw.Draw(sheet)
+            draw.text((526, 246), "5 DIETS", fill=INK)
+            draw.text((526, 263), "5 FEEDER TYPES", fill=FOOD)
+            draw.text((526, 280), "1 SHARED NN", fill=HOT)
+            frames.append(sheet)
+        if complete:
+            break
+    return frames + frames[-10:]
+
+
 def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    clips = {"articulated_neural_feeding_v2.gif": _feed_clip(), "articulated_neural_throw_v2.gif": _throw_clip(), "articulated_severed_feeder_v2.gif": _blocked_clip()}
+    clips = {"articulated_neural_feeding_v2.gif": _feed_clip(), "articulated_neural_throw_v2.gif": _throw_clip(), "articulated_severed_feeder_v2.gif": _blocked_clip(), "articulated_five_family_feeding_v2.gif": _five_family_clip()}
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name

@@ -35,6 +35,11 @@ physical class as the legs. No visible tether or telekinetic transfer is used.
 The hand cells carry the clump to live feeder cells; the throw releases it into
 free motion while the arm retracts.
 
+![Five-family articulated neural feeding](examples/showcase/articulated_five_family_feeding_v2.gif)
+
+The same controller operates five different appendage/feeder/diet structures
+without replacing their family morphology with a universal manipulator.
+
 See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
 VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
 
