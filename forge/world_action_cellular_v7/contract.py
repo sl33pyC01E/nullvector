@@ -20,6 +20,8 @@ SOURCE_FILES = (
     "forge/world_action_cellular_v7/corpus.py",
     "forge/world_action_cellular_v7/model.py",
     "forge/world_action_cellular_v7/checkpoint.py",
+    "forge/world_action_cellular_v7/training.py",
+    "forge/world_action_cellular_v7/runtime.py",
 )
 CORPUS_SOURCE_FILES = (
     "forge/action_teacher_v2/contract.py",
@@ -54,7 +56,13 @@ class TrainingConfig:
     actor_field_weight: float = 0.55
     actor_changed_weight: float = 5.0
     gate_weight: float = 0.35
+    gate_positive_weight: float = 2.0
+    leakage_weight: float = 0.35
     contrastive_weight: float = 0.22
+    contrastive_margin: float = 0.012
+    contrastive_batch: int = 6
+    input_noise: float = 0.002
+    milestone_every: int = 2000
     seed: int = 0x43454C4C554C4152
 
 

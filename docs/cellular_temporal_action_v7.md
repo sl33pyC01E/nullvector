@@ -17,4 +17,13 @@ VAE checkpoint and EMA identity, tensor shapes/dtypes, byte hash, and semantic
 array hash. A restart can therefore reuse validated latents instead of spending
 another full pass reconstructing them.
 
+The trainer optimizes one causal transition jointly: sparse next-frame latent,
+next 128-value physiology, and next 8-channel cell/organ field. Validation is
+split by whole world and scores all three authorities against persistence;
+counterfactual actions and aim controls must also be worse than the correct
+conditioning. The v5 latent mean/std are frozen exactly instead of recomputed.
+Training writes an atomic resumable checkpoint every 500 updates and immutable
+best/2,000-update milestones, including optimizer, EMA, and random-generator
+state.
+
 The privileged model is an ensemble teacher, not the final product. Once it establishes that physical state transitions are learnable, a recurrent visual student can infer hidden state from frame history; the eventual monolithic Action-DiT/VAE student can then absorb both.

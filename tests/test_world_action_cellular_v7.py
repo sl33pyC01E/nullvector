@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from forge.action_teacher_v2.contract import ACTOR_FEATURES, ACTOR_FIELD_SHAPE
-from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, source_sha256, validate_encoded_corpus, write_encoded_corpus
+from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, selection_score, source_sha256, validate_encoded_corpus, write_encoded_corpus
 from forge.world_action_cellular_v7.contract import CHECKPOINT_FORMAT
 from forge.world_action_sparse_v5.contract import ModelConfig as V5ModelConfig
 from forge.world_action_sparse_v5.model import SparseActionDiT
@@ -116,3 +116,11 @@ def test_encoded_corpus_roundtrips_and_rejects_tamper(tmp_path):
         assert "artifact drifted" in str(error)
     else:
         raise AssertionError("tampered encoded corpus was accepted")
+
+
+def test_selection_requires_visual_and_physiological_improvement():
+    good = {"latent_mae": .08, "latent_persistence_mae": .1, "changed_latent_mae": .18, "changed_latent_persistence_mae": .24, "actor_state_mae": .03, "actor_state_persistence_mae": .05, "changed_actor_field_mae": .12, "changed_actor_field_persistence_mae": .2, "correct_action_advantage": .02, "targeted_control_advantage": .01}
+    bad_physiology = {**good, "actor_state_mae": .07, "changed_actor_field_mae": .27}
+    inverted = {**good, "correct_action_advantage": -.03, "targeted_control_advantage": -.02}
+    assert selection_score(good) < selection_score(bad_physiology)
+    assert selection_score(good) < selection_score(inverted)
