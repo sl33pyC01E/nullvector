@@ -55,6 +55,17 @@ class NatureDemo:
         elif kind=="scrape":entity.body.impact(point,2.4,.95);self.message="SCRAPE // SURFACE ABLATION"
         elif kind=="cut":entity.body.cut((point[0]-8,point[1]),(point[0]+8,point[1]),width=.75);self.message="CUT // CELL CONNECTIONS SEVERED"
 
+    def _graft_nearest(self,kind):
+        recipient=self.world.organisms.get(self.selected)
+        if recipient is None:return
+        donors=[o for o in self.world.organisms.values() if o.alive and o.entity_id!=recipient.entity_id]
+        if not donors:self.message="GRAFT // NO LIVING DONOR";return
+        donor=min(donors,key=lambda o:np.linalg.norm(self.world._delta(recipient.position,o.position)))
+        try:
+            event=self.world.graft_from(recipient.entity_id,donor.entity_id,kind=kind)
+            self.sprite_cache.clear();self.message=f"GRAFT {str(event['label']).upper()} // {event['installed_cells']} PHYSICAL CELLS // DONOR {donor.entity_id}"
+        except ValueError as exc:self.message=f"GRAFT REJECTED // {exc}"
+
     def events(self)->bool:
         pg=self.pg
         for event in pg.event.get():
@@ -77,6 +88,8 @@ class NatureDemo:
                 elif event.key==pg.K_v:self.tool="cut"
                 elif event.key==pg.K_b:self.tool="beam"
                 elif event.key==pg.K_p:self.tool="projectile"
+                elif event.key==pg.K_g:self._graft_nearest("organ")
+                elif event.key==pg.K_k:self._graft_nearest("locomotor")
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -159,7 +172,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COL {snap.colony_count:02}  FAC {len(self.society.factions):02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT  C CELLS  O ORGANS",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()

@@ -7,10 +7,12 @@ import math
 
 import numpy as np
 
-from ..creature_stage_developmental import FAMILIES
+from ..creature_stage_developmental import FAMILIES, develop
+from ..living_body_substrate import LivingBody
 from ..powder_world_v1 import MaterialGrid
 from .contract import ECO_TRAITS, RESOURCE_NAMES, EcoGenome, WorldSnapshot
 from .genetics import founder_genomes, recombine
+from .grafting import graft_appendage_pair, graft_organ
 from .state import ColonyState, OrganismState
 
 
@@ -269,6 +271,51 @@ class NatureWorld:
             if self._segment_distance(entity.position,start,end)>1.1+width:continue
             local_direction=delta/max(float(np.linalg.norm(delta)),1e-8);normal=np.asarray((-local_direction[1],local_direction[0]));entity.body.cut(tuple(-normal*24),tuple(normal*24),width=min(2.2,.55+width));bodies+=1
         return {**material_result,"bodies_hit":bodies}
+
+    @staticmethod
+    def _install_graft(entity:OrganismState,genome:EcoGenome,*,old_appendages:int,old_components:int)->int:
+        """Rebuild cellular authority while preserving every surviving old cell."""
+        previous=entity.body;replacement=LivingBody(develop(genome.developmental),seed=genome.developmental.seed)
+        old_at={tuple(map(int,xy)):index for index,xy in enumerate(previous.organism.cell_xy)}
+        installed=0
+        for index,xy in enumerate(replacement.organism.cell_xy):
+            prior=old_at.get(tuple(map(int,xy)))
+            if prior is not None:
+                replacement.health[index]=previous.health[prior]
+                replacement.scar[index]=previous.scar[prior]
+                replacement.fluid[index]=min(replacement.fluid_capacity[index],previous.fluid[prior])
+                continue
+            component=int(replacement.component_owner[index]);appendage=int(replacement.organism.appendage_index[index])
+            if component>=old_components or appendage>=old_appendages:
+                replacement.health[index]=.72;replacement.scar[index]=.34;replacement.fluid[index]*=.78;installed+=1
+        replacement.energy=min(previous.energy,entity.energy);replacement.external_puddle.extend(previous.external_puddle)
+        entity.genome=genome;entity.body=replacement
+        return installed
+
+    def graft_from(self,recipient_id:int,donor_id:int,*,kind:str)->dict[str,object]:
+        """Physically harvest and install one organ or reciprocal locomotor pair."""
+        if recipient_id==donor_id:raise ValueError("graft donor and recipient must differ")
+        recipient=self.organisms[recipient_id];donor=self.organisms[donor_id]
+        if not recipient.alive or not donor.alive:raise ValueError("grafting requires living bodies")
+        seed=int(self.rng.integers(0,2**63-1));old_appendages=len(recipient.genome.developmental.appendages);old_components=len(recipient.genome.developmental.components)
+        if kind=="locomotor":
+            candidates=[a for a in donor.genome.developmental.appendages if a.paired_with is not None]
+            if not candidates:raise ValueError("donor has no reciprocal appendage pair")
+            source=sorted(candidates,key=lambda a:(a.kind,a.appendage_id))[0]
+            genome=graft_appendage_pair(recipient.genome,donor.genome,source.appendage_id,seed=seed)
+            root=np.asarray(next(c.anchor for c in donor.genome.developmental.components if c.component_id==source.root_component),dtype=float)+np.asarray(source.root_offset,dtype=float)
+            donor.body.impact(tuple(root),3.2,.66);label=source.kind
+        elif kind=="organ":
+            candidates=[c for c in donor.genome.developmental.components if c.organ!="none"]
+            if not candidates:raise ValueError("donor has no transplantable organ")
+            source=sorted(candidates,key=lambda c:(c.organ,c.component_id))[0]
+            genome=graft_organ(recipient.genome,donor.genome,source.component_id,seed=seed)
+            donor.body.impact(source.anchor,max(1.2,float(max(source.radius))*.9),.58);label=source.organ
+        else:raise ValueError("unknown graft kind")
+        installed=self._install_graft(recipient,genome,old_appendages=old_appendages,old_components=old_components)
+        recipient.energy=max(0,recipient.energy-.08);donor.energy=max(0,donor.energy-.06)
+        event={"tick":self.tick_index,"type":"graft","recipient":recipient_id,"donor":donor_id,"kind":kind,"label":label,"installed_cells":installed,"genome":genome.semantic_sha256()}
+        self.events.append(event);return event
 
     def _step_projectiles(self,delta:float)->None:
         previous={p.projectile_id:np.asarray(p.position,float) for p in self.materials.projectiles};self.materials.step(delta)

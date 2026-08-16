@@ -137,3 +137,15 @@ def test_organs_and_paired_locomotors_can_cross_lineages() -> None:
     augmented=graft_organ(animal,machine,battery.component_id,seed=902)
     assert any(c.organ=="battery" for c in augmented.developmental.components)
     assert develop(augmented.developmental).cell_count>develop(animal.developmental).cell_count
+
+
+def test_world_graft_preserves_old_wounds_and_injures_donor() -> None:
+    world=NatureWorld(seed=772,size=32,max_population=32);world.seed_founders(variants_per_family=1)
+    animal=next(o for o in world.organisms.values() if o.family==1);machine=next(o for o in world.organisms.values() if o.family==4)
+    animal.body.impact((0,0),2.2,.44);prior_min=float(animal.body.health.min());donor_mean=float(machine.body.health.mean())
+    event=world.graft_from(animal.entity_id,machine.entity_id,kind="locomotor")
+    assert event["installed_cells"]>0
+    assert any(item.startswith("graft_appendage") for item in animal.genome.mutation_log)
+    assert float(animal.body.health.min())<=prior_min+.02
+    assert float(machine.body.health.mean())<donor_mean
+    assert animal.body.snapshot().systems["integrity"]<1
