@@ -97,6 +97,7 @@ def build_corpus(destination: Path, *, worlds: int = 32, steps: int = 48, base_s
     destination = Path(destination)
     if destination.exists():
         raise FileExistsError(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     if shutil.disk_usage(destination.parent).free < DISK_FLOOR:
         raise OSError("macro corpus disk floor reached")
     stage = destination.with_name(f".{destination.name}.tmp-{uuid.uuid4().hex}")

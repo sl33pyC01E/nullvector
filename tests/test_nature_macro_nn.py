@@ -50,7 +50,7 @@ def test_world_sequence_and_corpus_round_trip(tmp_path: Path) -> None:
     assert arrays["current"].shape == (8, len(STATE_CHANNELS), 32, 32)
     assert arrays["global_state"].shape == (8, GLOBAL_FEATURES)
     assert float(np.abs(arrays["target"].astype(np.float32) - arrays["current"].astype(np.float32)).sum()) > 0
-    root = tmp_path / "macro-corpus"
+    root = tmp_path / "new-parent" / "macro-corpus"
     built = build_corpus(root, worlds=1, steps=8, base_seed=0xCAFE)
     assert built["passed"] and built["pairs"] == 8
     assert validate_corpus(root) == built
