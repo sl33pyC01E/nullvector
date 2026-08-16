@@ -10,6 +10,25 @@ Godot assets are PNG and JSON.
 The early 32px vehicle experiment remains a replayable baseline. The active
 pipeline is the 48px five-family forge described below.
 
+## Visual outputs
+
+The repository now includes a compact, directly browsable selection of real
+generated artifacts. These are evidence from different stages of the current
+pipeline—not concept art and not a claim that every subsystem is production
+ready. The complete 59+ GiB output tree is mirrored separately because it is
+too large for an ordinary GitHub repository.
+
+| Neural cellular locomotion | Anatomical VAE motion | Grounded controller |
+|---|---|---|
+| ![Five-family neural cellular locomotion](examples/showcase/neural_cellular_locomotion.gif) | ![Anatomical VAE motion](examples/showcase/anatomical_vae_motion.gif) | ![Neural grounded controller](examples/showcase/neural_grounded_controller.gif) |
+
+| Developmental scaffold | Cellular breeding | Living world scaffold |
+|---|---|---|
+| ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
+
+See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
+VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
+
 ## Current playable reboot
 
 The default Godot scene is now `CreatureStage.tscn`: a native 2.5D cellular
