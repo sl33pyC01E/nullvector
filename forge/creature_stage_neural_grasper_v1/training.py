@@ -46,6 +46,29 @@ def evaluate(model, corpus, device):
     }
 
 
+def _gates(metrics):
+    gates = {
+        "appendage_accuracy": metrics["appendage_accuracy"] >= .94,
+        "engage_f1": metrics["engage_f1"] >= .96,
+        "reach_mae": metrics["reach_mae"] <= .06,
+        "force_mae": metrics["force_mae"] <= .07,
+        "target_type_accuracy": metrics["target_type_accuracy"] >= .98,
+        "brace_mae": metrics["brace_mae"] <= .07,
+        "release_accuracy": metrics["release_accuracy"] >= .98,
+        "throw_mae": metrics["throw_mae"] <= .06,
+    }
+    gates["all_passed"] = all(gates.values())
+    return gates
+
+
+def _quality(metrics):
+    return (
+        metrics["appendage_accuracy"] + metrics["engage_f1"] + metrics["target_type_accuracy"]
+        + metrics["release_accuracy"] - metrics["reach_mae"] - metrics["force_mae"]
+        - metrics["brace_mae"] - metrics["throw_mae"]
+    )
+
+
 def train(output: Path, *, model_config=ModelConfig(), training=TrainingConfig(), device="cuda"):
     output = Path(output)
     if output.exists(): raise FileExistsError(output)
@@ -60,14 +83,16 @@ def train(output: Path, *, model_config=ModelConfig(), training=TrainingConfig()
         select = F.cross_entropy(result.appendage_logits[manipulating], batch["appendage_target"][manipulating]); engage = F.binary_cross_entropy_with_logits(result.engage_logit, batch["engage_target"])
         reach = F.smooth_l1_loss(result.reach[active], batch["reach_target"][active]); force = F.smooth_l1_loss(result.force[active], batch["force_target"][active]); types = F.cross_entropy(result.type_logits, batch["type_target"]); brace = F.smooth_l1_loss(result.brace[active], batch["brace_target"][active])
         release = F.binary_cross_entropy_with_logits(result.release_logit, batch["release_target"]); throw = F.smooth_l1_loss(result.throw_impulse[releasing], batch["throw_target"][releasing])
-        loss = select + 1.4 * engage + 2.0 * reach + force + .5 * types + brace + 1.4 * release + 2.0 * throw
+        loss = 1.5 * select + 1.4 * engage + 5.0 * reach + force + .5 * types + brace + 1.4 * release + 3.0 * throw
         loss.backward(); torch.nn.utils.clip_grad_norm_(model.parameters(), 1); optimizer.step()
         with torch.no_grad():
             for ema_value, value in zip(ema.parameters(), model.parameters()): ema_value.lerp_(value, 1 - training.ema_decay)
         if step == 1 or step % 100 == 0:
             row = {"step": step, "loss": round(float(loss), 7), "select": round(float(select), 7), "engage": round(float(engage), 7), "reach": round(float(reach), 7)}; history.append(row); print(json.dumps(row), flush=True)
-    metrics = evaluate(model.eval(), validation_corpus, target); gates = {"appendage_accuracy": metrics["appendage_accuracy"] >= .94, "engage_f1": metrics["engage_f1"] >= .96, "reach_mae": metrics["reach_mae"] <= .06, "force_mae": metrics["force_mae"] <= .07, "target_type_accuracy": metrics["target_type_accuracy"] >= .98, "brace_mae": metrics["brace_mae"] <= .07, "release_accuracy": metrics["release_accuracy"] >= .98, "throw_mae": metrics["throw_mae"] <= .06}; gates["all_passed"] = all(gates.values())
-    state = {name: value.detach().cpu().to(torch.bfloat16) if value.is_floating_point() else value.detach().cpu() for name, value in model.state_dict().items()}
-    report = {"format": FORMAT, "source_sha256": source_sha256(), "parameters": model.parameter_count, "device": str(target), "train_corpus_sha256": train_corpus.semantic_sha256, "validation_corpus_sha256": validation_corpus.semantic_sha256, "model_config": config_dict(model_config), "training_config": config_dict(training), "metrics": metrics, "gates": gates, "history": history}
+    candidates = {"raw": evaluate(model.eval(), validation_corpus, target), "ema": evaluate(ema.eval(), validation_corpus, target)}
+    selected_name = max(candidates, key=lambda name: (int(_gates(candidates[name])["all_passed"]), _quality(candidates[name])))
+    selected = model if selected_name == "raw" else ema; metrics = candidates[selected_name]; gates = _gates(metrics)
+    state = {name: value.detach().cpu().to(torch.bfloat16) if value.is_floating_point() else value.detach().cpu() for name, value in selected.state_dict().items()}
+    report = {"format": FORMAT, "source_sha256": source_sha256(), "parameters": model.parameter_count, "device": str(target), "train_corpus_sha256": train_corpus.semantic_sha256, "validation_corpus_sha256": validation_corpus.semantic_sha256, "model_config": config_dict(model_config), "training_config": config_dict(training), "selected_weights": selected_name, "candidate_metrics": candidates, "metrics": metrics, "gates": gates, "history": history}
     payload = {"format": CHECKPOINT_FORMAT, "status": "evaluated", "source_sha256": source_sha256(), "model_config": config_dict(model_config), "model_state": state, "model_state_sha256": _state_hash(state), "report": report}
     output.mkdir(parents=True); torch.save(payload, output / "runtime.pt"); (output / "report.json").write_text(json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"); return report

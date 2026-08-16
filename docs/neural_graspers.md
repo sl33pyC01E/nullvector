@@ -10,4 +10,6 @@ Feeding is deliberately physical but forgiving. Every family derives a cell-leve
 
 The neural controller receives the organism's own feeder anchor. Consumption is a two-stage learned manipulation: first reach and attach to a food clump, then keep the constraint engaged while bringing the clump to that anchor. This separates intentional transport from the authoritative cell-contact test.
 
+The production fit uses the larger desktop-quality controller (384 channels, six conditioned blocks) and gives extra loss authority to appendage selection, feeder reach, and throw impulse. Raw and EMA weights are both evaluated; the runtime is published from the better validation candidate and the quality gates are never relaxed to make a run pass.
+
 Absorbed nutrition enters a bounded reserve instead of becoming an immediate hunger reset. The default reserve and 90-second fullness buffer make physical ingestion compatible with stable unattended ecosystems; exact durations remain balance parameters. Graspers can guide held food into the contact field, so this is not intended as a sub-pixel aiming challenge.

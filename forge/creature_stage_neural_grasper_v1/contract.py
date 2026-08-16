@@ -30,14 +30,14 @@ SOURCE_FILES = (
 
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
-    width: int = 256
-    depth: int = 5
+    width: int = 384
+    depth: int = 6
     dropout: float = 0.03
 
 
 @dataclass(frozen=True, slots=True)
 class TrainingConfig:
-    steps: int = 1800
+    steps: int = 5000
     batch_size: int = 128
     learning_rate: float = 2e-4
     ema_decay: float = 0.997
