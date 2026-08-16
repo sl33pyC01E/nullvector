@@ -43,6 +43,28 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ## Cellular life and damage
 
+### Neural manipulation and physical feeding
+
+![Neural grasper carrying food into live feeder cells](showcase/neural_grasper_feeding.gif)
+
+The accepted neural grasper selects an appendage and continuously controls
+reach, grip force, bracing, release, and throw impulse. This clip carries a
+material clump to the organism's derived physical feeder aperture. Food mass
+only becomes reserve after touching live feeder cells connected to digestive
+tissue.
+
+![Neural throw with target impulse and body recoil](showcase/neural_grasper_throw.gif)
+
+Throwing is constraint-based: release applies a learned target impulse and a
+corresponding body reaction, with grounded bracing allowed to exchange the
+residual momentum.
+
+![Severed feeder blocks nutrition](showcase/neural_feeder_severed.gif)
+
+The same contact trajectory after feeder destruction yields zero nutrition.
+This is a causal injury result, not a display-only damage state. Source:
+`outputs/creature_stage_manipulation_v1/showcase/`.
+
 ![Cellular breeding and soft symmetry](showcase/cellular_breeding_symmetry.png)
 
 Breeding, soft-organic symmetry, additive chassis growth, organ/fluid fields,

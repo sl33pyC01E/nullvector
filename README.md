@@ -26,6 +26,16 @@ too large for an ordinary GitHub repository.
 |---|---|---|
 | ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
 
+| Neural grasp + physical feeding | Neural throw + recoil | Damaged feeder fails closed |
+|---|---|---|
+| ![Neural grasper carrying food into live mouth cells](examples/showcase/neural_grasper_feeding.gif) | ![Neural throw with target impulse and body recoil](examples/showcase/neural_grasper_throw.gif) | ![Severed physical feeder blocks nutrition](examples/showcase/neural_feeder_severed.gif) |
+
+These manipulation clips are live closed-loop rollouts from the accepted
+8.01M-parameter grasper runtime. The controller selects an appendage, reach,
+force, brace, release, and throw impulse. Nutrition is granted only after the
+clump physically reaches living feeder cells with an intact path to digestive
+tissue; merely overlapping the chassis is insufficient.
+
 See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
 VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
 
