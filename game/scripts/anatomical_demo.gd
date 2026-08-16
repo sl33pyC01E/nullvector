@@ -147,9 +147,9 @@ func _update_creature(index: int, delta: float) -> void:
 	var cognition := float(systems["neural"])
 	if cognition < 0.55 and desired.length() > 0:
 		desired = desired.rotated(sin(time * 5.7 + family) * (0.55 - cognition) * 1.2)
-	var base_speed := [82.0, 98.0, 34.0, 72.0, 76.0][family]
-	var acceleration := [7.5, 8.8, 3.2, 4.5, 10.0][family]
-	var speed := base_speed * locomotion * (0.45 + cognition * 0.55)
+	var base_speed: float = [82.0, 98.0, 34.0, 72.0, 76.0][family]
+	var acceleration: float = [7.5, 8.8, 3.2, 4.5, 10.0][family]
+	var speed: float = base_speed * locomotion * (0.45 + cognition * 0.55)
 	if family == 3:
 		# Anomalies float and retain some lateral inertia.
 		creature["vel"] = Vector2(creature["vel"]).lerp(desired * speed, delta * acceleration * .45)
@@ -241,7 +241,7 @@ func _update_fragments(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		var key := event.physical_keycode
+		var key: int = event.physical_keycode
 		if key >= KEY_1 and key <= KEY_5:
 			selected = int(key - KEY_1)
 			message = "%s SELECTED" % FAMILIES[selected]
@@ -434,7 +434,7 @@ func _draw_creature(index: int) -> void:
 		var source := Rect2(family * 96, phase * 96, 96, 96)
 		var destination := Rect2(pos - Vector2.ONE * SPRITE_SIZE * .5, Vector2.ONE * SPRITE_SIZE)
 		var tint := Color(1, 1, 1, .28 + integrity * .72)
-		draw_texture_rect_region(destination, atlas, source, tint)
+		draw_texture_rect_region(atlas, destination, source, tint)
 	if show_skeleton:
 		_draw_skeleton(creature, color)
 	if show_organs:
@@ -568,7 +568,7 @@ func _draw_panel() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(992, y), "TOOLS", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#e5f2f4"))
 	y += 22
 	for item in [["I", "inspect"], ["X", "cut"], ["D", "damage"], ["H", "heal"]]:
-		var active := tool == item[1]
+		var active: bool = tool == item[1]
 		var tool_color := Color("#4ce7ff") if active else Color("#718995")
 		draw_string(ThemeDB.fallback_font, Vector2(992, y), "%s  %s" % [item[0], str(item[1]).to_upper()], HORIZONTAL_ALIGNMENT_LEFT, 100, 10, tool_color)
 		y += 17
