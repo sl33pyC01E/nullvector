@@ -34,6 +34,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 | I / J / H / X / V / B / P | Inspect, impact, heal, scrape, sever, beam, projectile tools |
 | C / O / L / M | Toggle cells, organs, sensory fields, region atlas |
 | Space | Pause |
+| F8 | Start / seal an action-conditioned teacher trajectory |
 | F5 / F9 | Save / restore the complete campaign |
 
 ## Neural authority and scaffold

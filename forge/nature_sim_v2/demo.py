@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -12,8 +13,9 @@ from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..nature_colony_nn import NeuralColonyRuntime
 from ..nature_society_nn import NeuralSocietyRuntime
-from ..nature_timeline_nn import NeuralTimelineRuntime
-from ..nature_counterfactual_nn import NeuralCounterfactualRuntime
+from ..nature_timeline_nn import EVENTS as TIMELINE_EVENTS,NeuralTimelineRuntime,extract_world_features
+from ..nature_counterfactual_nn import ACTIONS as COUNTERFACTUAL_ACTIONS,NeuralCounterfactualRuntime
+from ..action_teacher_v1 import FRAME_SIZE,TeacherTrajectoryRecorder
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..qud_trade_v1 import execute_trade,generate_trade_offers
@@ -69,7 +71,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -90,6 +92,10 @@ class NatureDemo:
     def _refresh_interventions(self):
         predictions=self.counterfactual_runtime.evaluate(self.timeline_runtime.history);self.counterfactuals={item.action:item for item in predictions};lookup={item.intervention_id:item for item in INTERVENTIONS};ranked=sorted(predictions,key=lambda item:(item.benefit-item.risk*.35,item.benefit,-item.risk),reverse=True);self.intervention_offers=tuple(lookup[item.action] for item in ranked[:3])
 
+    def _record_teacher_frame(self):
+        if not self.trajectory.active:return
+        pg=self.pg;surface=pg.transform.scale(self.screen,FRAME_SIZE);frame=np.transpose(pg.surfarray.array3d(surface),(1,0,2)).astype(np.uint8);entity=self.world.organisms.get(self.selected);aim=self.screen_to_world(pg.mouse.get_pos());delta=np.zeros(2) if entity is None else self.world._delta(entity.position,aim)/max(1,self.world.size*.5);control=np.asarray((self.manual[0],self.manual[1],delta[0],delta[1]),np.float32);forecast=self.timeline_forecast;timeline=np.asarray((forecast.confidence,forecast.population_delta,forecast.resource_delta),np.float32);counterfactual=np.asarray([[self.counterfactuals[name].benefit,self.counterfactuals[name].risk,self.counterfactuals[name].population_delta,self.counterfactuals[name].resource_delta] for name in COUNTERFACTUAL_ACTIONS],np.float32);self.trajectory.append(frame=frame,state=extract_world_features(self.world,self.society),control=control,action=self.action_latch,selected=self.selected,timeline_event=TIMELINE_EVENTS.index(forecast.event),timeline=timeline,counterfactual=counterfactual,tick=self.world.tick_index);self.action_latch="none"
+
     def screen_to_world(self,position):
         width,height=self.screen.get_size();return (self.camera+(np.asarray(position)-np.asarray((width*.5,height*.5)))/self.zoom)%self.world.size
 
@@ -98,6 +104,7 @@ class NatureDemo:
         if living:self.selected=min(living,key=lambda o:np.linalg.norm(self.world._delta(point,o.position))).entity_id
 
     def _damage_at(self,mouse,kind):
+        self.action_latch="impact" if kind=="damage" else kind
         if kind in ("beam","projectile"):
             target=tuple(self.screen_to_world(mouse))
             weapon=1+self.adventure.bonus("damage")
@@ -113,6 +120,7 @@ class NatureDemo:
         elif kind=="cut":entity.body.cut((point[0]-8,point[1]),(point[0]+8,point[1]),width=.75);self.message="CUT // CELL CONNECTIONS SEVERED"
 
     def _graft_nearest(self,kind):
+        self.action_latch="graft_organ" if kind=="organ" else "graft_locomotor"
         recipient=self.world.organisms.get(self.selected)
         if recipient is None:return
         donors=[o for o in self.world.organisms.values() if o.alive and o.entity_id!=recipient.entity_id]
@@ -154,18 +162,24 @@ class NatureDemo:
                     if event.key in (pg.K_ESCAPE,pg.K_y):self.trade_settlement=None;self.trade_offers=();self.message="BARTER CLOSED"
                     elif event.key in (pg.K_7,pg.K_8,pg.K_9):
                         index={pg.K_7:0,pg.K_8:1,pg.K_9:2}[event.key]
-                        try:self.message=execute_trade(self.trade_offers[index],settlement=self.society.settlements[self.trade_settlement],adventure=self.adventure,journal=self.quests);self.trade_offers=generate_trade_offers(self.society.settlements[self.trade_settlement],reputation=self.quests.reputation.get(self.society.settlements[self.trade_settlement].faction_id,0),epoch=self.world.tick_index//60)
+                        try:self.action_latch="trade";self.message=execute_trade(self.trade_offers[index],settlement=self.society.settlements[self.trade_settlement],adventure=self.adventure,journal=self.quests);self.trade_offers=generate_trade_offers(self.society.settlements[self.trade_settlement],reputation=self.quests.reputation.get(self.society.settlements[self.trade_settlement].faction_id,0),epoch=self.world.tick_index//60)
                         except ValueError as exc:self.message=f"BARTER REJECTED // {exc}"
                     continue
                 if self.show_planner:
                     if event.key in (pg.K_ESCAPE,pg.K_BACKQUOTE):self.show_planner=False;self.message="NEURAL ECOLOGY PLANNER CLOSED"
                     elif event.key in (pg.K_7,pg.K_8,pg.K_9) and self.selected in self.world.organisms:
                         index={pg.K_7:0,pg.K_8:1,pg.K_9:2}[event.key]
-                        try:self.message=apply_intervention(self.world,self.adventure,self.world.organisms[self.selected],self.intervention_offers[index],forecast_event=self.timeline_forecast.event);self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.show_planner=False
+                        try:self.action_latch="intervention";self.message=apply_intervention(self.world,self.adventure,self.world.organisms[self.selected],self.intervention_offers[index],forecast_event=self.timeline_forecast.event);self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.show_planner=False
                         except ValueError as exc:self.message=str(exc)
                     continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
+                elif event.key==pg.K_F8:
+                    if self.trajectory.active:
+                        try:path=self.trajectory.finish();self.message=f"TEACHER TRAJECTORY SEALED // {path.name.upper()}"
+                        except ValueError as exc:self.message=f"TRAJECTORY EMPTY // {exc}"
+                    else:
+                        session=f"episode-{self.world.seed:x}-{self.world.tick_index:08d}-{time.time_ns()&0xfffffff:07x}";self.trajectory.start(session,world_seed=self.world.seed,tick=self.world.tick_index);self.message="TEACHER TRAJECTORY RECORDING // FRAMES + CONTROLS + CELLS + NEURAL CONSEQUENCES"
                 elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
                 elif event.key==pg.K_TAB:self.show_chronicle=not self.show_chronicle
                 elif event.key==pg.K_BACKQUOTE:self._refresh_interventions();self.show_planner=True;self.message="NEURAL ECOLOGY PLANNER // 7/8/9 INTERVENE"
@@ -187,16 +201,16 @@ class NatureDemo:
                 elif event.key==pg.K_p:self.tool="projectile"
                 elif event.key==pg.K_g:self._graft_nearest("organ")
                 elif event.key==pg.K_k:self._graft_nearest("locomotor")
-                elif event.key==pg.K_e and self.selected in self.world.organisms:self.message=self.adventure.interact(self.world,self.world.organisms[self.selected])
+                elif event.key==pg.K_e and self.selected in self.world.organisms:self.action_latch="interact";self.message=self.adventure.interact(self.world,self.world.organisms[self.selected])
                 elif event.key==pg.K_q and self.selected in self.world.organisms:
-                    try:self.message=self.adventure.build(self.world,self.world.organisms[self.selected])
+                    try:self.action_latch="build";self.message=self.adventure.build(self.world,self.world.organisms[self.selected])
                     except ValueError as exc:self.message=f"BUILD REJECTED // {exc}"
                 elif event.key==pg.K_t:self.message=self.adventure.cycle_recipe()
                 elif event.key==pg.K_r:
-                    try:self.message=self.adventure.craft_selected()
+                    try:self.action_latch="craft";self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
-                elif event.key==pg.K_z and self.selected in self.world.organisms:self.message=bond_nearby(self.world,self.world.organisms[self.selected])
+                elif event.key==pg.K_z and self.selected in self.world.organisms:self.action_latch="bond";self.message=bond_nearby(self.world,self.world.organisms[self.selected])
                 elif event.key==pg.K_y and self.selected in self.world.organisms:
                     if not self.society.settlements:self.message="BARTER // NO SETTLEMENTS YET"
                     else:
@@ -208,7 +222,7 @@ class NatureDemo:
                     else:
                         entity=self.world.organisms[self.selected];settlement=min(self.society.settlements.values(),key=lambda item:float(np.linalg.norm(self.world._delta(entity.position,np.asarray(item.center)))));distance=float(np.linalg.norm(self.world._delta(entity.position,np.asarray(settlement.center))))
                         if distance>9:self.message=f"SERVICE // SETTLEMENT {distance:.1f} CELLS AWAY"
-                        else:self.message=use_settlement_service(settlement,self.society.factions[settlement.faction_id],entity=entity,adventure=self.adventure,journal=self.quests)
+                        else:self.action_latch="service";self.message=use_settlement_service(settlement,self.society.factions[settlement.faction_id],entity=entity,adventure=self.adventure,journal=self.quests)
                 elif event.key in (pg.K_4,pg.K_5,pg.K_6) and self.adventure.pending_encounter is not None and self.selected in self.world.organisms:
                     index={pg.K_4:0,pg.K_5:1,pg.K_6:2}[event.key]
                     self.message=self.adventure.resolve_pending(index,self.world,self.world.organisms[self.selected])
@@ -216,10 +230,10 @@ class NatureDemo:
                     entity=self.world.organisms[self.selected];index={pg.K_1:0,pg.K_2:1,pg.K_3:2}[event.key];offer=evolution_offers(entity.genome,epoch=self.evolution_epoch)[index]
                     if self.adventure.inventory["knowledge"]+1e-9<offer.cost:self.message=f"METAMORPHOSIS NEEDS {offer.cost:.1f} KNOWLEDGE"
                     else:
-                        seed=(self.world.seed^self.world.tick_index*65537^entity.entity_id*7919^self.evolution_epoch)&0x7FFF_FFFF_FFFF_FFFF;self.adventure.inventory["knowledge"]-=offer.cost;metamorphose(entity,offer,seed=seed);self.runtime.forget(entity.entity_id);self.behavior.cache.pop(entity.entity_id,None);self.visible_physics.states.pop(entity.entity_id,None);self.sprite_cache.clear();self.evolution_epoch+=1;self.world.mutation_count+=1;self.world.events.append({"tick":self.world.tick_index,"type":"directed_evolution","entity":entity.entity_id,"offer":offer.offer_id,"generation":entity.genome.developmental.generation});self.message=f"METAMORPHOSIS // {offer.label.upper()} // WOUNDS MAPPED TO NEW CELLS"
+                        seed=(self.world.seed^self.world.tick_index*65537^entity.entity_id*7919^self.evolution_epoch)&0x7FFF_FFFF_FFFF_FFFF;self.action_latch="metamorphosis";self.adventure.inventory["knowledge"]-=offer.cost;metamorphose(entity,offer,seed=seed);self.runtime.forget(entity.entity_id);self.behavior.cache.pop(entity.entity_id,None);self.visible_physics.states.pop(entity.entity_id,None);self.sprite_cache.clear();self.evolution_epoch+=1;self.world.mutation_count+=1;self.world.events.append({"tick":self.world.tick_index,"type":"directed_evolution","entity":entity.entity_id,"offer":offer.offer_id,"generation":entity.genome.developmental.generation});self.message=f"METAMORPHOSIS // {offer.label.upper()} // WOUNDS MAPPED TO NEW CELLS"
                 elif event.key in (pg.K_UP,pg.K_RIGHT,pg.K_DOWN,pg.K_LEFT) and self.selected in self.world.organisms:
                     entity=self.world.organisms[self.selected];abilities=entity_abilities(entity,equipment_damage=self.adventure.bonus("damage"));index={pg.K_UP:0,pg.K_RIGHT:1,pg.K_DOWN:2,pg.K_LEFT:3}[event.key]
-                    if index<len(abilities):self.message=use_ability(self.world,entity,abilities[index],tuple(self.screen_to_world(pg.mouse.get_pos())),power=1+self.adventure.bonus("damage"))
+                    if index<len(abilities):self.action_latch=("ability_up","ability_right","ability_down","ability_left")[index];self.message=use_ability(self.world,entity,abilities[index],tuple(self.screen_to_world(pg.mouse.get_pos())),power=1+self.adventure.bonus("damage"))
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -437,8 +451,8 @@ class NatureDemo:
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;forecast=self.timeline_forecast;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} NN>{forecast.event.upper()} {forecast.confidence:.0%}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  ` NEURAL PLAN  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;forecast=self.timeline_forecast;record=f" REC●{self.trajectory.frame_count:03}" if self.trajectory.active else "";status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} NN>{forecast.event.upper()} {forecast.confidence:.0%}{record}"
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  ` NEURAL PLAN  E INTERACT  Z KIN-BOND  Q BUILD  F8 TEACHER REC  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
@@ -448,7 +462,7 @@ class NatureDemo:
         if self.show_chronicle:self._draw_chronicle()
         if self.show_planner:self._draw_planner()
         if self.creator.active:self._draw_creator()
-        self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
+        self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));self._record_teacher_frame();pg.display.flip()
 
     def run(self,*,capture:Path|None=None)->None:
         if capture is not None:
@@ -457,6 +471,7 @@ class NatureDemo:
         running=True
         while running:
             delta=min(.05,self.clock.tick(60)/1000);running=self.events();self.update(delta);self.draw()
+        if self.trajectory.active and self.trajectory.frame_count:self.trajectory.finish()
         self.pg.quit()
 
 
