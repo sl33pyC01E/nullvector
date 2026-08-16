@@ -19,6 +19,7 @@ from .colony_ecology import ColonyEcology
 from .climate import ClimateSystem
 from .ecosystem_network import EcosystemNetwork
 from .breeding import BreedingSystem
+from .colony_culture import ColonyCultureSystem
 
 
 class NatureWorld:
@@ -46,6 +47,7 @@ class NatureWorld:
         self.climate = ClimateSystem(seed^0x434C494D415445)
         self.ecosystem = EcosystemNetwork()
         self.breeding = BreedingSystem()
+        self.colony_culture = ColonyCultureSystem()
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -412,7 +414,7 @@ class NatureWorld:
                 for i in colony.member_ids:self.organisms[i].colony_id=None
                 del self.colonies[cid];continue
             colony.center=np.mean([self.organisms[i].position for i in sorted(colony.member_ids)],axis=0)
-            if len(colony.member_ids)>14:
+            if len(colony.member_ids)>self.colony_culture.fission_threshold(self,cid):
                 ordered=sorted(colony.member_ids,key=lambda i:(self.organisms[i].position[0],i))
                 moved=set(ordered[len(ordered)//2:])
                 new_id=self.next_colony_id;self.next_colony_id+=1
@@ -458,6 +460,7 @@ class NatureWorld:
             if not entity.finite():raise FloatingPointError(f"entity {entity_id} became non-finite")
         self._update_colonies()
         self.colony_ecology.step(self,delta)
+        self.colony_culture.step(self,delta)
         self.ecosystem.step(self,delta)
         self._resolve_collisions()
         self._step_projectiles(delta)
