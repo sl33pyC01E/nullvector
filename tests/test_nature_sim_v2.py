@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from pathlib import Path
 
 from forge.creature_stage_developmental import develop
 from forge.nature_sim_v2 import NatureWorld,cohort_conservation,demote_to_cohort,founder_genomes,recombine
@@ -101,3 +102,11 @@ def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
     cohort=demote_to_cohort(organisms,region_id="garden-4-9")
     assert cohort.count==4 and cohort.family==2
     assert all(cohort_conservation(cohort,organisms).values())
+
+
+def test_native_nature_demo_and_launcher_are_present() -> None:
+    root=Path(__file__).resolve().parents[1]
+    source=(root/"forge/nature_sim_v2/demo.py").read_text("utf-8")
+    for capability in ("NeuralLocomotionRuntime","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
+        assert capability in source
+    assert (root/"Launch Neural Nature Stage.bat").is_file()
