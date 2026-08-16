@@ -9,32 +9,12 @@ import torch
 
 from ..creature_stage_neural_grounded_components.dataset import ComponentCurriculumTeacher, ComponentSentinelTeacher
 from ..creature_stage_neural_grounded_controller.dataset import owner_metadata
+from ..living_body_substrate import LivingBody
 from .contract import GLOBAL_FEATURES, GOALS, MAX_APPENDAGES, OWNER_FEATURES, TARGET_FEATURES, TARGET_TYPES
+from .feeding import physical_feeder_anchor
 
 
 KIND_GRIP = {"arm": 1.0, "tendril": .96, "tail": .82, "root": .76, "frond": .58, "hardpoint": .46, "leg": .30, "wheel": .10}
-
-
-def feeder_anchor(organism) -> np.ndarray:
-    family = int(np.argmax(np.asarray(organism.genome.family_mix, dtype=np.float32)))
-    predicates = (
-        lambda component: component.kind == "head",
-        lambda component: component.kind == "mouth" or component.organ == "jaw",
-        lambda component: component.organ == "bulb",
-        lambda component: component.organ == "transmuter",
-        lambda component: component.organ == "battery",
-    )
-    candidates = [component for component in organism.genome.components if predicates[family](component)]
-    if not candidates:
-        raise ValueError("grasper feeder anchor is absent")
-    anchor = np.asarray(candidates[0].anchor, dtype=np.float32)
-    if family == 0:
-        anchor = anchor + np.asarray((0, 2), dtype=np.float32)
-    elif family == 2:
-        roots = [appendage for appendage in organism.genome.appendages if appendage.kind == "root"]
-        if roots:
-            anchor = np.mean(np.asarray([appendage.endpoint for appendage in roots], dtype=np.float32), axis=0)
-    return np.clip(anchor / 24.0, -1, 1).astype(np.float32)
 
 
 @dataclass(slots=True)
@@ -63,7 +43,7 @@ class GrasperCorpus:
         )}
 
 
-def _case(organism, identity: int, case: int):
+def _case(organism, identity: int, case: int, intake_anchor: np.ndarray):
     rng = np.random.default_rng(0x4752415350 + identity * 65537 + case * 8191)
     owner, mask = owner_metadata(organism)
     target_type = 0 if case % 19 == 0 else 1 + (case % 3)
@@ -92,7 +72,7 @@ def _case(organism, identity: int, case: int):
     global_state[family] = 1
     traits = np.asarray(organism.genome.traits, np.float32)
     global_state[5:8] = (float(np.mean(traits[3:8])), float(np.mean(traits[8:13])), float(np.mean(traits[13:18])))
-    global_state[8:10] = feeder_anchor(organism)
+    global_state[8:10] = intake_anchor
 
     scores = np.full(MAX_APPENDAGES, -1e6, np.float32)
     capacities = np.zeros(MAX_APPENDAGES, np.float32)
@@ -112,7 +92,7 @@ def _case(organism, identity: int, case: int):
     if goal == 3 and cohesion > capacity + .28:
         engage *= .35
     if engage and attached and goal == GOALS.index("consume"):
-        reach_target = feeder_anchor(organism)
+        reach_target = intake_anchor
     else:
         reach_target = direction * min(distance, .72 + .42 * capacity) if engage else np.zeros(2, np.float32)
     force = engage * np.clip(.18 + .58 * mass + .24 * cohesion + .20 * hostility + .18 * (goal == 3), 0, 1)
@@ -130,7 +110,11 @@ def build_corpus(*, split: str, cases_per_identity: int = 192) -> GrasperCorpus:
         teacher = ComponentSentinelTeacher(); identities = teacher.split_indices("validation")
     else:
         raise ValueError("grasper split drifted")
-    rows = [_case(teacher.organisms[identity], identity, case) for identity in identities for case in range(cases_per_identity)]
+    anchors = {
+        identity: physical_feeder_anchor(LivingBody(teacher.organisms[identity]))
+        for identity in identities
+    }
+    rows = [_case(teacher.organisms[identity], identity, case, anchors[identity]) for identity in identities for case in range(cases_per_identity)]
     arrays = [np.stack([row[index] for row in rows]) for index in range(13)]
     dtypes = (np.float32, np.bool_, np.float32, np.float32, np.int64, np.float32, np.float32, np.float32, np.int64, np.float32, np.float32, np.float32, np.int64)
     arrays = [np.ascontiguousarray(value, dtype=dtype) for value, dtype in zip(arrays, dtypes)]

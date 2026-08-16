@@ -8,7 +8,7 @@ Throwing is a learned release command with a two-axis impulse. The constraint so
 
 Feeding is deliberately physical but forgiving. Every family derives a cell-level feeder aperture: literal mouth/jaw cells for animals, a lower head aperture for humanoids, terminal root feeders for plants, a transmuter aperture for anomalies, and a fuel port for machines. A food or fuel clump must overlap the small contact field around a live feeder cell, and those cells must still have a live cellular path to a digestive organ. Proximity to the body alone never creates nutrition. Severing a mouth, gut, or their connecting tissue therefore stops intake.
 
-The neural controller receives the organism's own feeder anchor. Consumption is a two-stage learned manipulation: first reach and attach to a food clump, then keep the constraint engaged while bringing the clump to that anchor. This separates intentional transport from the authoritative cell-contact test.
+The neural controller receives the exact centroid of the organism's physical feeder cells, not an approximate component anchor. Consumption is a two-stage learned manipulation: first reach and attach to a food clump, then keep the constraint engaged while bringing the clump to that anchor. This separates intentional transport from the authoritative cell-contact test while ensuring every family aims at the same cells the intake collision actually checks.
 
 The production fit uses the larger desktop-quality controller (384 channels, six conditioned blocks) and gives extra loss authority to appendage selection, feeder reach, and throw impulse. Raw and EMA weights are both evaluated; the runtime is published from the better validation candidate and the quality gates are never relaxed to make a run pass.
 

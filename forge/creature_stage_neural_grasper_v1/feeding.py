@@ -184,6 +184,14 @@ def feeder_status(body: LivingBody) -> FeederStatus:
     )
 
 
+def physical_feeder_anchor(body: LivingBody) -> np.ndarray:
+    status = feeder_status(body)
+    points = body.organism.cell_xy[status.feeder_mask & body.alive_mask]
+    if points.size == 0:
+        raise ValueError("living feeder has no anchor cells")
+    return np.clip(points.astype(np.float32).mean(axis=0) / 24.0, -1, 1).astype(np.float32)
+
+
 def absorb_food(
     body: LivingBody,
     feeding: FeedingState,
