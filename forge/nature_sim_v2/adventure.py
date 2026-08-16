@@ -56,6 +56,16 @@ class AdventureState:
         self.last_event=len(world.events);survive=self._objective("survive");survive.progress=min(survive.target,float(world.tick_index));survive.complete=survive.progress>=survive.target
 
     def interact(self,world,entity)->str:
+        corpses=[other for other in world.organisms.values() if other.entity_id!=entity.entity_id and not other.alive and other.body.alive_mask.any()]
+        if corpses:
+            corpse=min(corpses,key=lambda other:float(np.linalg.norm(world._delta(entity.position,other.position))));distance=float(np.linalg.norm(world._delta(entity.position,corpse.position)))
+            if distance<=2.6:
+                alive_before=corpse.body.alive_mask.copy();owners=corpse.body.component_owner[alive_before];owner=int(np.bincount(owners).argmax());component=corpse.genome.developmental.components[owner];cx,cy=component.anchor;rx=max(1.0,float(component.radius[0]));corpse.body.cut((cx-rx,cy),(cx+rx,cy),width=1.15);removed=int(np.count_nonzero(alive_before&~corpse.body.alive_mask))
+                if removed<=0:corpse.body.impact(component.anchor,max(1.2,float(max(component.radius))*.55),1.0);removed=int(np.count_nonzero(alive_before&~corpse.body.alive_mask))
+                material=("biomass","biomass","biomass","crystal","metal")[corpse.family];amount=max(.01,removed*.012);self.inventory[material]+=amount
+                if corpse.family==2:self.inventory["water"]+=amount*.35
+                if component.organ in ("brain","phase_brain","processor","meristem"):self.inventory["knowledge"]+=amount*.18
+                self.score+=max(1,removed//4);world.events.append({"tick":world.tick_index,"type":"corpse_harvest","harvester":entity.entity_id,"corpse":corpse.entity_id,"cells":removed,"material":material,"organ":component.organ});return f"BUTCHERED {removed} CELLS // +{amount:.2f} {material.upper()} // {component.organ.upper()}"
         nearest=min(self.sites,key=lambda site:np.linalg.norm(world._delta(entity.position,site.position)))
         distance=float(np.linalg.norm(world._delta(entity.position,nearest.position)))
         if distance<=2.6 and nearest.richness>.02:
