@@ -174,6 +174,7 @@ class NatureWorld:
         diet=np.asarray(entity.genome.diet)
         available=self.fields[:,y,x]
         uptake=np.minimum(available,diet*(.004+.012*entity.genome.developmental.traits[10])*delta)
+        systems=entity.body.systems();uptake[8:]*=.08+.92*systems["digestion"];uptake[5]*=.08+.92*systems["respiration"];uptake*=.18+.82*systems["circulation"]
         if entity.family==2: uptake[8:]=0
         if entity.family==3: uptake[[0,1,5,8,9]]=0
         if entity.family==4: uptake[[0,1,4,5,8,9]]=0
@@ -181,6 +182,7 @@ class NatureWorld:
         entity.consumed+=uptake
         quality=float(np.dot(uptake,diet)/max(diet.sum(),1e-8))
         entity.energy=min(1.2,entity.energy+quality*2.4)
+        entity.body.energy=min(1.2,entity.body.energy+quality*1.35)
         entity.reserve=min(1.0,entity.reserve+quality*.85)
         if entity.family==2:
             self.fields[8,y,x]=min(1.0,self.fields[8,y,x]+delta*.0018*(self.fields[0,y,x]+self.fields[1,y,x]))
