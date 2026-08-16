@@ -150,6 +150,13 @@ def _project_edges_and_contacts(
         # This is the 2.5D vertical lock: it stabilizes the chassis origin but
         # never rotates or mirrors the organism to face its travel direction.
         positions[0] += (target_root - positions[0]) * .42
+        if dominant_family(organism) == 1:
+            # A low quadruped has a short top-to-bottom axis, so ordinary
+            # inertial lag can look like a large sprite rotation even when it
+            # is only a pixel. Keep organ/chassis nodes on the vertical 2.5D
+            # axis; articulated legs retain their full lateral dynamics.
+            component_count = len(organism.genome.components)
+            positions[:component_count, 0] = positions[0, 0]
         for appendage_index in np.flatnonzero(contact_active):
             terminal = int(terminals[appendage_index])
             positions[terminal] = (

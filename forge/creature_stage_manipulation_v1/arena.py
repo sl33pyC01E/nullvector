@@ -73,7 +73,10 @@ class NeuralManipulationArena:
             float(gene.endpoint[1]) for gene in self.organism.genome.appendages
             if gene.kind in {"leg", "root", "wheel"}
         ]
-        local = max(contacts, default=float(self.organism.cell_xy[:, 1].max() + 1.0))
+        # This is the same skeletal contact authority used by the accepted
+        # grounded locomotion rollout. Raster cells follow the constrained
+        # skeleton; they do not redefine or push the contact plane.
+        local = max(contacts, default=float(self.organism.skeleton_nodes[:, 1].max() + 3.0))
         return float(self.body.position[1] + local)
 
     @property
@@ -86,21 +89,18 @@ class NeuralManipulationArena:
     def pose_for_acquisition(self, amount: float, *, delta: float) -> None:
         """Apply a vertical-only 2.5D acquisition posture for this chassis."""
         amount = float(np.clip(amount, 0, 1))
+        if self.family in (0, 4):
+            capacities = [self.appendage_capacity(index) for index in self.grasper_indices()]
+            posture_capacity = max(capacities, default=0.0)
+            amount *= float(np.clip((posture_capacity - .08) / .62, 0.0, 1.0))
         offsets = np.zeros_like(self.articulation.component_offsets)
         for index, component in enumerate(self.organism.genome.components):
-            if self.family == 0:  # pelvis folds; torso/head descend to the hand's ground reach
-                drop = 4.5 if component.kind == "pelvis" else 9.5
+            if self.family == 0:  # translate the chassis; grounded legs supply the fold
+                drop = 4.0
             elif self.family == 1:  # articulated neck fold into a ground bite
-                if component.kind == "mouth" or component.organ == "jaw":
-                    drop = 26.0
-                elif component.kind in {"head", "sensor_crown"} or component.organ == "vision":
-                    drop = 23.0
-                elif component.component_id == "neck":
-                    drop = 12.5
-                else:
-                    drop = 2.5
+                drop = 1.25
             elif self.family == 4:  # compress wheel/track suspension under a tool hardpoint
-                drop = 3.5 if component.kind == "pelvis" else 10.5
+                drop = 2.0
             else:
                 drop = 0.0
             offsets[index, 1] = drop * amount
@@ -121,7 +121,7 @@ class NeuralManipulationArena:
 
     def posed_feeder_points(self) -> np.ndarray:
         status = feeder_status(self.living)
-        return self.articulation.cells()[status.feeder_mask & self.living.alive_mask].astype(np.float64) + self.body.position
+        return self.articulation.cells(floor_y=self.ground_plane_y() - self.body.position[1])[status.feeder_mask & self.living.alive_mask].astype(np.float64) + self.body.position
 
     def grasper_indices(self) -> tuple[int, ...]:
         # Plant roots are both locomotors and literal feeder/manipulators.
@@ -346,6 +346,10 @@ class NeuralManipulationArena:
             self.held_target = None
             self.grasp_appendage = None
         desired_local = self._feeder_target(appendage) if self.constraint.attached and goal == "consume" else np.asarray(command.reach, dtype=np.float64) * 24.0
+        if capacity < .45:
+            rest_endpoint = np.asarray(self.organism.genome.appendages[appendage].endpoint, dtype=np.float64)
+            useful_motion = float(np.clip(capacity / .45, 0, 1)) ** 1.7
+            desired_local = rest_endpoint + (desired_local - rest_endpoint) * useful_motion
         desired = self.body.position + desired_local
         response = min(1.0, delta * (10.0 + 8.0 * command.force))
         effector = self.articulation.solve(
@@ -353,11 +357,11 @@ class NeuralManipulationArena:
             actuation=capacity, load=target.mass if self.constraint.attached else 0.0,
         ) + self.body.position
         target_body = GraspBody(target.position, target.velocity, target.mass)
-        release = np.asarray(command.throw_impulse, dtype=np.float64) * (19.0 * throw_strength) if command.release and goal == "throw" else None
+        release = np.asarray(command.throw_impulse, dtype=np.float64) * (17.5 * throw_strength) if command.release and goal == "throw" else None
         if release is not None:
             magnitude = float(np.linalg.norm(release))
-            if magnitude > 12.0:
-                release *= 12.0 / magnitude
+            if magnitude > 11.5:
+                release *= 11.5 / magnitude
         effective_force = float(command.force * capacity)
         can_hold = capacity >= .12 and target.mass <= .10 + capacity * 2.2
         result = solve_grasp(

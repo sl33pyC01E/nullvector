@@ -55,9 +55,9 @@ def _body_pose(organism: DevelopedOrganism, phase: float) -> np.ndarray:
         rest[:component_count, 1] -= vertical_load
         for name in ("neck", "head", "muzzle", "eyes"):
             if name in component_ids:
-                rest[component_ids[name], 0] += math.sin(theta * 2.0 + .42) * .24
+                rest[component_ids[name], 0] += math.sin(theta * 2.0 + .42) * .05
         if "haunch" in component_ids:
-            rest[component_ids["haunch"], 0] -= math.sin(theta * 2.0) * .24
+            rest[component_ids["haunch"], 0] -= math.sin(theta * 2.0) * .08
         return rest
 
     if family == 3:

@@ -5,6 +5,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..creature_stage_developmental.development import DevelopedOrganism
+from ..creature_stage_developmental.motion import skin_cells
+from ..creature_stage_grounded_locomotion.contract import GroundedLocomotionConfig
+from ..creature_stage_grounded_locomotion.physics import (
+    _inverse_mass,
+    _project_edges_and_contacts,
+    _terminal_nodes,
+)
 @dataclass(frozen=True, slots=True)
 class LimbGeometry:
     kind: str
@@ -117,7 +124,7 @@ class ArticulatedBody:
             target_acceleration *= 48.0 / acceleration_norm
         self.target_velocities[appendage] += target_acceleration * delta
         target_speed = float(np.linalg.norm(self.target_velocities[appendage]))
-        maximum_target_speed = 8.0 + 6.0 * gain
+        maximum_target_speed = 6.0 + 6.0 * gain
         if target_speed > maximum_target_speed:
             self.target_velocities[appendage] *= maximum_target_speed / target_speed
         self.targets[appendage] += self.target_velocities[appendage] * delta
@@ -147,6 +154,18 @@ class ArticulatedBody:
         substeps = 4
         step = delta / substeps
         load_scale = 1.0 / (1.0 + max(load, 0.0) * .12)
+        full_rest_lengths = np.linalg.norm(
+            self.organism.skeleton_nodes[self.organism.skeleton_edges[:, 1], :2]
+            - self.organism.skeleton_nodes[self.organism.skeleton_edges[:, 0], :2],
+            axis=1,
+        ).astype(np.float32)
+        inverse_mass = _inverse_mass(self.organism)
+        terminals = _terminal_nodes(self.organism)
+        active_constraints = np.zeros(len(self.chain_ids), dtype=np.bool_)
+        active_constraints[appendage] = True
+        anchors = np.full((len(self.chain_ids), 2), np.nan, dtype=np.float32)
+        anchors[appendage] = filtered_target
+        grounded_config = GroundedLocomotionConfig()
         for _ in range(substeps):
             posture_gain = (24.0 + 34.0 * gain) * actuation
             acceleration = (muscle_pose - positions) * posture_gain
@@ -163,23 +182,60 @@ class ArticulatedBody:
             velocity[1:] *= np.minimum(1.0, 10.0 / np.maximum(speed, 1e-6))
             positions[1:] += velocity[1:] * step
             positions[0] = root
-            for _constraint in range(12):
+            # Execute the reach through the exact skeleton-wide projector used
+            # by the accepted neural grounded controller.  The hand anchor is
+            # a compliant terminal contact, analogous to a planted foot; all
+            # bones, chassis edges and peer limbs participate in the solve.
+            full_positions = self.nodes[:, :2].astype(np.float32, copy=True)
+            full_positions[chain_ids] = positions
+            _project_edges_and_contacts(
+                self.organism,
+                full_positions,
+                full_rest_lengths,
+                inverse_mass,
+                full_positions[0].copy(),
+                terminals,
+                active_constraints,
+                anchors,
+                grounded_config,
+            )
+            self.nodes[:, :2] = full_positions
+            positions = full_positions[chain_ids].copy()
+            # The grounded projector is intentionally compliant at contacts.
+            # Finish with a root-pinned local bone polish so compliance cannot
+            # accumulate as visible arm stretch at payload scale.
+            for _polish in range(10):
                 positions[0] = root
                 for segment, length in enumerate(lengths):
-                    left, right = segment, segment + 1
-                    edge = positions[right] - positions[left]
+                    edge = positions[segment + 1] - positions[segment]
                     current = max(float(np.linalg.norm(edge)), 1e-7)
                     correction = edge * ((current - float(length)) / current)
-                    if left == 0:
-                        positions[right] -= correction
+                    if segment == 0:
+                        positions[segment + 1] -= correction
                     else:
-                        positions[left] += correction * .5
-                        positions[right] -= correction * .5
-                positions[0] = root
+                        positions[segment] += correction * .5
+                        positions[segment + 1] -= correction * .5
+            positions[0] = root
+            self.nodes[chain_ids, :2] = positions
         velocity = velocity * .35 + (positions - previous) / max(delta, 1e-6) * .65
         velocity[0] = 0
         self.nodes[chain_ids, :2] = positions
         self.velocities[chain_ids] = velocity
+        # A whole-skeleton solve may move the proximal node of a peer limb by
+        # a subpixel amount. Re-pin every living shoulder/hip and propagate
+        # its exact bone lengths outward without changing joint directions.
+        for peer, peer_chain in enumerate(self.chain_ids):
+            if not self.attached[peer]:
+                continue
+            peer_rest = self.organism.skeleton_nodes[peer_chain, :2]
+            peer_lengths = np.linalg.norm(peer_rest[1:] - peer_rest[:-1], axis=1)
+            self.nodes[peer_chain[0], :2] = self.root(peer)
+            for segment, length in enumerate(peer_lengths):
+                vector = self.nodes[peer_chain[segment + 1], :2] - self.nodes[peer_chain[segment], :2]
+                distance = max(float(np.linalg.norm(vector)), 1e-7)
+                self.nodes[peer_chain[segment + 1], :2] = (
+                    self.nodes[peer_chain[segment], :2] + vector * (float(length) / distance)
+                )
         self.elapsed += delta
         return self.endpoint(appendage)
 
@@ -254,7 +310,32 @@ class ArticulatedBody:
         self.component_offsets += self.component_velocities * delta
         count = len(self.organism.genome.components)
         previous_nodes = self.nodes[:count, :2].copy()
-        self.nodes[:count, :2] = self.organism.skeleton_nodes[:count, :2] + self.component_offsets
+        component_nodes = self.organism.skeleton_nodes[:count, :2] + self.component_offsets
+        # Components are bones too.  The former crouch code translated head,
+        # neck, torso and pelvis independently, which could stretch a living
+        # chassis apart before appendage physics even ran.  Project every
+        # parent edge with the same rest-length constraint used for limbs.
+        component_edges = self.organism.skeleton_edges[
+            (self.organism.skeleton_edges[:, 0] < count)
+            & (self.organism.skeleton_edges[:, 1] < count)
+        ]
+        rest_nodes = self.organism.skeleton_nodes[:count, :2]
+        anchor = component_nodes[0].copy()
+        for _ in range(18):
+            component_nodes[0] = anchor
+            for left_raw, right_raw in component_edges:
+                left, right = int(left_raw), int(right_raw)
+                vector = component_nodes[right] - component_nodes[left]
+                distance = max(float(np.linalg.norm(vector)), 1e-7)
+                rest_length = float(np.linalg.norm(rest_nodes[right] - rest_nodes[left]))
+                correction = vector * ((distance - rest_length) / distance)
+                if left == 0:
+                    component_nodes[right] -= correction
+                else:
+                    component_nodes[left] += correction * .5
+                    component_nodes[right] -= correction * .5
+        self.nodes[:count, :2] = component_nodes
+        self.component_offsets[:] = component_nodes - rest_nodes
         # A live shoulder/hip is part of the chassis.  Carry every attached
         # chain along with its root before applying muscle articulation.  The
         # former implementation moved the chassis node but left inactive limb
@@ -268,19 +349,36 @@ class ArticulatedBody:
             self.nodes[chain_ids, :2] += root_delta
             self.targets[appendage] += root_delta
 
-    def cells(self) -> np.ndarray:
-        points = self.organism.cell_xy.astype(np.float32, copy=True)
-        # Blend component-node posture through the existing developmental
-        # ownership weights. Appendage skinning below remains authoritative
-        # for limb cells, so a kneel changes the chassis without melting arms.
-        points += self.organism.component_weights @ self.component_offsets
+    def cells(self, *, floor_y: float | None = None) -> np.ndarray:
+        # Keep the exact cellular skinning authority used by the approved
+        # grounded controller.  The former manipulation-only neighbour PBD
+        # pass redistributed chassis mass into moving limbs and could drag
+        # feet below their contacts.  Skeleton constraints are authoritative;
+        # cells follow their three nearest rest nodes with smooth weights.
+        points = skin_cells(self.organism, self.nodes).astype(np.float32, copy=False)
+        if bool(self.attached.all()):
+            if floor_y is not None:
+                if not np.isfinite(floor_y):
+                    raise ValueError("cell floor drifted")
+                # Collision safety only. Healthy poses are required to meet
+                # this plane before rasterization; tests report any clamping.
+                points = points.copy()
+                points[:, 1] = np.minimum(points[:, 1], np.float32(floor_y))
+            return points
+
+        # A severed chain uses dedicated appendage skin only for its owned
+        # tissue. The intact remainder stays on the approved skin_cells path;
+        # one detached arm must never switch the whole creature to a different
+        # rasterizer or collapse its torso.
         for appendage, chain_ids in enumerate(self.chain_ids):
+            if self.attached[appendage]:
+                continue
             cell_ids, skin_weights = self._appendage_skin(appendage)
             if cell_ids.size == 0:
                 continue
             rest = self.organism.skeleton_nodes[chain_ids, :2].astype(np.float32)
             posed = self.nodes[chain_ids, :2].astype(np.float32)
-            cells = points[cell_ids]
+            cells = self.organism.cell_xy[cell_ids].astype(np.float32)
             rest_vectors = rest[1:] - rest[:-1]
             denominators = np.maximum(np.square(rest_vectors).sum(axis=1), 1e-8)
             relative = cells[:, None, :] - rest[:-1][None, :, :]
@@ -303,10 +401,12 @@ class ArticulatedBody:
             # move while the proximal cells remained on the torso, producing
             # the apparent disconnection visible in impact clips.  Detached
             # appendages deliberately take all of their owned cells with them.
-            if not self.attached[appendage]:
-                skin_weights = np.ones_like(skin_weights)
-            points[cell_ids] += (skinned - points[cell_ids]) * skin_weights[:, None]
-        return self._enforce_cell_continuity(points)
+            points[cell_ids] = skinned
+        if floor_y is not None:
+            if not np.isfinite(floor_y):
+                raise ValueError("cell floor drifted")
+            points[:, 1] = np.minimum(points[:, 1], np.float32(floor_y))
+        return points
 
     def _enforce_cell_continuity(self, desired: np.ndarray) -> np.ndarray:
         """Limit living-cell seam stretch while preserving intentional severs.

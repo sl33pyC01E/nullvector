@@ -57,20 +57,24 @@ def _base_genomes() -> tuple[DevelopmentalGenome, ...]:
         ComponentGene("lungs", "respirator", (0,-3), (2.4,2.0), "torso", organ="lung", trait_delta=_delta(vascularity=.15,metabolism=.08)),
         ComponentGene("eyes", "sensor_crown", (0,-12), (2.0,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.28)),
     )
-    humanoid_appendages = _pair("arm","torso",-2,3.5,5,"arm",0) + _pair("leg","pelvis",1,2.2,15,"leg",.5)
+    humanoid_appendages = _pair("arm","torso",1,3.5,9,"arm",0) + _pair("leg","pelvis",1,2.2,15,"leg",.5)
     animal_components = (
-        ComponentGene("chest", "soma", (0,0), (7.4,3.8), organ="lung", trait_delta=_delta(muscle_density=.12)),
-        ComponentGene("haunch", "pelvis", (0,3), (6.8,3.9), "chest", organ="gut", trait_delta=_delta(muscle_strength=.14)),
-        ComponentGene("neck", "soma", (0,-3), (3.0,2.8), "chest", organ="none", trait_delta=_delta(elasticity=.10)),
-        ComponentGene("head", "head", (0,-7), (4.4,3.0), "neck", organ="brain", trait_delta=_delta(neural_density=.15)),
-        ComponentGene("muzzle", "mouth", (0,-9), (3.0,1.6), "head", organ="jaw", trait_delta=_delta(grip=.20)),
-        ComponentGene("eyes", "sensor_crown", (0,-8), (3.3,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.25)),
+        # Low-slung quadruped construction.  Earlier coordinates stacked an
+        # animal's mouth 23 cells above its feet and ground feeding could only
+        # be faked by stretching the chassis.  The mouth is now physically
+        # close to the contact plane while sensory tissue remains dorsal.
+        ComponentGene("chest", "soma", (0,4), (7.4,3.2), organ="lung", trait_delta=_delta(muscle_density=.12)),
+        ComponentGene("haunch", "pelvis", (0,5), (6.8,3.2), "chest", organ="gut", trait_delta=_delta(muscle_strength=.14)),
+        ComponentGene("neck", "soma", (0,5.5), (3.0,2.0), "chest", organ="none", trait_delta=_delta(elasticity=.10)),
+        ComponentGene("head", "head", (0,7.5), (3.2,2.2), "chest", organ="brain", trait_delta=_delta(neural_density=.15)),
+        ComponentGene("muzzle", "mouth", (0,10.5), (2.0,1.2), "chest", organ="jaw", trait_delta=_delta(grip=.20)),
+        ComponentGene("eyes", "sensor_crown", (0,6.3), (2.8,1.0), "head", organ="eye", trait_delta=_delta(sensory_range=.25)),
     )
-    animal_appendages = _pair("leg","chest",1,5.7,11,"foreleg",0,3,8.6) + _pair("leg","haunch",1.5,3.6,13,"hindleg",.5,3,4.5) + (
+    animal_appendages = _pair("leg","chest",1,5.7,13,"foreleg",0,3,8.6) + _pair("leg","haunch",1.5,3.6,13,"hindleg",.5,3,4.5) + (
         # Centerline dorsal grasper: vertically aligned, unpaired, and entirely
         # above the locomotor plane.  It reads as a grasping/sensory stalk rather
         # than a fifth leg or a permanent one-sided silhouette imbalance.
-        AppendageGene("tail", "tail", "chest", (0,-2.2), (0,-14), 4, 0, .25, 1, None, _delta(elasticity=.18,grip=.18,sensory_range=.08)),
+        AppendageGene("tail", "tail", "chest", (0,-2.2), (0,-8.5), 4, 0, .25, 1, None, _delta(elasticity=.18,grip=.18,sensory_range=.08)),
     )
     plant_components = (
         ComponentGene("bulb", "soma", (0,3), (6.8,5.0), organ="bulb", trait_delta=_delta(storage=.0,regeneration=.25)),
@@ -98,7 +102,7 @@ def _base_genomes() -> tuple[DevelopmentalGenome, ...]:
         ComponentGene("coolant", "circulator", (0,0), (2.2,2.2), "hull", organ="coolant_pump", trait_delta=_delta(vascularity=.15)),
         ComponentGene("armor", "armor", (0,-3), (9.0,3.0), "hull", organ="none", trait_delta=_delta(stiffness=.18)),
     )
-    machine_appendages = _pair("wheel","drive",1,5.2,14,"drive_wheel",0,2,7.8) + _pair("hardpoint","hull",-1,7.0,-1,"hardpoint",.25,2,13.0)
+    machine_appendages = _pair("wheel","drive",1,5.2,14,"drive_wheel",0,2,7.8) + _pair("hardpoint","hull",1,7.0,11,"hardpoint",.25,3,13.0)
     return (
         DevelopmentalGenome("base_humanoid",0xD300, _mix(0), _traits(), humanoid_components, humanoid_appendages),
         DevelopmentalGenome("base_animalian",0xD301, _mix(1), _traits(size=.58,muscle_density=.72,muscle_strength=.72,elasticity=.62), animal_components, animal_appendages),

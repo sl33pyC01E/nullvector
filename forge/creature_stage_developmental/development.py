@@ -134,6 +134,8 @@ def develop(genome: DevelopmentalGenome) -> DevelopedOrganism:
             kind = genome.appendages[appendage_index].kind
             if dominant_family == 1 and kind == "leg":
                 tube_radius = 1.02
+            elif dominant_family == 0 and kind == "arm":
+                tube_radius = 1.18
             elif dominant_family == 1 and kind == "tail":
                 tube_radius = .82
             elif dominant_family == 3 and kind == "tendril":

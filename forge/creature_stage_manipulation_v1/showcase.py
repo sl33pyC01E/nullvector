@@ -15,6 +15,7 @@ from ..creature_stage_developmental.development import develop
 from ..creature_stage_developmental.genomes import review_genomes
 from ..creature_stage_developmental.contract import FAMILIES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
+from ..creature_stage_grounded_locomotion.physics import simulate_grounded_cycle
 from .arena import ManipulationStep, NeuralManipulationArena
 
 
@@ -23,6 +24,11 @@ BG = (4, 10, 16, 255)
 INK = (26, 238, 242, 255)
 HOT = (255, 82, 133, 255)
 FOOD = (144, 255, 55, 255)
+TISSUE_COLORS = (
+    (244,111,126),(238,237,204),(255,69,113),(248,188,144),(113,158,177),
+    (72,225,246),(234,52,101),(123,216,244),(241,169,63),(253,244,105),
+    (164,102,230),(115,229,92),(185,78,255),(177,195,207),(255,131,61),
+)
 
 
 def _sha(path: Path) -> str:
@@ -44,14 +50,28 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
     draw.line((30, plane_y, WIDTH - 30, plane_y), fill=(24, 57, 66, 170), width=1)
     status = feeder_status(arena.living)
     appendage = min(int(step.appendage), len(arena.articulation.chain_ids) - 1)
-    body_points = arena.articulation.cells().astype(np.float64) + arena.body.position
+    body_points = arena.articulation.cells(floor_y=arena.ground_plane_y() - arena.body.position[1]).astype(np.float64) + arena.body.position
+    # Render the same explicit musculoskeletal grammar as the accepted
+    # grounded-controller review: bones first, then separated tissue cells.
+    posed_nodes = arena.articulation.nodes[:, :2].astype(np.float64) + arena.body.position
+    for left, right in arena.organism.skeleton_edges:
+        ax, ay = _point(posed_nodes[int(left)])
+        bx, by = _point(posed_nodes[int(right)])
+        owner = int(arena.organism.skeleton_edge_appendage[
+            np.flatnonzero(np.all(arena.organism.skeleton_edges == (left, right), axis=1))[0]
+        ])
+        color = (103, 255, 202, 135) if owner == appendage else (61, 183, 214, 105)
+        draw.line((ax, ay, bx, by), fill=color, width=2)
     for index, raw in enumerate(body_points):
         x, y = _point(raw)
         alive = bool(arena.living.alive_mask[index])
         feeder = bool(status.feeder_mask[index])
         selected_limb = int(arena.organism.appendage_index[index]) == appendage
-        color = HOT if feeder and alive else ((126, 255, 196, 255) if selected_limb and alive else (72, 212, 220, 255)) if alive else (50, 42, 49, 255)
-        radius = 3 if feeder else 2
+        base = TISSUE_COLORS[int(arena.organism.tissue[index])]
+        if selected_limb and alive:
+            base = tuple(int(round(channel * .55 + accent * .45)) for channel, accent in zip(base, (126,255,196)))
+        color = HOT if feeder and alive else (*base, 235) if alive else (50, 42, 49, 210)
+        radius = 2 if feeder else 1
         draw.rectangle((x - radius, y - radius, x + radius, y + radius), fill=color)
     target = arena.targets[target_id]
     kinetics = arena.target_kinetics[target_id]
@@ -134,6 +154,35 @@ def _feed_clip() -> list[Image.Image]:
         if arena.feeding.consumed_mass >= .38:
             break
     return frames + frames[-12:]
+
+
+def _grounded_grasp_clip() -> list[Image.Image]:
+    """Prove that feeding augments rather than replaces grounded locomotion."""
+    arena, target_id = _ground_arena(0, 5.5)
+    cycle = simulate_grounded_cycle(arena.organism)
+    frames: list[Image.Image] = []
+    finish_x = float(cycle.frames[-1].body_world_x)
+    appendage = arena.grasper_indices()[0]
+    dummy = ManipulationStep(appendage, False, False, False, 0.0, False, 0.0, 0.0, 0.0)
+    for frame in cycle.frames:
+        arena.articulation.nodes[:, :2] = frame.nodes_local
+        arena.body.position[:] = (float(frame.body_world_x) - finish_x, 0.0)
+        frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "same skeleton PBD, contacts, muscles, and cellular skin", dummy))
+    arena.body.position[:] = 0.0
+    count = len(arena.organism.genome.components)
+    arena.articulation.component_offsets[:] = (
+        arena.articulation.nodes[:count, :2] - arena.organism.skeleton_nodes[:count, :2]
+    )
+    arena.articulation.targets[:] = np.stack(
+        [arena.articulation.endpoint(index) for index in range(len(arena.articulation.chain_ids))]
+    )
+    for tick in range(420):
+        step = arena.step_family_acquisition(target_id, delta=.05)
+        if tick % 2 == 0:
+            frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "planted feet remain authoritative during reach and ingestion", step))
+        if arena.feeding.consumed_mass >= .34:
+            break
+    return frames + frames[-10:]
 
 
 def _throw_clip() -> list[Image.Image]:
@@ -292,20 +341,21 @@ def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
     clips = {
-        "articulated_inertial_feeding_v7.gif": _feed_clip(),
-        "articulated_ballistic_throw_v7.gif": _throw_clip(),
-        "articulated_impact_modes_v7.gif": _impact_modes_clip(),
-        "articulated_feeder_ablation_v7.gif": _feeder_ablation_clip(),
-        "articulated_severed_grasper_v7.gif": _severed_grasper_clip(),
-        "articulated_damaged_grasper_v7.gif": _damaged_grasper_clip(),
-        "articulated_five_family_feeding_v7.gif": _five_family_clip(),
+        "articulated_inertial_feeding_v8.gif": _feed_clip(),
+        "articulated_grounded_feeding_v8.gif": _grounded_grasp_clip(),
+        "articulated_ballistic_throw_v8.gif": _throw_clip(),
+        "articulated_impact_modes_v8.gif": _impact_modes_clip(),
+        "articulated_feeder_ablation_v8.gif": _feeder_ablation_clip(),
+        "articulated_severed_grasper_v8.gif": _severed_grasper_clip(),
+        "articulated_damaged_grasper_v8.gif": _damaged_grasper_clip(),
+        "articulated_five_family_feeding_v8.gif": _five_family_clip(),
     }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name
         _encode(frames, path)
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
-    report = {"format": "nullvector-neural-manipulation-showcase/6.0.0", "artifacts": artifacts}
+    report = {"format": "nullvector-neural-manipulation-showcase/8.0.0", "artifacts": artifacts}
     (destination / "showcase_report.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return report
 

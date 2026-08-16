@@ -20,7 +20,7 @@ def test_humanoid_graspers_are_locomotor_peer_limbs() -> None:
     arms = [articulation.geometry(index) for index, gene in enumerate(organism.genome.appendages) if gene.kind == "arm"]
     legs = [articulation.geometry(index) for index, gene in enumerate(organism.genome.appendages) if gene.kind == "leg"]
     assert {limb.segments for limb in arms} == {limb.segments for limb in legs} == {2}
-    assert .90 < np.mean([limb.length for limb in arms]) / np.mean([limb.length for limb in legs]) < 1.0
+    assert .90 < np.mean([limb.length for limb in arms]) / np.mean([limb.length for limb in legs]) < 1.10
     assert .80 < np.mean([limb.cell_count for limb in arms]) / np.mean([limb.cell_count for limb in legs]) < 1.20
 
 
