@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from ..organism_raster_vae_v3.calibration import _canonical, _sha
 from ..organism_raster_vae_v3.contract import RasterVAEV3Config
 from ..safety import require_disk_floor
-from .contract import CHECKPOINT_FORMAT, FORMAT
+from .contract import CHECKPOINT_FORMAT, FORMAT, MAX_APPENDAGES, MAX_JOINTS, MAX_TOKENS
 from .dataset import AnatomicalGraphCorpus
 from .model import AnatomicalGraphRasterVAE
 from .training import _batch, source_sha256
@@ -35,10 +35,11 @@ def _rgba(tensor: Tensor) -> Image.Image:
     return Image.fromarray(np.rint(value * 255).astype(np.uint8), "RGBA")
 
 
-def _authority(attention: Tensor, owner: Tensor) -> tuple[int, int]:
+def _authority(attention: Tensor, owner: Tensor, start: int, stop: int) -> tuple[int, int]:
     target = owner[:, ::2, ::2].reshape(len(attention), -1)
     valid = target >= 0
-    correct = ((attention.argmax(2) == target) & valid).sum()
+    predicted = attention[:, :, start:stop].argmax(2) + start
+    correct = ((predicted == target) & valid).sum()
     return int(correct), int(valid.sum())
 
 
@@ -94,8 +95,15 @@ def evaluate(checkpoint: Path, destination: Path) -> Path:
         sums["alpha_iou"] += float((intersection / union).sum())
         sums["rgba_mae"] += float(maes.sum())
         sums["appendage_recall"] += float(recall.sum())
+        ranges = {
+            "appendage": (0, MAX_APPENDAGES),
+            "joint": (MAX_APPENDAGES, MAX_APPENDAGES + MAX_JOINTS),
+            "organ": (MAX_APPENDAGES + MAX_JOINTS, MAX_TOKENS),
+        }
         for name in authority:
-            correct, count = _authority(output.attention24, batch[f"{name}_owner"])
+            correct, count = _authority(
+                output.attention24, batch[f"{name}_owner"], *ranges[name]
+            )
             authority[name][0] += correct
             authority[name][1] += count
 

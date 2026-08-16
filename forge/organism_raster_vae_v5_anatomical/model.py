@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from ..organism_raster_vae_v3.contract import RasterVAEV3Config
 from ..organism_raster_vae_v3.model import StructuredRasterVAE, VAEOutput, loss as base_loss
-from .contract import MAX_TOKENS, TOKEN_FEATURES
+from .contract import MAX_APPENDAGES, MAX_JOINTS, MAX_TOKENS, TOKEN_FEATURES
 
 
 @dataclass(slots=True)
@@ -155,11 +155,21 @@ class AnatomicalGraphRasterVAE(StructuredRasterVAE):
         )
 
 
-def _authority_nll(attention: Tensor, owner: Tensor) -> tuple[Tensor, Tensor, int]:
+def _authority_nll(
+    attention: Tensor,
+    owner: Tensor,
+    start: int,
+    stop: int,
+) -> tuple[Tensor, Tensor, int]:
     target = owner[:, ::2, ::2].reshape(len(attention), -1)
     valid = target >= 0
-    probability = attention.clamp_min(1e-7)
-    selected = -probability.gather(2, target.clamp_min(0)[:, :, None]).squeeze(2).log()
+    # A cell may simultaneously belong to an appendage parent, one articulated
+    # joint, and an organ component. Each anatomical level therefore receives
+    # its own conditional distribution instead of competing in a flat softmax.
+    probability = attention[:, :, start:stop].clamp_min(1e-7)
+    probability = probability / probability.sum(2, keepdim=True).clamp_min(1e-7)
+    local_target = (target - start).clamp(0, stop - start - 1)
+    selected = -probability.gather(2, local_target[:, :, None]).squeeze(2).log()
     nll = selected[valid].mean() if bool(valid.any()) else selected.sum() * 0
     correct = ((attention.argmax(2) == target) & valid).sum()
     return nll, correct, int(valid.sum())
@@ -175,8 +185,15 @@ def loss(
     authority = {}
     total_nll = base.new_zeros(())
     weights = {"appendage": .35, "joint": .50, "organ": .55}
+    ranges = {
+        "appendage": (0, MAX_APPENDAGES),
+        "joint": (MAX_APPENDAGES, MAX_APPENDAGES + MAX_JOINTS),
+        "organ": (MAX_APPENDAGES + MAX_JOINTS, MAX_TOKENS),
+    }
     for name in ("appendage", "joint", "organ"):
-        nll, correct, count = _authority_nll(output.attention24, batch[f"{name}_owner"])
+        nll, correct, count = _authority_nll(
+            output.attention24, batch[f"{name}_owner"], *ranges[name]
+        )
         total_nll = total_nll + weights[name] * nll
         authority[f"{name}_owner_nll"] = float(nll.detach())
         authority[f"{name}_owner_accuracy"] = float(correct.detach()) / max(count, 1)
