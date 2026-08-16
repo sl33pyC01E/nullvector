@@ -63,7 +63,7 @@ class NatureDemo:
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_i:self.tool="inspect"
-                elif event.key==pg.K_d:self.tool="damage"
+                elif event.key==pg.K_j:self.tool="damage"
                 elif event.key==pg.K_h:self.tool="heal"
                 elif event.key==pg.K_x:self.tool="scrape"
                 elif event.key==pg.K_v:self.tool="cut"
@@ -127,7 +127,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COLONIES {snap.colony_count:02}  LINEAGES {snap.lineage_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  D DAMAGE  H HEAL  X SCRAPE  V CUT  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  C CELLS  O ORGANS  SPACE PAUSE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()

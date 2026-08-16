@@ -288,7 +288,7 @@ class NatureWorld:
         self.fields[0]=np.clip(self.fields[0]+delta*.000025,0,1)
         self.fields[2]=np.clip(self.fields[2]+delta*.00001,0,1)
 
-    def step(self, delta: float=.25) -> WorldSnapshot:
+    def step(self, delta: float=.25, *, publish: bool=True) -> WorldSnapshot|None:
         if not math.isfinite(delta) or not .01<=delta<=.5: raise ValueError("nature timestep drifted")
         self.tick_index+=1;self.time+=delta
         self._environment(delta)
@@ -316,7 +316,7 @@ class NatureWorld:
         for entity_id in [i for i,o in self.organisms.items() if o.stage=="decomposed"]:
             del self.organisms[entity_id]
         if len(self.events)>4096:self.events=self.events[-4096:]
-        return self.snapshot()
+        return self.snapshot() if publish else None
 
     def snapshot(self) -> WorldSnapshot:
         living=[o for o in self.organisms.values() if o.alive]
