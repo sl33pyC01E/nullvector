@@ -62,7 +62,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime)
@@ -149,6 +149,7 @@ class NatureDemo:
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
                 elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
+                elif event.key==pg.K_TAB:self.show_chronicle=not self.show_chronicle
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
@@ -321,6 +322,29 @@ class NatureDemo:
         for index,offer in enumerate(self.trade_offers):
             x=panel.x+20+index*239;box=pg.Rect(x,panel.y+112,222,112);pg.draw.rect(self.screen,(7,25,25),box);pg.draw.rect(self.screen,(47,104,89),box,1);self.screen.blit(self.font.render(f"[{index+7}] BARTER",True,(205,255,223)),(x+12,box.y+11));self.screen.blit(self.small.render(f"GIVE  {offer.give_amount:.2f} {offer.give_material.upper()}",True,(255,174,105)),(x+12,box.y+43));self.screen.blit(self.small.render(f"TAKE  {offer.receive_amount:.2f} {offer.receive_material.upper()}",True,(104,232,255)),(x+12,box.y+64));have=self.adventure.inventory.get(offer.give_material,0);self.screen.blit(self.small.render(f"YOU HOLD {have:.2f} // [Y] CLOSE",True,(130,156,152)),(x+12,box.y+88))
 
+    @staticmethod
+    def _event_text(event):
+        kind=str(event.get("type","event")).replace("_"," ").upper();tick=event.get("tick",0)
+        details=[]
+        for key in ("entity","parent","left","right","colony","system","material","organ","event","choice","relation"):
+            if key in event:details.append(f"{key[:3].upper()} {str(event[key]).upper()}")
+        return f"T{int(tick):05} {kind[:21]:21} {'  '.join(details)[:48]}"
+
+    def _draw_chronicle(self):
+        pg=self.pg;shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((0,4,8,218));self.screen.blit(shade,(0,0));panel=pg.Rect(70,68,self.screen.get_width()-140,self.screen.get_height()-132);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(75,183,207),panel,2);self.screen.blit(self.big.render("THE LIVING CHRONICLE",True,(220,242,246)),(panel.x+26,panel.y+20));self.screen.blit(self.small.render("TAB CLOSE // ECOLOGICAL EVENTS ARE CELL-AUTHORITATIVE; CIVIC EVENTS ARE SOCIETY-AUTHORITATIVE",True,(93,208,230)),(panel.x+29,panel.y+61));mid=panel.centerx
+        self.screen.blit(self.font.render("CELLULAR WORLD LEDGER",True,(137,255,175)),(panel.x+28,panel.y+96));self.screen.blit(self.font.render("FACTIONS, CITIES, AND TECHNOLOGY",True,(210,153,255)),(mid+18,panel.y+96));y=panel.y+126
+        for event in self.world.events[-16:]:self.screen.blit(self.small.render(self._event_text(event),True,(146,183,176)),(panel.x+28,y));y+=18
+        y+=8;self.screen.blit(self.font.render("LIVING CLADES",True,(115,226,174)),(panel.x+28,y));y+=25
+        for clade in self.evolution.dominant(10):self.screen.blit(self.small.render(f"{clade.clade_id[-8:].upper()}  F{clade.family}  POP {clade.population:03}  GEN {clade.max_generation:02}  FIT {clade.fitness:.3f}  TERR {clade.territory:.1f}",True,(116,178,149)),(panel.x+28,y));y+=18
+        y=panel.y+126
+        for event in self.society.history[-12:]:self.screen.blit(self.small.render(f"Y{event.tick:04} {event.kind.upper()[:16]:16} {event.description.upper()[:52]}",True,(180,159,207)),(mid+18,y));y+=18
+        y+=8
+        for faction in sorted(self.society.factions.values(),key=lambda item:item.faction_id):
+            self.screen.blit(self.font.render(faction.name.upper(),True,pg.Color(FAMILY_COLORS[faction.family])),(mid+18,y));y+=22;self.screen.blit(self.small.render(f"DOCTRINE {faction.doctrine.upper()}  COHESION {faction.cohesion:.2f}  KNOWLEDGE {faction.knowledge:.2f}",True,(169,154,185)),(mid+18,y));y+=17;self.screen.blit(self.small.render("TECH // "+"  ".join(sorted(faction.technologies))[:66].upper(),True,(146,129,164)),(mid+18,y));y+=20
+            for settlement_id in sorted(faction.settlement_ids):
+                settlement=self.society.settlements[settlement_id];self.screen.blit(self.small.render(f"{settlement_id.upper()} POP {settlement.population} BUILDINGS {len(settlement.buildings)} PROJECTS {settlement.projects_completed} SHORTAGES {settlement.shortages}",True,(126,160,174)),(mid+30,y));y+=17
+        footer=f"LINEAGES {self.world.snapshot().lineage_count} // BIRTHS {self.world.births} // DEATHS {self.world.deaths} // MUTATIONS {self.world.mutation_count} // SOCIETIES {len(self.society.factions)} // CITIES {len(self.society.settlements)}";self.screen.blit(self.small.render(footer,True,(255,202,95)),(panel.x+28,panel.bottom-32))
+
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,610);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
@@ -387,6 +411,7 @@ class NatureDemo:
             self._draw_evolution_offers(entity)
         if self.adventure.pending_encounter is not None:self._draw_encounter()
         if self.trade_settlement is not None:self._draw_trade()
+        if self.show_chronicle:self._draw_chronicle()
         if self.creator.active:self._draw_creator()
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
@@ -401,7 +426,7 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
     if args.trade and demo.society.settlements:
@@ -411,6 +436,9 @@ def main()->None:
         for target in ("armor_lobes","locomotor_pair"):
             offer=next(offer for epoch in range(64) for offer in evolution_offers(entity.genome,epoch=epoch) if offer.structural==target);metamorphose(entity,offer,seed=args.seed^len(entity.genome.mutation_log)*7919)
         demo.message=f"STRUCTURAL METAMORPH // {len(entity.genome.developmental.components)} COMPONENTS // {len(entity.genome.developmental.appendages)} APPENDAGES // WOUNDS PRESERVED"
+    if args.chronicle:
+        for _ in range(90):demo.world.step(.2,publish=False)
+        demo.society.step_history(3);demo.adventure.observe(demo.world);demo.evolution.observe(demo.world)
     demo.run(capture=args.capture)
 
 
