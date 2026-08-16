@@ -79,8 +79,8 @@ class AdventureState:
             if first and nearest.kind in ("machine_ruin","phase_well","relic_vault"):
                 site_seed=int(hashlib.sha256(f"{self.seed}:{nearest.site_id}:relic".encode()).hexdigest()[:16],16)
                 artifact=generate_artifact(seed=site_seed,provenance=nearest.site_id,quality=min(1,.42+nearest.richness*.3));self.artifacts.append(artifact);self.equip(artifact.artifact_id)
-                return f"ENCOUNTER // {encounter.title.upper()} // 4/5/6 CHOOSE // RELIC {artifact.name.upper()}"
-            if first:return f"ENCOUNTER // {encounter.title.upper()} // 4/5/6 CHOOSE"
+                return f"SALVAGED {amount*gain:.2f} {material.upper()} // ENCOUNTER {encounter.title.upper()} // 4/5/6 CHOOSE // RELIC {artifact.name.upper()}"
+            if first:return f"SALVAGED {amount*gain:.2f} {material.upper()} // ENCOUNTER {encounter.title.upper()} // 4/5/6 CHOOSE"
             if self.pending_encounter:
                 pending=self.encounters[self.pending_encounter]
                 return f"ENCOUNTER PENDING // {pending.title.upper()} // 4/5/6 CHOOSE"
