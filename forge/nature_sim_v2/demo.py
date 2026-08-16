@@ -14,6 +14,7 @@ from ..qud_society_v1 import SocietyLayer
 from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
 from .adventure import AdventureState
+from .phenotype import phenotype_traits
 from .world import NatureWorld
 
 
@@ -26,7 +27,7 @@ MATERIAL_COLORS=((0,0,0,0),(92,73,46,150),(105,113,117,210),(42,126,174,150),(18
 
 
 class NatureDemo:
-    def __init__(self,*,seed:int,device:str="cuda") -> None:
+    def __init__(self,*,seed:int,device:str="cuda",showcase:bool=False) -> None:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
@@ -34,6 +35,9 @@ class NatureDemo:
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
         self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
         self.adventure=AdventureState(seed=seed^0x414456,size=self.world.size)
+        if showcase:
+            self.adventure.inventory.update({"biomass":5.0,"rock":4.0,"metal":4.0,"crystal":3.0,"water":4.0,"knowledge":2.0})
+            self.adventure.craft_selected();self.adventure.recipe_index=2;self.adventure.craft_selected();self.adventure.recipe_index=1
         self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
@@ -41,7 +45,7 @@ class NatureDemo:
         entry=(1.2 if dx>0 else 62.8 if dx<0 else float(player.position[0]),1.2 if dy>0 else 62.8 if dy<0 else float(player.position[1]));new_id=new.add_organism(player.genome,entry,energy=player.energy,parents=player.parent_ids);carried=new.organisms[new_id];carried.body=player.body;carried.reserve=player.reserve;carried.age=player.age;carried.stage=player.stage;carried.reproduction_cooldown=player.reproduction_cooldown;carried.velocity=player.velocity.copy();new.seed_founders(variants_per_family=2)
         for entity_id in old_world.organisms:self.runtime.forget(entity_id)
         self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.selected=new_id;self.camera=carried.position.copy();self.society=SocietyLayer(new,seed=seed^0x515544);self.last_society_tick=0
-        previous=self.adventure;self.adventure=AdventureState(seed=seed^0x414456,size=new.size);self.adventure.inventory.update(previous.inventory);self.adventure.discoveries|=previous.discoveries;self.adventure.score=previous.score;self.adventure.objectives=previous.objectives
+        previous=self.adventure;self.adventure=AdventureState(seed=seed^0x414456,size=new.size);self.adventure.inventory.update(previous.inventory);self.adventure.discoveries|=previous.discoveries;self.adventure.score=previous.score;self.adventure.objectives=previous.objectives;self.adventure.artifacts=list(previous.artifacts);self.adventure.equipped=dict(previous.equipped);self.adventure.recipe_index=previous.recipe_index;self.adventure.craft_count=previous.craft_count
         self.message=f"ENTERED REGION {self.region.x:+},{self.region.y:+} // {self.atlas_world.describe(self.region).biome.upper()}"
 
     def world_to_screen(self,position):
@@ -58,14 +62,15 @@ class NatureDemo:
     def _damage_at(self,mouse,kind):
         if kind in ("beam","projectile"):
             target=tuple(self.screen_to_world(mouse))
-            if kind=="beam":result=self.world.fire_beam(self.selected,target,energy=8,width=.8);self.message=f"BEAM // {result['cells_hit']} MATERIAL CELLS // {result['bodies_hit']} BODIES"
-            else:self.world.fire_projectile(self.selected,target,speed=22,energy=2.4);self.message="PROJECTILE // PHYSICAL CELL COLLISION"
+            weapon=1+self.adventure.bonus("damage")
+            if kind=="beam":result=self.world.fire_beam(self.selected,target,energy=8*weapon,width=.8);self.adventure.abrade("manipulator",.002);self.message=f"BEAM // {result['cells_hit']} MATERIAL CELLS // {result['bodies_hit']} BODIES"
+            else:self.world.fire_projectile(self.selected,target,speed=22,energy=2.4*weapon);self.adventure.abrade("manipulator",.001);self.message="PROJECTILE // PHYSICAL CELL COLLISION"
             return
         self._select(mouse);entity=self.world.organisms.get(self.selected)
         if entity is None:return
         screen=self.world_to_screen(entity.position);local=(np.asarray(mouse)-screen)/3.0;point=(float(local[0]),float(local[1]))
-        if kind=="damage":entity.body.impact(point,4,.48);self.message="IMPACT // LOCAL TISSUE + ORGAN CAPACITY"
-        elif kind=="heal":entity.body.heal(point,7,.28);self.message="REPAIR // ENERGY-LIMITED + SCARRING"
+        if kind=="damage":entity.body.impact(point,4,.48*(1+self.adventure.bonus("damage")));self.message="IMPACT // LOCAL TISSUE + ORGAN CAPACITY"
+        elif kind=="heal":entity.body.heal(point,7,.28*(1+self.adventure.bonus("repair")));self.adventure.abrade("core",.001);self.message="REPAIR // ENERGY-LIMITED + SCARRING"
         elif kind=="scrape":entity.body.impact(point,2.4,.95);self.message="SCRAPE // SURFACE ABLATION"
         elif kind=="cut":entity.body.cut((point[0]-8,point[1]),(point[0]+8,point[1]),width=.75);self.message="CUT // CELL CONNECTIONS SEVERED"
 
@@ -108,6 +113,10 @@ class NatureDemo:
                 elif event.key==pg.K_q and self.selected in self.world.organisms:
                     try:self.message=self.adventure.build(self.world,self.world.organisms[self.selected])
                     except ValueError as exc:self.message=f"BUILD REJECTED // {exc}"
+                elif event.key==pg.K_t:self.message=self.adventure.cycle_recipe()
+                elif event.key==pg.K_r:
+                    try:self.message=self.adventure.craft_selected()
+                    except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -116,7 +125,7 @@ class NatureDemo:
         if self.paused:return
         entity=self.world.organisms.get(self.selected)
         if entity is not None and np.linalg.norm(self.manual)>0:
-            direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2;entity.intent="player"
+            direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2*(1+self.adventure.bonus("locomotion"));entity.intent="player";self.adventure.abrade("core",delta*.00008)
         previous_position=None if entity is None else entity.position.copy();self.world.step(min(.2,delta*2.2))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and previous_position is not None:
@@ -179,10 +188,13 @@ class NatureDemo:
         x,y=20,92;self.screen.blit(self.font.render(f"EXPEDITION SCORE {self.adventure.score:04}",True,(183,255,86)),(x,y));y+=24
         for objective in self.adventure.objectives:
             color=(134,255,91) if objective.complete else (121,153,162);mark="[X]" if objective.complete else "[ ]";text=f"{mark} {objective.description} {objective.progress:.0f}/{objective.target:.0f}";self.screen.blit(self.small.render(text,True,color),(x,y));y+=17
-        inventory="  ".join(f"{name[:3].upper()} {value:.1f}" for name,value in self.adventure.inventory.items());self.screen.blit(self.small.render(inventory,True,(225,186,91)),(x,y+4))
+        inventory="  ".join(f"{name[:3].upper()} {value:.1f}" for name,value in self.adventure.inventory.items());self.screen.blit(self.small.render(inventory,True,(225,186,91)),(x,y+4));y+=24
+        recipe=self.adventure.selected_recipe;self.screen.blit(self.small.render(f"RECIPE [T] {recipe.name.upper()}  [R] CRAFT",True,(196,139,255)),(x,y));y+=17
+        for artifact in self.adventure.equipped_artifacts():
+            effects=" ".join(f"{name[:3].upper()}+{value:.2f}" for name,value in artifact.effects);self.screen.blit(self.small.render(f"{artifact.slot[:4].upper()} {artifact.name[:28].upper()} {effects}",True,(221,185,255)),(x,y));y+=15
 
     def _draw_cells(self,entity):
-        pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,390);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
+        pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,535);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
         for index,xy in enumerate(visible):
             if health[index]<=.08:continue
@@ -195,6 +207,9 @@ class NatureDemo:
         y=panel.y+300;systems=entity.body.snapshot().systems
         for name,value in systems.items():
             self.screen.blit(self.small.render(name.upper(),True,(144,174,183)),(panel.x+14,y));pg.draw.rect(self.screen,(15,33,38),(panel.x+108,y+2,210,8));pg.draw.rect(self.screen,pg.Color(FAMILY_COLORS[entity.family]),(panel.x+108,y+2,int(210*value),8));y+=16
+        y+=7;self.screen.blit(self.small.render("HERITABLE PHENOTYPE",True,(218,180,255)),(panel.x+14,y));y+=18
+        for trait in phenotype_traits(entity.genome)[:6]:
+            self.screen.blit(self.small.render(f"{trait.grade:>3}  {trait.label.upper()}",True,(177,150,225)),(panel.x+14,y));y+=15
 
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
@@ -205,7 +220,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  F FOLLOW  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT  C CELLS  O ORGANS",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
@@ -221,7 +236,7 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);args=parser.parse_args();NatureDemo(seed=args.seed,device=args.device).run(capture=args.capture)
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");args=parser.parse_args();NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase).run(capture=args.capture)
 
 
 if __name__=="__main__":main()

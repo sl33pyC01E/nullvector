@@ -7,6 +7,7 @@ import numpy as np
 
 from ..powder_world_v1.contract import MATERIALS,STATE
 from ..qud_society_v1.architecture import generate_building
+from ..qud_items_v1 import Artifact,RECIPES,craft,generate_artifact
 
 
 @dataclass(slots=True)
@@ -32,6 +33,7 @@ class AdventureState:
     SITE_KINDS=("grove","mineral_vent","machine_ruin","phase_well","spring","relic_vault")
     def __init__(self,*,seed:int,size:int)->None:
         self.seed,self.size=int(seed),int(size);self.rng=np.random.default_rng(seed);self.inventory={name:0.0 for name in ("biomass","rock","metal","crystal","water","knowledge")};self.discoveries:set[str]=set();self.buildings=[];self.last_event=0;self.score=0
+        self.artifacts:list[Artifact]=[];self.equipped:dict[str,str]={};self.recipe_index=0;self.craft_count=0
         self.sites=[]
         for index in range(24):
             kind=self.SITE_KINDS[index%len(self.SITE_KINDS)];position=self.rng.uniform(3,size-3,2);digest=hashlib.sha256(f"{seed}:{index}:{kind}".encode()).hexdigest();self.sites.append(WorldSite(f"site-{digest[:10]}",kind,position,float(self.rng.uniform(.7,1.4))))
@@ -58,7 +60,12 @@ class AdventureState:
             amount=min(.35,nearest.richness);nearest.richness-=amount
             rewards={"grove":("biomass",1.8),"mineral_vent":("rock",2.2),"machine_ruin":("metal",1.7),"phase_well":("crystal",1.25),"spring":("water",2.4),"relic_vault":("knowledge",1.4)}
             material,gain=rewards[nearest.kind];self.inventory[material]+=amount*gain
-            if not nearest.discovered:nearest.discovered=True;self.discoveries.add(nearest.site_id);self._advance("discover",1);self.score+=20
+            first=not nearest.discovered
+            if first:nearest.discovered=True;self.discoveries.add(nearest.site_id);self._advance("discover",1);self.score+=20
+            if first and nearest.kind in ("machine_ruin","phase_well","relic_vault"):
+                site_seed=int(hashlib.sha256(f"{self.seed}:{nearest.site_id}:relic".encode()).hexdigest()[:16],16)
+                artifact=generate_artifact(seed=site_seed,provenance=nearest.site_id,quality=min(1,.42+nearest.richness*.3));self.artifacts.append(artifact);self.equip(artifact.artifact_id)
+                return f"RELIC // {artifact.name.upper()} // AUTO-EQUIPPED {artifact.slot.upper()}"
             return f"SALVAGED {nearest.kind.upper()} // +{amount*gain:.2f} {material.upper()}"
         y,x=world._cell(entity.position);index=int(world.materials.material[y,x])
         if index and STATE[index]!="energy" and world.materials.mass[y,x]>.02:
@@ -79,3 +86,34 @@ class AdventureState:
         for name,value in cost.items():self.inventory[name]-=value
         self.buildings.append(plan);self._advance("build",1);self.score+=50;return f"BUILT {plan.purpose.upper()} // {sum(mask.flat)} PHYSICAL WALL CELLS"
 
+    @property
+    def selected_recipe(self):
+        return RECIPES[self.recipe_index%len(RECIPES)]
+
+    def cycle_recipe(self,delta:int=1)->str:
+        self.recipe_index=(self.recipe_index+delta)%len(RECIPES);recipe=self.selected_recipe
+        return f"RECIPE // {recipe.name.upper()} // "+" + ".join(f"{value:g} {name.upper()}" for name,value in recipe.costs)
+
+    def craft_selected(self)->str:
+        recipe=self.selected_recipe;seed=int(hashlib.sha256(f"{self.seed}:craft:{self.craft_count}:{recipe.recipe_id}".encode()).hexdigest()[:16],16)
+        artifact=craft(recipe,seed=seed,provenance=f"field-craft-{self.craft_count}",inventory=self.inventory);self.craft_count+=1;self.artifacts.append(artifact);self.equip(artifact.artifact_id);self.score+=15
+        return f"CRAFTED // {artifact.name.upper()} // {artifact.slot.upper()}"
+
+    def equip(self,artifact_id:str)->str:
+        artifact=next((item for item in self.artifacts if item.artifact_id==artifact_id),None)
+        if artifact is None:raise ValueError("unknown artifact")
+        self.equipped[artifact.slot]=artifact.artifact_id
+        return artifact.name
+
+    def equipped_artifacts(self)->tuple[Artifact,...]:
+        lookup={item.artifact_id:item for item in self.artifacts}
+        return tuple(lookup[item_id] for _,item_id in sorted(self.equipped.items()) if item_id in lookup)
+
+    def bonus(self,name:str)->float:
+        return sum(item.effect(name)*(.35+.65*item.durability) for item in self.equipped_artifacts())
+
+    def abrade(self,slot:str,amount:float)->None:
+        item_id=self.equipped.get(slot)
+        for index,item in enumerate(self.artifacts):
+            if item.artifact_id==item_id:
+                self.artifacts[index]=Artifact(item.artifact_id,item.name,item.slot,item.material,item.components,item.effects,item.quality,max(0,item.durability-amount),item.seed,item.provenance);break
