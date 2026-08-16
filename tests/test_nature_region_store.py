@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from forge.nature_sim_v2 import ColonyState,NatureWorld, PersistentRegionStore,founder_genomes
+from forge.nature_sim_v2 import AdventureState,ColonyState,NatureWorld, PersistentRegionStore,founder_genomes
 from forge.nature_world_scale_v1 import RegionKey
 from forge.qud_society_v1 import SocietyLayer
 
@@ -25,8 +25,11 @@ def test_region_store_preserves_factions_cities_stockpiles_and_history(tmp_path)
     world=NatureWorld(seed=405,size=40);genome=next(item for item in founder_genomes(variants_per_family=1) if item.family==0);ids=[world.add_organism(genome,(18+index*.2,18),energy=.8) for index in range(4)];world.colonies[1]=ColonyState(1,0,genome.lineage_id,set(ids),np.asarray((18.3,18.0)))
     for entity_id in ids:world.organisms[entity_id].colony_id=1
     society=SocietyLayer(world,seed=406);faction_id=society.found_from_colony(1);society.step_history(2);settlement=society.settlements[next(iter(society.factions[faction_id].settlement_ids))];settlement.stockpiles["crystal"]=1.234
-    store=PersistentRegionStore(tmp_path,atlas_seed=124);key=RegionKey(3,-8,0);store.save(key,world,society=society);restored_world,restored_society=store.load(key,include_society=True)
+    adventure=AdventureState(seed=407,size=40);adventure.sites[0].discovered=True;adventure.sites[0].richness=.123;adventure.discoveries.add(adventure.sites[0].site_id)
+    store=PersistentRegionStore(tmp_path,atlas_seed=124);key=RegionKey(3,-8,0);store.save(key,world,society=society,adventure=adventure);restored_world,restored_society,restored_adventure=store.load(key,include_society=True)
     assert restored_society is not None and restored_society.nature is restored_world
     assert restored_society.factions[faction_id].technologies==society.factions[faction_id].technologies
     assert restored_society.settlements[settlement.settlement_id].stockpiles["crystal"]==1.234
     assert len(restored_society.history)==len(society.history)
+    assert restored_adventure is not None and restored_adventure.sites[0].discovered
+    assert restored_adventure.sites[0].richness==.123 and restored_adventure.sites[0].site_id in restored_adventure.discoveries
