@@ -13,6 +13,7 @@ from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..nature_colony_nn import NeuralColonyRuntime
 from ..nature_society_nn import NeuralSocietyRuntime
 from ..nature_timeline_nn import NeuralTimelineRuntime
+from ..nature_counterfactual_nn import NeuralCounterfactualRuntime
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..qud_trade_v1 import execute_trade,generate_trade_offers
@@ -31,7 +32,7 @@ from .directed_evolution import evolution_offers,metamorphose
 from .creature_creator import CreatureCreator
 from .succession import choose_successor
 from .social_actions import bond_nearby
-from .forecast_interventions import apply_intervention,intervention_offers
+from .forecast_interventions import INTERVENTIONS,apply_intervention
 from .world import NatureWorld
 
 
@@ -40,6 +41,7 @@ BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controll
 COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
 SOCIETY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_society/strategist_v1.pt"
 TIMELINE_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_timeline/timeline_v1.pt"
+COUNTERFACTUAL_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_counterfactual/counterfactual_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
 QUICK_SAVE=PROJECT_ROOT/"saves/nature_campaign.nvs"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
@@ -52,7 +54,7 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device);self.society_runtime=NeuralSocietyRuntime.from_checkpoint(SOCIETY_CHECKPOINT,device=device);self.timeline_runtime=NeuralTimelineRuntime.from_checkpoint(TIMELINE_CHECKPOINT,device=device)
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device);self.society_runtime=NeuralSocietyRuntime.from_checkpoint(SOCIETY_CHECKPOINT,device=device);self.timeline_runtime=NeuralTimelineRuntime.from_checkpoint(TIMELINE_CHECKPOINT,device=device);self.counterfactual_runtime=NeuralCounterfactualRuntime.from_checkpoint(COUNTERFACTUAL_CHECKPOINT,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
         self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
         self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=0;self.quests=QuestJournal()
@@ -67,7 +69,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.intervention_offers=();self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -84,6 +86,9 @@ class NatureDemo:
     def world_to_screen(self,position):
         width,height=self.screen.get_size();delta=(np.asarray(position)-self.camera+self.world.size*.5)%self.world.size-self.world.size*.5
         return np.asarray((width*.5+delta[0]*self.zoom,height*.5+delta[1]*self.zoom))
+
+    def _refresh_interventions(self):
+        predictions=self.counterfactual_runtime.evaluate(self.timeline_runtime.history);self.counterfactuals={item.action:item for item in predictions};lookup={item.intervention_id:item for item in INTERVENTIONS};ranked=sorted(predictions,key=lambda item:(item.benefit-item.risk*.35,item.benefit,-item.risk),reverse=True);self.intervention_offers=tuple(lookup[item.action] for item in ranked[:3])
 
     def screen_to_world(self,position):
         width,height=self.screen.get_size();return (self.camera+(np.asarray(position)-np.asarray((width*.5,height*.5)))/self.zoom)%self.world.size
@@ -156,14 +161,14 @@ class NatureDemo:
                     if event.key in (pg.K_ESCAPE,pg.K_BACKQUOTE):self.show_planner=False;self.message="NEURAL ECOLOGY PLANNER CLOSED"
                     elif event.key in (pg.K_7,pg.K_8,pg.K_9) and self.selected in self.world.organisms:
                         index={pg.K_7:0,pg.K_8:1,pg.K_9:2}[event.key]
-                        try:self.message=apply_intervention(self.world,self.adventure,self.world.organisms[self.selected],self.intervention_offers[index],forecast_event=self.timeline_forecast.event);self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self.show_planner=False
+                        try:self.message=apply_intervention(self.world,self.adventure,self.world.organisms[self.selected],self.intervention_offers[index],forecast_event=self.timeline_forecast.event);self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.show_planner=False
                         except ValueError as exc:self.message=str(exc)
                     continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
                 elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
                 elif event.key==pg.K_TAB:self.show_chronicle=not self.show_chronicle
-                elif event.key==pg.K_BACKQUOTE:self.intervention_offers=intervention_offers(self.timeline_forecast.event,epoch=self.world.tick_index//15);self.show_planner=True;self.message="NEURAL ECOLOGY PLANNER // 7/8/9 INTERVENE"
+                elif event.key==pg.K_BACKQUOTE:self._refresh_interventions();self.show_planner=True;self.message="NEURAL ECOLOGY PLANNER // 7/8/9 INTERVENE"
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
@@ -347,9 +352,9 @@ class NatureDemo:
     def _draw_planner(self):
         if not self.show_planner:return
         pg=self.pg;forecast=self.timeline_forecast;width=870;height=310;panel=pg.Rect((self.screen.get_width()-width)//2,90,width,height);shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((1,2,9,158));self.screen.blit(shade,(0,0));pg.draw.rect(self.screen,(5,11,22),panel);pg.draw.rect(self.screen,(201,102,255),panel,2)
-        self.screen.blit(self.small.render("25.3M PARAMETER TEMPORAL ECOLOGY TRANSFORMER // ACTIONS REMAIN CELL-AUTHORITATIVE",True,(160,120,235)),(panel.x+24,panel.y+17));self.screen.blit(self.big.render(f"NEURAL OMEN // {forecast.event.upper()}  {forecast.confidence:.0%}",True,(239,222,255)),(panel.x+24,panel.y+42));direction="GROWTH" if forecast.population_delta>=0 else "CONTRACTION";resource="RISING" if forecast.resource_delta>=0 else "FALLING";self.screen.blit(self.small.render(f"POPULATION {direction} {forecast.population_delta:+.3f} // MEAN RESOURCE {resource} {forecast.resource_delta:+.3f} // ` CLOSE",True,(127,196,218)),(panel.x+25,panel.y+83))
+        self.screen.blit(self.small.render("51.0M PARAMETER FORECAST + COUNTERFACTUAL ENSEMBLE // ACTIONS REMAIN CELL-AUTHORITATIVE",True,(160,120,235)),(panel.x+24,panel.y+17));self.screen.blit(self.big.render(f"NEURAL OMEN // {forecast.event.upper()}  {forecast.confidence:.0%}",True,(239,222,255)),(panel.x+24,panel.y+42));direction="GROWTH" if forecast.population_delta>=0 else "CONTRACTION";resource="RISING" if forecast.resource_delta>=0 else "FALLING";self.screen.blit(self.small.render(f"POPULATION {direction} {forecast.population_delta:+.3f} // MEAN RESOURCE {resource} {forecast.resource_delta:+.3f} // ` CLOSE",True,(127,196,218)),(panel.x+25,panel.y+83))
         for index,offer in enumerate(self.intervention_offers):
-            x=panel.x+22+index*282;box=pg.Rect(x,panel.y+116,266,160);matched=forecast.event in offer.tuned_for;pg.draw.rect(self.screen,(10,20,31),box);pg.draw.rect(self.screen,(104,231,170) if matched else (69,103,130),box,2 if matched else 1);self.screen.blit(self.font.render(f"[{index+7}] {offer.label.upper()}",True,(204,255,222) if matched else (207,224,232)),(x+13,box.y+12));self.screen.blit(self.small.render("TUNED TO THIS OMEN" if matched else "OFF-AXIS COUNTERFACTUAL",True,(99,233,160) if matched else (108,145,161)),(x+13,box.y+40));self.screen.blit(self.small.render(offer.description.upper()[:36],True,(154,174,184)),(x+13,box.y+66));self.screen.blit(self.small.render(offer.description.upper()[36:72],True,(154,174,184)),(x+13,box.y+82));cost=" + ".join(f"{amount:g} {name.upper()}" for name,amount in offer.costs);self.screen.blit(self.small.render("COST // "+cost,True,(255,181,100)),(x+13,box.y+116));held="  ".join(f"{name[:3].upper()} {self.adventure.inventory.get(name,0):.1f}" for name,_ in offer.costs);self.screen.blit(self.small.render("HOLD // "+held,True,(104,200,222)),(x+13,box.y+136))
+            prediction=self.counterfactuals[offer.intervention_id];x=panel.x+22+index*282;box=pg.Rect(x,panel.y+116,266,160);best=index==0;pg.draw.rect(self.screen,(10,20,31),box);pg.draw.rect(self.screen,(104,231,170) if best else (69,103,130),box,2 if best else 1);self.screen.blit(self.font.render(f"[{index+7}] {offer.label.upper()}",True,(204,255,222) if best else (207,224,232)),(x+13,box.y+12));self.screen.blit(self.small.render(f"NEURAL RANK {index+1} // BENEFIT {prediction.benefit:.0%}  RISK {prediction.risk:.0%}",True,(99,233,160) if best else (108,145,161)),(x+13,box.y+40));self.screen.blit(self.small.render(f"POP {prediction.population_delta:+.3f}  RESOURCE {prediction.resource_delta:+.3f}",True,(154,174,184)),(x+13,box.y+64));self.screen.blit(self.small.render(offer.description.upper()[:40],True,(154,174,184)),(x+13,box.y+84));cost=" + ".join(f"{amount:g} {name.upper()}" for name,amount in offer.costs);self.screen.blit(self.small.render("COST // "+cost,True,(255,181,100)),(x+13,box.y+116));held="  ".join(f"{name[:3].upper()} {self.adventure.inventory.get(name,0):.1f}" for name,_ in offer.costs);self.screen.blit(self.small.render("HOLD // "+held,True,(104,200,222)),(x+13,box.y+136))
 
     @staticmethod
     def _event_text(event):
@@ -457,7 +462,7 @@ class NatureDemo:
 
 def main()->None:
     parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");parser.add_argument("--planner",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle
-    if args.planner:demo.intervention_offers=intervention_offers(demo.timeline_forecast.event,epoch=demo.world.tick_index//15);demo.show_planner=True
+    if args.planner:demo._refresh_interventions();demo.show_planner=True
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
     if args.trade and demo.society.settlements:
