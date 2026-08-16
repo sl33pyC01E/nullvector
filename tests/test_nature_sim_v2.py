@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from forge.creature_stage_developmental import develop
-from forge.nature_sim_v2 import NatureWorld,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
+from forge.nature_sim_v2 import NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
 from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
@@ -149,3 +149,11 @@ def test_world_graft_preserves_old_wounds_and_injures_donor() -> None:
     assert float(animal.body.health.min())<=prior_min+.02
     assert float(machine.body.health.mean())<donor_mean
     assert animal.body.snapshot().systems["integrity"]<1
+
+
+def test_visible_body_uses_neural_muscles_and_persistent_contacts() -> None:
+    world=NatureWorld(seed=773,size=32,max_population=32);world.seed_founders(variants_per_family=1);entity=next(o for o in world.organisms.values() if o.family==1);solver=VisibleBodyPhysics();organism=entity.body.organism
+    entity.neural_muscles=np.linspace(0,1,len(organism.muscles),dtype=np.float32);entity.neural_contacts=np.asarray([item.kind=="leg" and item.side<0 for item in organism.genome.appendages])
+    first=solver.step(world,entity,1/60).copy();entity.position+=np.asarray((.35,.22));second=solver.step(world,entity,1/60).copy();appendage=organism.appendage_index>=0
+    assert float(np.mean(np.linalg.norm(second[appendage]-first[appendage],axis=1)))>.04
+    assert np.allclose(solver.states[entity.entity_id].nodes[0],organism.skeleton_nodes[0,:2],atol=.2)

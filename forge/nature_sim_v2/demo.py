@@ -11,6 +11,7 @@ from ..creature_stage_developmental import FAMILIES,TISSUES
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..qud_society_v1 import SocietyLayer
+from .body_pose import VisibleBodyPhysics
 from .world import NatureWorld
 
 
@@ -30,7 +31,7 @@ class NatureDemo:
         self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device)
         self.world=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
         self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
-        self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={}
+        self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def world_to_screen(self,position):
         width,height=self.screen.get_size();delta=(np.asarray(position)-self.camera+self.world.size*.5)%self.world.size-self.world.size*.5
@@ -122,15 +123,13 @@ class NatureDemo:
             point=self.world_to_screen(projectile.position);pg.draw.circle(self.screen,(255,220,112),(int(point[0]),int(point[1])),max(2,int(projectile.radius*self.zoom)))
 
     def _sprite(self,entity):
-        pg=self.pg;phase=int((self.world.time*(3.2+np.linalg.norm(entity.velocity)*2)+entity.entity_id*.7)%16);alive=int(entity.body.snapshot().alive_cells);health_key=int(float(entity.body.health.mean())*20);key=(entity.entity_id,phase,alive,health_key)
-        if key in self.sprite_cache:return self.sprite_cache[key]
-        neural=self.atlas.subsurface(pg.Rect(entity.family*96,phase*96,96,96));sprite=pg.Surface((96,96),pg.SRCALPHA);organism=entity.body.organism;points=organism.cell_xy.astype(np.float32);extent=np.maximum(np.ptp(points,axis=0),1);scale=min(2.15,66/max(extent));center=np.asarray((48,48))-((points.min(0)+points.max(0))*.5*scale)
+        pg=self.pg;phase=int((self.world.time*(3.2+np.linalg.norm(entity.velocity)*2)+entity.entity_id*.7)%16)
+        neural=self.atlas.subsurface(pg.Rect(entity.family*96,phase*96,96,96));sprite=pg.Surface((96,96),pg.SRCALPHA);organism=entity.body.organism;points=self.visible_physics.step(self.world,entity,1/60);rest=organism.cell_xy.astype(np.float32);extent=np.maximum(np.ptp(rest,axis=0),1);scale=min(2.15,66/max(extent));center=np.asarray((48,48))-((rest.min(0)+rest.max(0))*.5*scale)
         for index,xy in enumerate(points):
             health=float(entity.body.health[index])
             if health<=.08:continue
             p=xy*scale+center;sample_x=int(np.clip(p[0],0,95));sample_y=int(np.clip(p[1],0,95));neural_color=neural.get_at((sample_x,sample_y));tissue=pg.Color(TISSUE_COLORS.get(TISSUES[int(organism.tissue[index])],"#ffffff"));color=pg.Color(int(neural_color.r*.62+tissue.r*.38),int(neural_color.g*.62+tissue.g*.38),int(neural_color.b*.62+tissue.b*.38),int(110+145*health));pg.draw.circle(sprite,color,(int(p[0]),int(p[1])),max(1,int(scale*.52)))
-        if len(self.sprite_cache)>512:self.sprite_cache.clear()
-        self.sprite_cache[key]=sprite;return sprite
+        return sprite
 
     def _draw_entity(self,entity):
         pg=self.pg;point=self.world_to_screen(entity.position);scale=.78+entity.position[1]/self.world.size*.18;size=int(96*scale);sprite=pg.transform.smoothscale(self._sprite(entity),(size,size))
@@ -153,8 +152,8 @@ class NatureDemo:
 
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,390);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
-        center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health
-        for index,xy in enumerate(organism.cell_xy):
+        center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
+        for index,xy in enumerate(visible):
             if health[index]<=.08:continue
             tissue=TISSUES[int(organism.tissue[index])];color=pg.Color(TISSUE_COLORS.get(tissue,"#ffffff"));color.r=int(color.r*(.25+.75*health[index]));color.g=int(color.g*(.25+.75*health[index]));color.b=int(color.b*(.25+.75*health[index]));p=center+xy*3;pg.draw.circle(self.screen,color,(int(p[0]),int(p[1])),2)
         if self.show_organs:
