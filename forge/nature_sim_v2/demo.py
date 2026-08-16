@@ -31,6 +31,7 @@ from .directed_evolution import evolution_offers,metamorphose
 from .creature_creator import CreatureCreator
 from .succession import choose_successor
 from .social_actions import bond_nearby
+from .forecast_interventions import apply_intervention,intervention_offers
 from .world import NatureWorld
 
 
@@ -66,7 +67,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.intervention_offers=();self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR + TIMELINE TRANSFORMER";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society)
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -151,10 +152,18 @@ class NatureDemo:
                         try:self.message=execute_trade(self.trade_offers[index],settlement=self.society.settlements[self.trade_settlement],adventure=self.adventure,journal=self.quests);self.trade_offers=generate_trade_offers(self.society.settlements[self.trade_settlement],reputation=self.quests.reputation.get(self.society.settlements[self.trade_settlement].faction_id,0),epoch=self.world.tick_index//60)
                         except ValueError as exc:self.message=f"BARTER REJECTED // {exc}"
                     continue
+                if self.show_planner:
+                    if event.key in (pg.K_ESCAPE,pg.K_BACKQUOTE):self.show_planner=False;self.message="NEURAL ECOLOGY PLANNER CLOSED"
+                    elif event.key in (pg.K_7,pg.K_8,pg.K_9) and self.selected in self.world.organisms:
+                        index={pg.K_7:0,pg.K_8:1,pg.K_9:2}[event.key]
+                        try:self.message=apply_intervention(self.world,self.adventure,self.world.organisms[self.selected],self.intervention_offers[index],forecast_event=self.timeline_forecast.event);self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self.show_planner=False
+                        except ValueError as exc:self.message=str(exc)
+                    continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
                 elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
                 elif event.key==pg.K_TAB:self.show_chronicle=not self.show_chronicle
+                elif event.key==pg.K_BACKQUOTE:self.intervention_offers=intervention_offers(self.timeline_forecast.event,epoch=self.world.tick_index//15);self.show_planner=True;self.message="NEURAL ECOLOGY PLANNER // 7/8/9 INTERVENE"
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
@@ -211,7 +220,7 @@ class NatureDemo:
         return True
 
     def update(self,delta):
-        if self.paused:return
+        if self.paused or self.show_planner:return
         entity=self.world.organisms.get(self.selected)
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2*(1+self.adventure.bonus("locomotion"));entity.intent="player";self.adventure.abrade("core",delta*.00008)
@@ -335,6 +344,13 @@ class NatureDemo:
         for index,offer in enumerate(self.trade_offers):
             x=panel.x+20+index*239;box=pg.Rect(x,panel.y+112,222,112);pg.draw.rect(self.screen,(7,25,25),box);pg.draw.rect(self.screen,(47,104,89),box,1);self.screen.blit(self.font.render(f"[{index+7}] BARTER",True,(205,255,223)),(x+12,box.y+11));self.screen.blit(self.small.render(f"GIVE  {offer.give_amount:.2f} {offer.give_material.upper()}",True,(255,174,105)),(x+12,box.y+43));self.screen.blit(self.small.render(f"TAKE  {offer.receive_amount:.2f} {offer.receive_material.upper()}",True,(104,232,255)),(x+12,box.y+64));have=self.adventure.inventory.get(offer.give_material,0);self.screen.blit(self.small.render(f"YOU HOLD {have:.2f} // [Y] CLOSE",True,(130,156,152)),(x+12,box.y+88))
 
+    def _draw_planner(self):
+        if not self.show_planner:return
+        pg=self.pg;forecast=self.timeline_forecast;width=870;height=310;panel=pg.Rect((self.screen.get_width()-width)//2,90,width,height);shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((1,2,9,158));self.screen.blit(shade,(0,0));pg.draw.rect(self.screen,(5,11,22),panel);pg.draw.rect(self.screen,(201,102,255),panel,2)
+        self.screen.blit(self.small.render("25.3M PARAMETER TEMPORAL ECOLOGY TRANSFORMER // ACTIONS REMAIN CELL-AUTHORITATIVE",True,(160,120,235)),(panel.x+24,panel.y+17));self.screen.blit(self.big.render(f"NEURAL OMEN // {forecast.event.upper()}  {forecast.confidence:.0%}",True,(239,222,255)),(panel.x+24,panel.y+42));direction="GROWTH" if forecast.population_delta>=0 else "CONTRACTION";resource="RISING" if forecast.resource_delta>=0 else "FALLING";self.screen.blit(self.small.render(f"POPULATION {direction} {forecast.population_delta:+.3f} // MEAN RESOURCE {resource} {forecast.resource_delta:+.3f} // ` CLOSE",True,(127,196,218)),(panel.x+25,panel.y+83))
+        for index,offer in enumerate(self.intervention_offers):
+            x=panel.x+22+index*282;box=pg.Rect(x,panel.y+116,266,160);matched=forecast.event in offer.tuned_for;pg.draw.rect(self.screen,(10,20,31),box);pg.draw.rect(self.screen,(104,231,170) if matched else (69,103,130),box,2 if matched else 1);self.screen.blit(self.font.render(f"[{index+7}] {offer.label.upper()}",True,(204,255,222) if matched else (207,224,232)),(x+13,box.y+12));self.screen.blit(self.small.render("TUNED TO THIS OMEN" if matched else "OFF-AXIS COUNTERFACTUAL",True,(99,233,160) if matched else (108,145,161)),(x+13,box.y+40));self.screen.blit(self.small.render(offer.description.upper()[:36],True,(154,174,184)),(x+13,box.y+66));self.screen.blit(self.small.render(offer.description.upper()[36:72],True,(154,174,184)),(x+13,box.y+82));cost=" + ".join(f"{amount:g} {name.upper()}" for name,amount in offer.costs);self.screen.blit(self.small.render("COST // "+cost,True,(255,181,100)),(x+13,box.y+116));held="  ".join(f"{name[:3].upper()} {self.adventure.inventory.get(name,0):.1f}" for name,_ in offer.costs);self.screen.blit(self.small.render("HOLD // "+held,True,(104,200,222)),(x+13,box.y+136))
+
     @staticmethod
     def _event_text(event):
         kind=str(event.get("type","event")).replace("_"," ").upper();tick=event.get("tick",0)
@@ -417,7 +433,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;forecast=self.timeline_forecast;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} NN>{forecast.event.upper()} {forecast.confidence:.0%}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  0 CITY SERVICE  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  ` NEURAL PLAN  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
@@ -425,6 +441,7 @@ class NatureDemo:
         if self.adventure.pending_encounter is not None:self._draw_encounter()
         if self.trade_settlement is not None:self._draw_trade()
         if self.show_chronicle:self._draw_chronicle()
+        if self.show_planner:self._draw_planner()
         if self.creator.active:self._draw_creator()
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
@@ -439,7 +456,8 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");parser.add_argument("--planner",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle
+    if args.planner:demo.intervention_offers=intervention_offers(demo.timeline_forecast.event,epoch=demo.world.tick_index//15);demo.show_planner=True
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
     if args.trade and demo.society.settlements:

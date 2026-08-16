@@ -5,7 +5,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 ## What is live
 
 - Every organism is a connected cellular body with skeleton, muscle graph, organs, fluids, wounds, scars, severing, detached polyps, decomposition, and family-specific matter.
-- Four trained neural specialists currently control grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, and settlement strategy.
+- Five trained neural specialists currently control grounded 2.5D locomotion, individual ecology behavior, colony roles/actions, settlement strategy, and 24-step world-timeline forecasting.
 - Reproduction recombines heritable developmental and ecological genomes. Courtship avoids close inbreeding, hybrids are rare, and structural mutations can grow symmetric organs or appendage pairs.
 - Colonies gather finite field matter, share energy, feed starving kin, heal with cached resources, consolidate visible powder caches, inherit culture, fission, and can become societies.
 - Societies construct collidable/destructible cities, process finite stockpiles, discover technology, issue contracts, trade, and provide building services.
@@ -30,6 +30,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 | 0 | Use the best applicable nearby city service |
 | U | Accept the nearest settlement contract |
 | Tab | Open the living ecological and civic chronicle |
+| ` (backquote), then 7 / 8 / 9 | Open the neural ecology planner and commit a physical forecast intervention |
 | I / J / H / X / V / B / P | Inspect, impact, heal, scrape, sever, beam, projectile tools |
 | C / O / L / M | Toggle cells, organs, sensory fields, region atlas |
 | Space | Pause |
@@ -37,7 +38,7 @@ Launch the current native build with `Launch Neural Nature Stage.bat`. It runs l
 
 ## Neural authority and scaffold
 
-The trained models are intentionally bounded by deterministic, testable physical authority. Neural outputs choose muscle activations, behavior intent, colony specialization, resource policy, diplomacy, and construction strategy. They cannot fabricate cells, matter, health, stockpiles, or topology. The scaffold is the teacher and validator for the planned specialist ensemble; once its behavior is strong and measurable, the long-term target is reverse distillation into a real-time action-conditioned DiT/VAE world model.
+The trained models are intentionally bounded by deterministic, testable physical authority. Neural outputs choose muscle activations, behavior intent, colony specialization, resource policy, diplomacy, construction strategy, and predicted macro-ecology. The timeline transformer also presents three costly interventions; choosing one changes real resource fields, powder matter, structures, creature intent, and inventory rather than merely changing a UI number. Models cannot fabricate cells, matter, health, stockpiles, or topology. The scaffold is the teacher and validator for the planned specialist ensemble; once its behavior is strong and measurable, the long-term target is reverse distillation into a real-time action-conditioned DiT/VAE world model.
 
 ## Current visual proofs
 
