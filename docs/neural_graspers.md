@@ -13,3 +13,7 @@ The neural controller receives the organism's own feeder anchor. Consumption is 
 The production fit uses the larger desktop-quality controller (384 channels, six conditioned blocks) and gives extra loss authority to appendage selection, feeder reach, and throw impulse. Raw and EMA weights are both evaluated; the runtime is published from the better validation candidate and the quality gates are never relaxed to make a run pass.
 
 Absorbed nutrition enters a bounded reserve instead of becoming an immediate hunger reset. The default reserve and 90-second fullness buffer make physical ingestion compatible with stable unattended ecosystems; exact durations remain balance parameters. Graspers can guide held food into the contact field, so this is not intended as a sub-pixel aiming challenge.
+
+## Accepted desktop baseline
+
+`outputs/creature_stage_neural_grasper_v1/production_v2` is the accepted neural controller. It contains an 8,010,637-parameter, 16.0 MB BF16 runtime selected from the EMA weights. On 960 held-out manipulation cases it reached 95.255% appendage accuracy, 0.988 engagement F1, 0.0163 normalized reach MAE, 0.0144 force MAE, 0.0257 brace MAE, perfect target-type and release classification, and 0.0148 throw-impulse MAE. Every declared gate passed. The earlier `production_v1` experiment is retained locally as failed evidence and is not a runtime candidate.
