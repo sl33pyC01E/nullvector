@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..creature_stage_developmental.development import DevelopedOrganism
-from ..creature_stage_developmental.motion import _fabrik, skin_cells
+from ..creature_stage_developmental.motion import _fabrik
 
 
 @dataclass(slots=True)
@@ -44,7 +44,41 @@ class ArticulatedBody:
         return self.endpoint(appendage)
 
     def cells(self) -> np.ndarray:
-        return skin_cells(self.organism, self.nodes)
+        points = self.organism.cell_xy.astype(np.float32, copy=True)
+        for appendage, chain_ids in enumerate(self.chain_ids):
+            cell_ids = np.flatnonzero(self.organism.appendage_index == appendage)
+            if cell_ids.size == 0:
+                continue
+            gene = self.organism.genome.appendages[appendage]
+            root_component = next(component for component in self.organism.genome.components if component.component_id == gene.root_component)
+            root_delta = (points[cell_ids] - np.asarray(root_component.anchor, np.float32)) / np.asarray(root_component.radius, np.float32)
+            core_distance = np.max(np.abs(root_delta), axis=1) if int(np.argmax(self.organism.genome.family_mix)) == 4 else np.linalg.norm(root_delta, axis=1)
+            # Cells inside the load-bearing root component remain torso/chassis
+            # even when their nearest edge metadata names this appendage.
+            cell_ids = cell_ids[core_distance >= .92]
+            if cell_ids.size == 0:
+                continue
+            rest = self.organism.skeleton_nodes[chain_ids, :2].astype(np.float32)
+            posed = self.nodes[chain_ids, :2].astype(np.float32)
+            cells = points[cell_ids]
+            rest_vectors = rest[1:] - rest[:-1]
+            denominators = np.maximum(np.square(rest_vectors).sum(axis=1), 1e-8)
+            relative = cells[:, None, :] - rest[:-1][None, :, :]
+            along = np.clip((relative * rest_vectors[None]).sum(axis=2) / denominators[None], 0, 1)
+            projections = rest[:-1][None] + along[:, :, None] * rest_vectors[None]
+            distance = np.linalg.norm(cells[:, None] - projections, axis=2)
+            segment = distance.argmin(axis=1)
+            row = np.arange(cell_ids.size)
+            chosen_along = along[row, segment]
+            rest_direction = rest_vectors[segment]
+            rest_normal = np.stack((-rest_direction[:, 1], rest_direction[:, 0]), axis=1)
+            rest_normal /= np.maximum(np.linalg.norm(rest_normal, axis=1, keepdims=True), 1e-8)
+            lateral = ((cells - projections[row, segment]) * rest_normal).sum(axis=1)
+            posed_vector = posed[segment + 1] - posed[segment]
+            posed_normal = np.stack((-posed_vector[:, 1], posed_vector[:, 0]), axis=1)
+            posed_normal /= np.maximum(np.linalg.norm(posed_normal, axis=1, keepdims=True), 1e-8)
+            points[cell_ids] = posed[segment] + chosen_along[:, None] * posed_vector + lateral[:, None] * posed_normal
+        return points
 
     def chain(self, appendage: int) -> np.ndarray:
         return self.nodes[self.chain_ids[appendage], :2].copy()

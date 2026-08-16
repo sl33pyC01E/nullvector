@@ -109,7 +109,7 @@ class NeuralManipulationArena:
         release = np.asarray(command.throw_impulse, dtype=np.float64) * (6.0 * throw_strength) if command.release and goal == "throw" else None
         result = solve_grasp(
             self.body, target_body, effector=effector,
-            engage=command.engage and not command.release, force=command.force,
+            engage=(command.engage or self.constraint.attached) and not command.release, force=command.force,
             brace=command.brace, cohesion=self.cohesion[target_id], state=self.constraint,
             delta=delta, release_impulse=release,
         )

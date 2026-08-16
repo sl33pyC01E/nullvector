@@ -26,6 +26,15 @@ too large for an ordinary GitHub repository.
 |---|---|---|
 | ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
 
+| Articulated neural feeding | Articulated neural throw | Severed feeder gate |
+|---|---|---|
+| ![Cell-thick articulated arm carrying food to mouth cells](examples/showcase/articulated_neural_feeding_v2.gif) | ![Articulated throw with follow-through and recoil](examples/showcase/articulated_neural_throw_v2.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_severed_feeder_v2.gif) |
+
+The arm is a chassis-rooted cellular tube with fixed segment lengths, the same
+physical class as the legs. No visible tether or telekinetic transfer is used.
+The hand cells carry the clump to live feeder cells; the throw releases it into
+free motion while the arm retracts.
+
 See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
 VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
 

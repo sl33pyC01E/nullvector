@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 from ..creature_stage_developmental.development import develop
 from ..creature_stage_developmental.genomes import review_genomes
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
-from .arena import NeuralManipulationArena
+from .arena import ManipulationStep, NeuralManipulationArena
 
 
 WIDTH, HEIGHT, SCALE = 384, 288, 4.0
@@ -102,7 +102,7 @@ def _feed_clip() -> list[Image.Image]:
 
 
 def _throw_clip() -> list[Image.Image]:
-    arena, target_id = _arena(8, (12.0, 0.0))
+    arena, target_id = _arena(0, (12.0, 0.0))
     frames: list[Image.Image] = []
     attached = False
     for tick in range(360):
@@ -112,8 +112,15 @@ def _throw_clip() -> list[Image.Image]:
         if tick % 2 == 0:
             frames.append(_frame(arena, target_id, "NEURAL THROW + BODY RECOIL", "constraint, momentum, ground bracing", step))
         if step.thrown:
-            for _ in range(50):
-                step = arena.step(target_id, goal="carry", delta=.05)
+            for _ in range(80):
+                target = arena.targets[target_id]
+                arena.body.position += arena.body.velocity * .05
+                target.position += target.velocity * .05
+                arena.body.velocity *= np.exp(-.05 * 3.2)
+                target.velocity *= np.exp(-.05 * (1.2 + .4 / max(target.mass, .1)))
+                rest = np.asarray(arena.organism.genome.appendages[step.appendage].endpoint, np.float64)
+                arena.articulation.solve(step.appendage, rest, .11)
+                step = ManipulationStep(step.appendage, False, True, False, float(np.linalg.norm(target.position - arena.body.position)), False, 0.0, arena.feeding.reserve, arena.feeding.fullness_seconds)
                 frames.append(_frame(arena, target_id, "NEURAL THROW + BODY RECOIL", "released target retains impulse", step))
             break
     return frames
@@ -134,7 +141,7 @@ def _blocked_clip() -> list[Image.Image]:
 def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    clips = {"neural_grasper_feeding.gif": _feed_clip(), "neural_grasper_throw.gif": _throw_clip(), "neural_feeder_severed.gif": _blocked_clip()}
+    clips = {"articulated_neural_feeding_v2.gif": _feed_clip(), "articulated_neural_throw_v2.gif": _throw_clip(), "articulated_severed_feeder_v2.gif": _blocked_clip()}
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name

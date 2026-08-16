@@ -43,6 +43,25 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ## Cellular life and damage
 
+### Articulated neural manipulation
+
+![Cell-thick articulated arm carrying food to mouth cells](showcase/articulated_neural_feeding_v2.gif)
+
+The accepted neural controller selects the appendage, reach, force, and brace.
+A segment-local skin keeps the cellular arm as thick as the legs while its
+fixed-length joint chain curls the held clump back to actual mouth cells.
+
+![Articulated throw with follow-through and recoil](showcase/articulated_neural_throw_v2.gif)
+
+The released clump retains its impulse, the body receives recoil, and the arm
+retracts under its own articulated chain rather than remaining attached by a
+display tether.
+
+![Destroyed feeder blocks absorption](showcase/articulated_severed_feeder_v2.gif)
+
+Damage to the feeder cells prevents reserve gain even after physical contact.
+Source: `outputs/creature_stage_manipulation_v1/showcase_v2/`.
+
 ![Cellular breeding and soft symmetry](showcase/cellular_breeding_symmetry.png)
 
 Breeding, soft-organic symmetry, additive chassis growth, organ/fluid fields,
