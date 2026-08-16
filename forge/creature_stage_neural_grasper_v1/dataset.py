@@ -15,6 +15,28 @@ from .contract import GLOBAL_FEATURES, GOALS, MAX_APPENDAGES, OWNER_FEATURES, TA
 KIND_GRIP = {"arm": 1.0, "tendril": .96, "tail": .82, "root": .76, "frond": .58, "hardpoint": .46, "leg": .30, "wheel": .10}
 
 
+def feeder_anchor(organism) -> np.ndarray:
+    family = int(np.argmax(np.asarray(organism.genome.family_mix, dtype=np.float32)))
+    predicates = (
+        lambda component: component.kind == "head",
+        lambda component: component.kind == "mouth" or component.organ == "jaw",
+        lambda component: component.organ == "bulb",
+        lambda component: component.organ == "transmuter",
+        lambda component: component.organ == "battery",
+    )
+    candidates = [component for component in organism.genome.components if predicates[family](component)]
+    if not candidates:
+        raise ValueError("grasper feeder anchor is absent")
+    anchor = np.asarray(candidates[0].anchor, dtype=np.float32)
+    if family == 0:
+        anchor = anchor + np.asarray((0, 2), dtype=np.float32)
+    elif family == 2:
+        roots = [appendage for appendage in organism.genome.appendages if appendage.kind == "root"]
+        if roots:
+            anchor = np.mean(np.asarray([appendage.endpoint for appendage in roots], dtype=np.float32), axis=0)
+    return np.clip(anchor / 24.0, -1, 1).astype(np.float32)
+
+
 @dataclass(slots=True)
 class GrasperCorpus:
     owner_meta: torch.Tensor
@@ -54,7 +76,11 @@ def _case(organism, identity: int, case: int):
     mobility = float(rng.uniform(0, 1))
     hostility = float(rng.uniform(0, 1) if target_type == 1 else 0)
     throw = float(rng.uniform(.25, 1) if goal == GOALS.index("throw") else 0)
-    attached = float(goal == GOALS.index("throw") or (target_type != 0 and case % 7 == 0))
+    attached = float(
+        goal == GOALS.index("throw")
+        or (goal == GOALS.index("consume") and case % 2 == 0)
+        or (target_type != 0 and case % 11 == 0)
+    )
     target = np.zeros(TARGET_FEATURES, np.float32)
     target[target_type] = 1
     target[4:6] = direction
@@ -65,7 +91,8 @@ def _case(organism, identity: int, case: int):
     global_state = np.zeros(GLOBAL_FEATURES, np.float32)
     global_state[family] = 1
     traits = np.asarray(organism.genome.traits, np.float32)
-    global_state[5:] = (float(np.mean(traits[3:8])), float(np.mean(traits[8:13])), float(np.mean(traits[13:18])))
+    global_state[5:8] = (float(np.mean(traits[3:8])), float(np.mean(traits[8:13])), float(np.mean(traits[13:18])))
+    global_state[8:10] = feeder_anchor(organism)
 
     scores = np.full(MAX_APPENDAGES, -1e6, np.float32)
     capacities = np.zeros(MAX_APPENDAGES, np.float32)
@@ -81,10 +108,13 @@ def _case(organism, identity: int, case: int):
     chosen = int(np.argmax(scores)) if bool(mask.any()) else 0
     capacity = float(capacities[chosen])
     release = float(goal == GOALS.index("throw") and attached and target_type != 0)
-    engage = float(not release and target_type != 0 and distance <= 1.08 + .30 * capacity and mass <= .78 + .38 * capacity)
+    engage = float(not release and target_type != 0 and (attached or (distance <= 1.08 + .30 * capacity and mass <= .78 + .38 * capacity)))
     if goal == 3 and cohesion > capacity + .28:
         engage *= .35
-    reach_target = direction * min(distance, .72 + .42 * capacity) if engage else np.zeros(2, np.float32)
+    if engage and attached and goal == GOALS.index("consume"):
+        reach_target = feeder_anchor(organism)
+    else:
+        reach_target = direction * min(distance, .72 + .42 * capacity) if engage else np.zeros(2, np.float32)
     force = engage * np.clip(.18 + .58 * mass + .24 * cohesion + .20 * hostility + .18 * (goal == 3), 0, 1)
     brace = max(engage, release) * np.clip(.12 + mass * .70 + cohesion * .20 - mobility * .16, 0, 1)
     throw_target = direction * throw * np.clip(.35 + .65 * capacity - .30 * mass, .12, 1.0) if release else np.zeros(2, np.float32)
