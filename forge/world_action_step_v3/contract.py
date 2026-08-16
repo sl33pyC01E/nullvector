@@ -33,6 +33,8 @@ class TrainingConfig:
     ema_decay: float = 0.9995
     changed_weight: float = 5.0
     edge_weight: float = 0.18
+    pixel_weight: float = 0.65
+    pixel_batch: int = 4
     input_noise: float = 0.006
     seed: int = 0x43415553414C5354
 
