@@ -1,0 +1,407 @@
+{
+  "checkpoint_sha256": "2957369c26c285eaef50f19ade9c7128c624115252b4064d7933df20c8b4d941",
+  "corpus_sha256": "e7ebcbe62c23afc829acff69068a9f96078a4352b4e209aba7dd7929cf39d7ef",
+  "ema_state_sha256": "e53431c3cf6535d0a47c0c06dd9a254eb2daa3289ad10f27a7cc9c5c2e937c2c",
+  "format": "nullvector-nature-behavior-controller/1.0.0",
+  "history": [
+    {
+      "angular": 1.0634472,
+      "direction": 0.2145318,
+      "intent": 2.4966764,
+      "loss": 4.0649099,
+      "update": 1
+    },
+    {
+      "angular": 0.8653831,
+      "direction": 0.1930108,
+      "intent": 0.8068815,
+      "loss": 2.0401113,
+      "update": 100
+    },
+    {
+      "angular": 0.5312184,
+      "direction": 0.1521537,
+      "intent": 0.4141032,
+      "loss": 1.2173692,
+      "update": 200
+    },
+    {
+      "angular": 0.4781803,
+      "direction": 0.1386647,
+      "intent": 0.3829846,
+      "loss": 1.1025574,
+      "update": 300
+    },
+    {
+      "angular": 0.5413394,
+      "direction": 0.1483153,
+      "intent": 0.303836,
+      "loss": 1.1024996,
+      "update": 400
+    },
+    {
+      "angular": 0.3992259,
+      "direction": 0.1206828,
+      "intent": 0.3110437,
+      "loss": 0.9171393,
+      "update": 500
+    },
+    {
+      "angular": 0.4057128,
+      "direction": 0.1195658,
+      "intent": 0.356056,
+      "loss": 0.9696791,
+      "update": 600
+    },
+    {
+      "angular": 0.3316437,
+      "direction": 0.0975381,
+      "intent": 0.2474241,
+      "loss": 0.7516199,
+      "update": 700
+    },
+    {
+      "angular": 0.2983374,
+      "direction": 0.0929154,
+      "intent": 0.2880077,
+      "loss": 0.7527145,
+      "update": 800
+    },
+    {
+      "angular": 0.2803933,
+      "direction": 0.0879739,
+      "intent": 0.1269722,
+      "loss": 0.5647063,
+      "update": 900
+    },
+    {
+      "angular": 0.2467036,
+      "direction": 0.0738306,
+      "intent": 0.131863,
+      "loss": 0.5085992,
+      "update": 1000
+    },
+    {
+      "angular": 0.2319489,
+      "direction": 0.0673609,
+      "intent": 0.1372625,
+      "loss": 0.4874179,
+      "update": 1100
+    },
+    {
+      "angular": 0.2516744,
+      "direction": 0.074734,
+      "intent": 0.1024088,
+      "loss": 0.488423,
+      "update": 1200
+    },
+    {
+      "angular": 0.2446572,
+      "direction": 0.0727344,
+      "intent": 0.1153614,
+      "loss": 0.4910663,
+      "update": 1300
+    },
+    {
+      "angular": 0.214193,
+      "direction": 0.064793,
+      "intent": 0.0955012,
+      "loss": 0.4287336,
+      "update": 1400
+    },
+    {
+      "angular": 0.1875689,
+      "direction": 0.058662,
+      "intent": 0.1336882,
+      "loss": 0.4298283,
+      "update": 1500
+    },
+    {
+      "angular": 0.147269,
+      "direction": 0.04719,
+      "intent": 0.0537324,
+      "loss": 0.2820393,
+      "update": 1600
+    },
+    {
+      "angular": 0.1264272,
+      "direction": 0.0424133,
+      "intent": 0.0642096,
+      "loss": 0.2683863,
+      "update": 1700
+    },
+    {
+      "angular": 0.1391252,
+      "direction": 0.046909,
+      "intent": 0.0849945,
+      "loss": 0.3065009,
+      "update": 1800
+    },
+    {
+      "angular": 0.153841,
+      "direction": 0.0482496,
+      "intent": 0.0803875,
+      "loss": 0.3177257,
+      "update": 1900
+    },
+    {
+      "angular": 0.1279057,
+      "direction": 0.0439102,
+      "intent": 0.0740476,
+      "loss": 0.2783162,
+      "update": 2000
+    },
+    {
+      "angular": 0.1396964,
+      "direction": 0.0446049,
+      "intent": 0.13308,
+      "loss": 0.350733,
+      "update": 2100
+    },
+    {
+      "angular": 0.1543213,
+      "direction": 0.0475396,
+      "intent": 0.064914,
+      "loss": 0.3015934,
+      "update": 2200
+    },
+    {
+      "angular": 0.1349016,
+      "direction": 0.0456944,
+      "intent": 0.0561765,
+      "loss": 0.2713466,
+      "update": 2300
+    },
+    {
+      "angular": 0.1058871,
+      "direction": 0.0379674,
+      "intent": 0.0633182,
+      "loss": 0.239186,
+      "update": 2400
+    },
+    {
+      "angular": 0.0578235,
+      "direction": 0.0220055,
+      "intent": 0.0447628,
+      "loss": 0.1413568,
+      "update": 2500
+    },
+    {
+      "angular": 0.0979936,
+      "direction": 0.0313803,
+      "intent": 0.0424459,
+      "loss": 0.1949174,
+      "update": 2600
+    },
+    {
+      "angular": 0.0729198,
+      "direction": 0.0257003,
+      "intent": 0.0688364,
+      "loss": 0.187078,
+      "update": 2700
+    },
+    {
+      "angular": 0.0626851,
+      "direction": 0.0229191,
+      "intent": 0.0546923,
+      "loss": 0.157327,
+      "update": 2800
+    },
+    {
+      "angular": 0.0775897,
+      "direction": 0.0241251,
+      "intent": 0.0513887,
+      "loss": 0.171753,
+      "update": 2900
+    },
+    {
+      "angular": 0.0648537,
+      "direction": 0.0230856,
+      "intent": 0.028836,
+      "loss": 0.1348109,
+      "update": 3000
+    },
+    {
+      "angular": 0.0736699,
+      "direction": 0.0255142,
+      "intent": 0.0292396,
+      "loss": 0.1474596,
+      "update": 3100
+    },
+    {
+      "angular": 0.0867958,
+      "direction": 0.0276789,
+      "intent": 0.0267022,
+      "loss": 0.1626033,
+      "update": 3200
+    },
+    {
+      "angular": 0.0477603,
+      "direction": 0.0175307,
+      "intent": 0.0257053,
+      "loss": 0.1050789,
+      "update": 3300
+    },
+    {
+      "angular": 0.04621,
+      "direction": 0.0170589,
+      "intent": 0.0330703,
+      "loss": 0.1093622,
+      "update": 3400
+    },
+    {
+      "angular": 0.0952123,
+      "direction": 0.0294453,
+      "intent": 0.0475368,
+      "loss": 0.1934686,
+      "update": 3500
+    },
+    {
+      "angular": 0.0509738,
+      "direction": 0.0163399,
+      "intent": 0.0427406,
+      "loss": 0.1219347,
+      "update": 3600
+    }
+  ],
+  "model_state_sha256": "77ecceaceedb0fb60cfc2c597c4f0742701eff4dd469bd758dfa3e1101bf3036",
+  "parameters": 3558415,
+  "source_sha256": "9dc2e3d8f405a184f9c15ae14b47f9a172867257bdd9ab674a6077d23648e7e1",
+  "validation": {
+    "ema": {
+      "direction_cosine": 0.7891719937324524,
+      "direction_mae": 0.17594896256923676,
+      "intent_accuracy": 0.9882051282051282,
+      "per_intent": {
+        "explore": {
+          "accuracy": 0.9821699544764795,
+          "count": 2636,
+          "predicted": 2622
+        },
+        "flee": {
+          "accuracy": 0.9979253112033195,
+          "count": 2410,
+          "predicted": 2440
+        },
+        "follow": {
+          "accuracy": 0.9491525423728814,
+          "count": 649,
+          "predicted": 630
+        },
+        "forage": {
+          "accuracy": 0.5689655172413793,
+          "count": 58,
+          "predicted": 35
+        },
+        "guard": {
+          "accuracy": null,
+          "count": 0,
+          "predicted": 0
+        },
+        "hunt": {
+          "accuracy": 0.9906347554630593,
+          "count": 961,
+          "predicted": 974
+        },
+        "mate": {
+          "accuracy": 0.9715189873417721,
+          "count": 632,
+          "predicted": 642
+        },
+        "mine": {
+          "accuracy": 1.0,
+          "count": 936,
+          "predicted": 936
+        },
+        "phase_feed": {
+          "accuracy": 1.0,
+          "count": 936,
+          "predicted": 936
+        },
+        "photosynthesize": {
+          "accuracy": 0.9929577464788732,
+          "count": 142,
+          "predicted": 145
+        },
+        "repair": {
+          "accuracy": 1.0,
+          "count": 2340,
+          "predicted": 2340
+        },
+        "rest": {
+          "accuracy": null,
+          "count": 0,
+          "predicted": 0
+        }
+      }
+    },
+    "model": {
+      "direction_cosine": 0.9229059219360352,
+      "direction_mae": 0.12948031723499298,
+      "intent_accuracy": 0.9824786324786324,
+      "per_intent": {
+        "explore": {
+          "accuracy": 0.9559939301972686,
+          "count": 2636,
+          "predicted": 2542
+        },
+        "flee": {
+          "accuracy": 0.9879668049792532,
+          "count": 2410,
+          "predicted": 2397
+        },
+        "follow": {
+          "accuracy": 0.9568567026194145,
+          "count": 649,
+          "predicted": 696
+        },
+        "forage": {
+          "accuracy": 0.5862068965517241,
+          "count": 58,
+          "predicted": 34
+        },
+        "guard": {
+          "accuracy": null,
+          "count": 0,
+          "predicted": 0
+        },
+        "hunt": {
+          "accuracy": 0.9958376690946931,
+          "count": 961,
+          "predicted": 980
+        },
+        "mate": {
+          "accuracy": 0.995253164556962,
+          "count": 632,
+          "predicted": 683
+        },
+        "mine": {
+          "accuracy": 1.0,
+          "count": 936,
+          "predicted": 936
+        },
+        "phase_feed": {
+          "accuracy": 1.0,
+          "count": 936,
+          "predicted": 936
+        },
+        "photosynthesize": {
+          "accuracy": 0.9929577464788732,
+          "count": 142,
+          "predicted": 156
+        },
+        "repair": {
+          "accuracy": 1.0,
+          "count": 2340,
+          "predicted": 2340
+        },
+        "rest": {
+          "accuracy": null,
+          "count": 0,
+          "predicted": 0
+        }
+      }
+    },
+    "selected": "model"
+  }
+}

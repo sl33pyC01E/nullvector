@@ -19,7 +19,7 @@ from .state import ColonyState, OrganismState
 class NatureWorld:
     """Persistent deterministic ecology authority and neural teacher."""
 
-    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180, motion_policy: object|None = None) -> None:
+    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180, motion_policy: object|None = None, behavior_policy: object|None = None) -> None:
         if not 24 <= size <= 512 or not 20 <= max_population <= 10_000:
             raise ValueError("nature world bounds drifted")
         self.seed, self.size, self.max_population = int(seed), int(size), int(max_population)
@@ -34,6 +34,7 @@ class NatureWorld:
         self.births = self.deaths = self.predation_events = self.mutation_count = 0
         self.events: list[dict[str, object]] = []
         self.motion_policy = motion_policy
+        self.behavior_policy = behavior_policy
         self.materials = MaterialGrid(size,size,seed=seed^0x504F57444552)
 
     def _make_fields(self) -> np.ndarray:
@@ -89,6 +90,12 @@ class NatureWorld:
         return np.asarray((gx,gy),dtype=np.float64)
 
     def _choose_intent(self, entity: OrganismState) -> np.ndarray:
+        if self.behavior_policy is not None and hasattr(self.behavior_policy,"choose") and not entity.body.incapacitated and entity.energy>=.12:
+            neural=self.behavior_policy.choose(entity)
+            if neural is not None:
+                intent,direction=neural;direction=np.asarray(direction,dtype=np.float64)
+                if intent not in ("rest","forage","hunt","flee","mate","follow","photosynthesize","mine","phase_feed","repair","guard","explore") or direction.shape!=(2,) or not np.isfinite(direction).all():raise FloatingPointError("neural nature behavior became invalid")
+                entity.intent=intent;return np.clip(direction,-1,1)
         nearby=self._neighbors(entity, 4+entity.genome.trait("perception")*10)
         hunger=max(0.0,.74-entity.energy)
         family=entity.family
@@ -373,6 +380,7 @@ class NatureWorld:
         if not math.isfinite(delta) or not .01<=delta<=.5: raise ValueError("nature timestep drifted")
         self.tick_index+=1;self.time+=delta
         self._environment(delta)
+        if self.behavior_policy is not None and hasattr(self.behavior_policy,"prepare"):self.behavior_policy.prepare(self)
         for entity_id in sorted(list(self.organisms)):
             entity=self.organisms.get(entity_id)
             if entity is None:continue
