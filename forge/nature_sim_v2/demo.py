@@ -20,6 +20,7 @@ from .phenotype import phenotype_traits
 from .evolution import EvolutionLedger
 from .state import ColonyState
 from .savegame import load_world,save_world
+from .senses import sensory_field,visible_targets
 from .world import NatureWorld
 
 
@@ -52,7 +53,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.atlas_world.terraform(new,self.region)
@@ -115,6 +116,7 @@ class NatureDemo:
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
+                elif event.key==pg.K_l:self.show_senses=not self.show_senses
                 elif event.key==pg.K_F5:
                     report=save_world(self.world,QUICK_SAVE);self.message=f"LIVING WORLD SAVED // {report['organisms']} ORGANISMS // {report['bytes']/1024:.1f} KIB"
                 elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
@@ -193,6 +195,15 @@ class NatureDemo:
         if entity.colony_id is not None:
             role=self.world.colony_ecology.assignment(entity.entity_id) or "kin";self.screen.blit(self.small.render(f"C{entity.colony_id} {role[:3].upper()}",True,color),(point[0]+22,point[1]-size*.58))
 
+    def _draw_sensory_field(self,entity):
+        pg=self.pg;field=sensory_field(entity,equipment_bonus=self.adventure.bonus("perception"));center=self.world_to_screen(entity.position);overlay=pg.Surface(self.screen.get_size(),pg.SRCALPHA);color=pg.Color(FAMILY_COLORS[entity.family]);alpha=int(16+28*field.integrity);radius=field.range*self.zoom
+        if field.radial:pg.draw.circle(overlay,(*color[:3],alpha),(int(center[0]),int(center[1])),int(radius));pg.draw.circle(overlay,(*color[:3],90),(int(center[0]),int(center[1])),int(radius),1)
+        else:
+            angles=np.linspace(entity.heading-field.arc_radians*.5,entity.heading+field.arc_radians*.5,22);points=[tuple(center)]+[(center[0]+math.cos(angle)*radius,center[1]+math.sin(angle)*radius) for angle in angles];pg.draw.polygon(overlay,(*color[:3],alpha),points);pg.draw.lines(overlay,(*color[:3],95),False,points[1:],1)
+        self.screen.blit(overlay,(0,0))
+        for target_id in visible_targets(self.world,entity,field):
+            point=self.world_to_screen(self.world.organisms[target_id].position);pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),10,1)
+
     def _draw_settlements(self):
         pg=self.pg
         for settlement in self.society.settlements.values():
@@ -249,11 +260,13 @@ class NatureDemo:
         self._draw_settlements()
         self._draw_adventure()
         if self.show_atlas:self._draw_atlas()
+        selected_entity=self.world.organisms.get(self.selected)
+        if self.show_senses and selected_entity is not None and selected_entity.alive:self._draw_sensory_field(selected_entity)
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  F5 SAVE  F9 LOAD  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  L SENSES  F5 SAVE  F9 LOAD  J DAMAGE  H HEAL  X SCRAPE  V CUT",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
