@@ -1,8 +1,8 @@
 extends Node2D
 
-const ATLAS_PATH := "res://generated/anatomical_demo/v1/neural_motion_atlas.png"
-const ANATOMY_PATH := "res://generated/anatomical_demo/v1/anatomy.json"
-const MANIFEST_PATH := "res://generated/anatomical_demo/v1/manifest.json"
+const ATLAS_PATH := "res://generated/anatomical_demo/v2/neural_motion_atlas.png"
+const ANATOMY_PATH := "res://generated/anatomical_demo/v2/anatomy.json"
+const MANIFEST_PATH := "res://generated/anatomical_demo/v2/manifest.json"
 const FAMILIES := ["HUMANOID", "ANIMALIAN", "PLANTLIKE", "ANOMALY", "MACHINE"]
 const FAMILY_COLORS := [
 	Color("#4ce7ff"), Color("#ff6fb5"), Color("#9dff4f"),

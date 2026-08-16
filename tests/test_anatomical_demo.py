@@ -8,7 +8,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUNDLE = ROOT / "game/generated/anatomical_demo/v1"
+BUNDLE = ROOT / "game/generated/anatomical_demo/v2"
 
 
 def _sha(path: Path) -> str:
