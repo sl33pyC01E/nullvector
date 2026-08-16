@@ -19,7 +19,7 @@ from .adventure import AdventureState
 from .phenotype import phenotype_traits
 from .evolution import EvolutionLedger
 from .state import ColonyState
-from .savegame import load_world,save_world
+from .session_save import load_session,save_session
 from .senses import sensory_field,visible_targets
 from .abilities import entity_abilities,use_ability
 from .world import NatureWorld
@@ -29,7 +29,7 @@ CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller
 BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controller_v3.pt"
 COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
-QUICK_SAVE=PROJECT_ROOT/"saves/nature_quick.nvz"
+QUICK_SAVE=PROJECT_ROOT/"saves/nature_campaign.nvs"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
 FAMILY_COLORS=("#35dcff","#ff5ca9","#91ff42","#b778ff","#ffb236")
 MATERIAL_COLORS=((0,0,0,0),(92,73,46,150),(105,113,117,210),(42,126,174,150),(180,20,58,190),(91,176,62,175),(76,66,43,180),(151,166,178,225),(119,73,63,185),(87,232,148,190),(255,107,26,230),(125,140,150,130),(155,92,255,210))
@@ -119,9 +119,9 @@ class NatureDemo:
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
                 elif event.key==pg.K_l:self.show_senses=not self.show_senses
                 elif event.key==pg.K_F5:
-                    report=save_world(self.world,QUICK_SAVE);self.message=f"LIVING WORLD SAVED // {report['organisms']} ORGANISMS // {report['bytes']/1024:.1f} KIB"
+                    report=save_session(world=self.world,adventure=self.adventure,society=self.society,quests=self.quests,atlas=self.atlas_world,region=self.region,selected=self.selected,path=QUICK_SAVE);self.message=f"CAMPAIGN SAVED // CELLS + RELICS + SOCIETIES + CONTRACTS // {report['bytes']/1024:.1f} KIB"
                 elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
-                    self.world=load_world(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime);self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();living=[entity.entity_id for entity in self.world.organisms.values() if entity.alive];self.selected=living[0] if living else next(iter(self.world.organisms));self.camera=self.world.organisms[self.selected].position.copy();self.society=SocietyLayer(self.world,seed=self.world.seed^0x515544);self.message="LIVING WORLD RESTORED // CELL DAMAGE + FLUIDS + COLONIES + POWDER EXACT"
+                    restored=load_session(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime);self.world=restored["world"];self.adventure=restored["adventure"];self.society=restored["society"];self.quests=restored["quests"];self.atlas_world=restored["atlas"];self.region=restored["region"];self.selected=restored["selected"];self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.camera=self.world.organisms[self.selected].position.copy();self.last_society_tick=self.world.tick_index;self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.message="CAMPAIGN RESTORED // CELLS + RELICS + SOCIETIES + CONTRACTS + ATLAS EXACT"
                 elif event.key==pg.K_i:self.tool="inspect"
                 elif event.key==pg.K_j:self.tool="damage"
                 elif event.key==pg.K_h:self.tool="heal"
