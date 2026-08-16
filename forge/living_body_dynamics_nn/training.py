@@ -132,13 +132,18 @@ def train_segment(root: Path, plan: TrainingPlan = TrainingPlan()) -> Path:
     # requires contact, diet compatibility, free capacity, and an intact route.
     # Oversample only the training split so the model cannot minimize loss by
     # always predicting no intake; validation retains the natural frequency.
-    positive_feeding = [
-        index for index in train_indices
+    # Sample from the authoritative outcome, not scenario labels. Structural
+    # cuts in scenario 4 may or may not preserve a feeder-to-digestive path;
+    # treating all of them as positive previously oversampled contradictory
+    # route examples and plateaued held-out route accuracy near .95.
+    feeding_labels = {
+        index: corpus[index]["feeding_target"]
+        for index in train_indices
         if corpus.rows[index][2] in (4, 6)
-        and corpus.rows[index][3] == 0
-        and corpus.rows[index][1] in (0, 1, 4)
-    ]
-    train_indices = train_indices + positive_feeding * 8
+    }
+    positive_feeding = [index for index, target in feeding_labels.items() if float(target[0]) > 1e-7]
+    route_negative = [index for index, target in feeding_labels.items() if float(target[7]) < .5]
+    train_indices = train_indices + positive_feeding * 8 + route_negative * 6
     validation_indices = [index for index, row in enumerate(corpus.rows) if row[0] in VALIDATION_IDENTITIES]
     source = source_sha256()
     latest = _latest(root)
