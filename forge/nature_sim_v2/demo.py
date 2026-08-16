@@ -15,6 +15,7 @@ from ..nature_society_nn import NeuralSocietyRuntime
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..qud_trade_v1 import execute_trade,generate_trade_offers
+from ..qud_services_v1 import use_settlement_service
 from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
 from .adventure import AdventureState
@@ -185,6 +186,12 @@ class NatureDemo:
                         entity=self.world.organisms[self.selected];settlement=min(self.society.settlements.values(),key=lambda item:float(np.linalg.norm(self.world._delta(entity.position,np.asarray(item.center)))));distance=float(np.linalg.norm(self.world._delta(entity.position,np.asarray(settlement.center))))
                         if distance>9:self.message=f"BARTER // SETTLEMENT {distance:.1f} CELLS AWAY"
                         else:self.trade_settlement=settlement.settlement_id;self.trade_offers=generate_trade_offers(settlement,reputation=self.quests.reputation.get(settlement.faction_id,0),epoch=self.world.tick_index//60);self.message="FINITE SETTLEMENT BARTER // 7/8/9 TRADE"
+                elif event.key==pg.K_0 and self.selected in self.world.organisms:
+                    if not self.society.settlements:self.message="SERVICE // NO SETTLEMENTS YET"
+                    else:
+                        entity=self.world.organisms[self.selected];settlement=min(self.society.settlements.values(),key=lambda item:float(np.linalg.norm(self.world._delta(entity.position,np.asarray(item.center)))));distance=float(np.linalg.norm(self.world._delta(entity.position,np.asarray(settlement.center))))
+                        if distance>9:self.message=f"SERVICE // SETTLEMENT {distance:.1f} CELLS AWAY"
+                        else:self.message=use_settlement_service(settlement,self.society.factions[settlement.faction_id],entity=entity,adventure=self.adventure,journal=self.quests)
                 elif event.key in (pg.K_4,pg.K_5,pg.K_6) and self.adventure.pending_encounter is not None and self.selected in self.world.organisms:
                     index={pg.K_4:0,pg.K_5:1,pg.K_6:2}[event.key]
                     self.message=self.adventure.resolve_pending(index,self.world,self.world.organisms[self.selected])
@@ -406,7 +413,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;network=self.world.ecosystem;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} SYM {network.pollinations}/{network.root_transfers}/{network.phase_couplings}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ACTIONS  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  T/R CRAFT  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ACTIONS  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  0 CITY SERVICE  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
