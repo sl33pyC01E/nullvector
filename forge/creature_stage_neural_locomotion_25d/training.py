@@ -78,20 +78,28 @@ def train(corpus_path:Path,output:Path,*,training:TrainingConfig=TrainingConfig(
             loss,metrics=_loss(model,batch)
         loss.backward();nn.utils.clip_grad_norm_(model.parameters(),1.0);optimizer.step()
         with torch.no_grad():
-            for ep,p in zip(ema.parameters(),model.parameters()):ep.lerp_(p,1-training.ema_decay)
+            # A fixed .999 EMA started from random weights needs thousands of
+            # steps merely to forget initialization.  Bias-correct the warmup,
+            # then asymptote to the requested long-horizon decay.
+            decay=min(training.ema_decay,update/(update+1.0))
+            for ep,p in zip(ema.parameters(),model.parameters()):ep.mul_(decay).add_(p,alpha=1-decay)
         if update==1 or update%100==0 or update==training.updates:
             history.append({"update":update,**{k:round(v,8) for k,v in metrics.items()}})
-    validation=evaluate_arrays(ema,corpus,target);model_state={k:v.detach().cpu() for k,v in model.state_dict().items()};ema_state={k:v.detach().cpu() for k,v in ema.state_dict().items()}
-    payload={"format":CHECKPOINT_FORMAT,"source_sha256":source_sha256(),"corpus_sha256":corpus.semantic_sha256,"model_config":asdict(model_config),"training_config":asdict(training),"updates":training.updates,"model":model_state,"ema":ema_state,"model_state_sha256":_state_hash(model_state),"ema_state_sha256":_state_hash(ema_state),"validation":validation,"history":history}
+    validation_raw=evaluate_arrays(model.eval(),corpus,target);validation_ema=evaluate_arrays(ema,corpus,target)
+    score=lambda value:value["contact_f1"]-value["muscle_mae"]-value["velocity_mae"]
+    selected="ema" if score(validation_ema)>=score(validation_raw) else "model";validation=validation_ema if selected=="ema" else validation_raw
+    model_state={k:v.detach().cpu() for k,v in model.state_dict().items()};ema_state={k:v.detach().cpu() for k,v in ema.state_dict().items()}
+    payload={"format":CHECKPOINT_FORMAT,"source_sha256":source_sha256(),"corpus_sha256":corpus.semantic_sha256,"model_config":asdict(model_config),"training_config":asdict(training),"updates":training.updates,"model":model_state,"ema":ema_state,"selected":selected,"model_state_sha256":_state_hash(model_state),"ema_state_sha256":_state_hash(ema_state),"validation":{"selected":selected,"model":validation_raw,"ema":validation_ema},"history":history}
     output=Path(output);output.parent.mkdir(parents=True,exist_ok=True);stage=output.with_suffix(output.suffix+f".tmp-{os.getpid()}");torch.save(payload,stage);os.replace(stage,output)
-    report={"format":"nullvector-neural-locomotion-2.5d-training/1.0.0","checkpoint":output.name,"checkpoint_sha256":hashlib.sha256(output.read_bytes()).hexdigest(),"source_sha256":payload["source_sha256"],"corpus_sha256":payload["corpus_sha256"],"parameters":model.parameter_count,"updates":training.updates,"validation":validation,"history":history,"model_state_sha256":payload["model_state_sha256"],"ema_state_sha256":payload["ema_state_sha256"]}
+    report={"format":"nullvector-neural-locomotion-2.5d-training/1.0.0","checkpoint":output.name,"checkpoint_sha256":hashlib.sha256(output.read_bytes()).hexdigest(),"source_sha256":payload["source_sha256"],"corpus_sha256":payload["corpus_sha256"],"parameters":model.parameter_count,"updates":training.updates,"selection":selected,"validation":payload["validation"],"history":history,"model_state_sha256":payload["model_state_sha256"],"ema_state_sha256":payload["ema_state_sha256"]}
     output.with_suffix(".json").write_text(json.dumps(report,sort_keys=True,indent=2)+"\n","utf-8")
     return report
 
 
-def load_model(path:Path,*,device:str="cpu",ema:bool=True)->tuple[NeuralLocomotion25D,dict[str,Any]]:
+def load_model(path:Path,*,device:str="cpu",ema:bool|None=None)->tuple[NeuralLocomotion25D,dict[str,Any]]:
     payload=torch.load(path,map_location="cpu",weights_only=True)
     if payload.get("format")!=CHECKPOINT_FORMAT or payload.get("source_sha256")!=source_sha256():raise ValueError("2.5D neural checkpoint provenance drifted")
-    config=ModelConfig(**payload["model_config"]);model=NeuralLocomotion25D(config);state=payload["ema" if ema else "model"]
-    if _state_hash(state)!=payload["ema_state_sha256" if ema else "model_state_sha256"]:raise ValueError("2.5D neural checkpoint state drifted")
+    use_ema=(payload.get("selected","ema")=="ema") if ema is None else ema
+    config=ModelConfig(**payload["model_config"]);model=NeuralLocomotion25D(config);state=payload["ema" if use_ema else "model"]
+    if _state_hash(state)!=payload["ema_state_sha256" if use_ema else "model_state_sha256"]:raise ValueError("2.5D neural checkpoint state drifted")
     model.load_state_dict(state);model.to(device).eval();return model,payload

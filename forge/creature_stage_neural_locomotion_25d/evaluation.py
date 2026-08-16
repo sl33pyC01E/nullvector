@@ -15,7 +15,7 @@ from .training import evaluate_arrays,load_model
 
 @torch.inference_mode()
 def evaluate(checkpoint:Path,corpus_path:Path,output:Path,*,device:str="cuda")->dict[str,object]:
-    corpus=load_corpus(corpus_path);model,payload=load_model(checkpoint,device=device,ema=True);target=torch.device(device)
+    corpus=load_corpus(corpus_path);model,payload=load_model(checkpoint,device=device,ema=None);target=torch.device(device)
     metrics=evaluate_arrays(model,corpus,target);physics=[]
     for identity in VALIDATION_IDENTITIES:
         sequence=int(np.flatnonzero((corpus.identity==identity)&(corpus.program==0))[0])
@@ -27,4 +27,3 @@ def evaluate(checkpoint:Path,corpus_path:Path,output:Path,*,device:str="cuda")->
     gates={"contact_f1":metrics["contact_f1"]>=.96,"muscle_mae":metrics["muscle_mae"]<=.10,"velocity_mae":metrics["velocity_mae"]<=.25,"all_depth_motion":min(v["depth_extent"] for v in physics)>.15,"all_lateral_motion":min(v["lateral_extent"] for v in physics)>.15,"contacts_hold":max(v["contact_slip"] for v in physics)<.08,"tethers_hold":max(v["edge_strain"] for v in physics)<.45,"chassis_upright":max(v["chassis_tilt"] for v in physics)<8,"appendages_move":min(v["appendage_motion"] for v in physics)>.12}
     report={"format":"nullvector-neural-locomotion-2.5d-evaluation/1.0.0","checkpoint":str(checkpoint),"corpus_sha256":corpus.semantic_sha256,"metrics":metrics,"physics":physics,"gates":gates,"passed":all(gates.values())}
     output=Path(output);output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps(report,sort_keys=True,indent=2)+"\n","utf-8");return report
-
