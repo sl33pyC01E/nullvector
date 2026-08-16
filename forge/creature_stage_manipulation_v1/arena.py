@@ -90,19 +90,34 @@ class NeuralManipulationArena:
         for index, component in enumerate(self.organism.genome.components):
             if self.family == 0:  # pelvis folds; torso/head descend to the hand's ground reach
                 drop = 4.5 if component.kind == "pelvis" else 9.5
-            elif self.family == 1:  # lower head/mouth rather than inventing a universal arm
-                if component.kind in {"head", "mouth", "sensor_crown"} or component.organ in {"jaw", "vision"}:
-                    drop = 28.0
-                elif float(component.anchor[1]) < 0:
-                    drop = 8.0
+            elif self.family == 1:  # articulated neck fold into a ground bite
+                if component.kind == "mouth" or component.organ == "jaw":
+                    drop = 26.0
+                elif component.kind in {"head", "sensor_crown"} or component.organ == "vision":
+                    drop = 23.0
+                elif component.component_id == "neck":
+                    drop = 12.5
                 else:
-                    drop = 0.0
+                    drop = 2.5
             elif self.family == 4:  # compress wheel/track suspension under a tool hardpoint
                 drop = 3.5 if component.kind == "pelvis" else 10.5
             else:
                 drop = 0.0
             offsets[index, 1] = drop * amount
         self.articulation.pose_components(offsets, delta=delta, response=.92)
+        # Kneeling is a contact-constrained action, not a vertical squash.
+        # Re-solve authored feet/wheels against their ground anchors after the
+        # chassis moves, matching the grounded locomotion vocabulary.
+        for appendage, gene in enumerate(self.organism.genome.appendages):
+            if gene.kind not in {"leg", "wheel"} or not self.articulation.attached[appendage]:
+                continue
+            self.articulation.solve(
+                appendage,
+                np.asarray(gene.endpoint, np.float64),
+                .72,
+                delta=delta,
+                actuation=self.appendage_capacity(appendage),
+            )
 
     def posed_feeder_points(self) -> np.ndarray:
         status = feeder_status(self.living)

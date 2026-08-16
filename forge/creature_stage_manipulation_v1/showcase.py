@@ -292,20 +292,20 @@ def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
     clips = {
-        "articulated_inertial_feeding_v6.gif": _feed_clip(),
-        "articulated_ballistic_throw_v6.gif": _throw_clip(),
-        "articulated_impact_modes_v6.gif": _impact_modes_clip(),
-        "articulated_feeder_ablation_v6.gif": _feeder_ablation_clip(),
-        "articulated_severed_grasper_v6.gif": _severed_grasper_clip(),
-        "articulated_damaged_grasper_v6.gif": _damaged_grasper_clip(),
-        "articulated_five_family_feeding_v6.gif": _five_family_clip(),
+        "articulated_inertial_feeding_v7.gif": _feed_clip(),
+        "articulated_ballistic_throw_v7.gif": _throw_clip(),
+        "articulated_impact_modes_v7.gif": _impact_modes_clip(),
+        "articulated_feeder_ablation_v7.gif": _feeder_ablation_clip(),
+        "articulated_severed_grasper_v7.gif": _severed_grasper_clip(),
+        "articulated_damaged_grasper_v7.gif": _damaged_grasper_clip(),
+        "articulated_five_family_feeding_v7.gif": _five_family_clip(),
     }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name
         _encode(frames, path)
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
-    report = {"format": "nullvector-neural-manipulation-showcase/5.0.0", "artifacts": artifacts}
+    report = {"format": "nullvector-neural-manipulation-showcase/6.0.0", "artifacts": artifacts}
     (destination / "showcase_report.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return report
 

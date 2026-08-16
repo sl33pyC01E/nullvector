@@ -28,7 +28,7 @@ too large for an ordinary GitHub repository.
 
 | Inertial neural feeding | 2.5D ballistic throw | True arm severing |
 |---|---|---|
-| ![Cell-thick inertial arm carrying food to mouth cells](examples/showcase/articulated_inertial_feeding_v6.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v6.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v6.gif) |
+| ![Cell-thick inertial arm carrying food to mouth cells](examples/showcase/articulated_inertial_feeding_v7.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v7.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v7.gif) |
 
 The arm is a chassis-rooted cellular tube with fixed segment lengths, the same
 physical class as the legs. A critically damped reach governor, distributed
@@ -36,6 +36,10 @@ curved muscle forces, recurrent joint velocity, and projected bone lengths
 make it an inertial limb rather than a pose-swapped animation. No visible
 tether or telekinetic transfer is used. Held matter is constrained directly to
 the hand, so it cannot trail behind a faster arm.
+Attached limbs also carry their chassis root and retain a continuous spring-
+limited cell seam under impact. Kneels and suspension compression replant
+feet/wheels against their authored ground contacts; only an explicit sever
+disables the root seam and releases the complete limb tissue.
 The hand cells carry the clump to live feeder cells; the throw releases it into
 2.5D ballistic motion while the arm follows through. Thrown matter has
 independent elevation, a feet-plane shadow, gravity, long horizontal travel,
@@ -43,11 +47,11 @@ and bounce/roll/thud landing responses.
 
 | Damaged grasper | Feeder ablation |
 |---|---|
-| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v6.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v6.gif) |
+| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v7.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v7.gif) |
 
-![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v6.gif)
+![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v7.gif)
 
-![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v6.gif)
+![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v7.gif)
 
 Ground matter is acquired through five distinct physical strategies rather
 than a universal manipulator: humanoids kneel and grasp, animals lower their

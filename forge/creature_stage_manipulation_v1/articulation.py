@@ -28,6 +28,8 @@ class ArticulatedBody:
     component_velocities: np.ndarray
     attached: np.ndarray
     detached_age: np.ndarray
+    skin_edges: np.ndarray
+    skin_edge_lengths: np.ndarray
     elapsed: float = 0.0
 
     @classmethod
@@ -42,6 +44,10 @@ class ArticulatedBody:
             roots.append(int(edges[0, 0]))
             chains.append(np.asarray([int(edges[0, 1]), *[int(edge[1]) for edge in edges[1:]]], np.int16))
         endpoints = np.stack([organism.skeleton_nodes[chain[-1], :2] for chain in chains]).astype(np.float32)
+        cell_delta = organism.cell_xy[:, None, :] - organism.cell_xy[None, :, :]
+        cell_distance = np.linalg.norm(cell_delta, axis=2)
+        skin_edges = np.argwhere(np.triu((cell_distance > 1e-5) & (cell_distance <= 1.01), 1)).astype(np.int32)
+        skin_edge_lengths = cell_distance[skin_edges[:, 0], skin_edges[:, 1]].astype(np.float32)
         return cls(
             organism,
             organism.skeleton_nodes.copy(),
@@ -54,6 +60,8 @@ class ArticulatedBody:
             np.zeros((len(organism.genome.components), 2), dtype=np.float32),
             np.ones(len(chains), dtype=np.bool_),
             np.zeros(len(chains), dtype=np.float32),
+            skin_edges,
+            skin_edge_lengths,
         )
 
     def endpoint(self, appendage: int) -> np.ndarray:
@@ -155,7 +163,7 @@ class ArticulatedBody:
             velocity[1:] *= np.minimum(1.0, 10.0 / np.maximum(speed, 1e-6))
             positions[1:] += velocity[1:] * step
             positions[0] = root
-            for _constraint in range(9):
+            for _constraint in range(12):
                 positions[0] = root
                 for segment, length in enumerate(lengths):
                     left, right = segment, segment + 1
@@ -245,7 +253,20 @@ class ArticulatedBody:
         self.component_velocities *= np.minimum(1.0, 8.0 / np.maximum(speed, 1e-6))
         self.component_offsets += self.component_velocities * delta
         count = len(self.organism.genome.components)
+        previous_nodes = self.nodes[:count, :2].copy()
         self.nodes[:count, :2] = self.organism.skeleton_nodes[:count, :2] + self.component_offsets
+        # A live shoulder/hip is part of the chassis.  Carry every attached
+        # chain along with its root before applying muscle articulation.  The
+        # former implementation moved the chassis node but left inactive limb
+        # nodes behind; ground-biting animals and non-active arms could then
+        # appear severed despite still being physiologically attached.
+        for appendage, chain_ids in enumerate(self.chain_ids):
+            if not self.attached[appendage]:
+                continue
+            root_node = self.root_nodes[appendage]
+            root_delta = self.nodes[root_node, :2] - previous_nodes[root_node]
+            self.nodes[chain_ids, :2] += root_delta
+            self.targets[appendage] += root_delta
 
     def cells(self) -> np.ndarray:
         points = self.organism.cell_xy.astype(np.float32, copy=True)
@@ -254,7 +275,7 @@ class ArticulatedBody:
         # for limb cells, so a kneel changes the chassis without melting arms.
         points += self.organism.component_weights @ self.component_offsets
         for appendage, chain_ids in enumerate(self.chain_ids):
-            cell_ids = self._skinned_cell_ids(appendage)
+            cell_ids, skin_weights = self._appendage_skin(appendage)
             if cell_ids.size == 0:
                 continue
             rest = self.organism.skeleton_nodes[chain_ids, :2].astype(np.float32)
@@ -276,8 +297,76 @@ class ArticulatedBody:
             posed_vector = posed[segment + 1] - posed[segment]
             posed_normal = np.stack((-posed_vector[:, 1], posed_vector[:, 0]), axis=1)
             posed_normal /= np.maximum(np.linalg.norm(posed_normal, axis=1, keepdims=True), 1e-8)
-            points[cell_ids] = posed[segment] + chosen_along[:, None] * posed_vector + lateral[:, None] * posed_normal
+            skinned = posed[segment] + chosen_along[:, None] * posed_vector + lateral[:, None] * posed_normal
+            # Skin the shoulder seam continuously instead of splitting limb
+            # ownership at a hard radius.  A hard split made the distal arm
+            # move while the proximal cells remained on the torso, producing
+            # the apparent disconnection visible in impact clips.  Detached
+            # appendages deliberately take all of their owned cells with them.
+            if not self.attached[appendage]:
+                skin_weights = np.ones_like(skin_weights)
+            points[cell_ids] += (skinned - points[cell_ids]) * skin_weights[:, None]
+        return self._enforce_cell_continuity(points)
+
+    def _enforce_cell_continuity(self, desired: np.ndarray) -> np.ndarray:
+        """Limit living-cell seam stretch while preserving intentional severs.
+
+        Skeleton constraints keep bones intact; this second, lightweight PBD
+        layer keeps the actual raster cells connected.  It only contracts
+        over-stretched rest neighbours, so it does not make limbs rigid or
+        erase muscle compression.  Cross-seam edges are disabled solely for
+        appendages whose attachment state was explicitly severed.
+        """
+        points = np.asarray(desired, np.float32).copy()
+        edges = self.skin_edges
+        enabled = np.ones(len(edges), dtype=np.bool_)
+        ownership = self.organism.appendage_index
+        for appendage in np.flatnonzero(~self.attached):
+            left_owned = ownership[edges[:, 0]] == appendage
+            right_owned = ownership[edges[:, 1]] == appendage
+            enabled &= ~(left_owned ^ right_owned)
+        edges = edges[enabled]
+        rest = self.skin_edge_lengths[enabled]
+        if not len(edges):
+            return points
+        # Jacobi projection is deterministic and vectorizable. Repeated small
+        # passes are enough to propagate a shoulder correction through the
+        # seam without turning the full cell field into a rigid lattice.
+        maximum = rest * 1.22
+        for _ in range(48):
+            vector = points[edges[:, 1]] - points[edges[:, 0]]
+            distance = np.linalg.norm(vector, axis=1)
+            excess = np.maximum(distance - maximum, 0.0)
+            active = excess > 1e-5
+            if not bool(active.any()):
+                break
+            correction = np.zeros_like(vector)
+            correction[active] = vector[active] * (excess[active] / np.maximum(distance[active], 1e-6))[:, None] * .78
+            accumulated = np.zeros_like(points)
+            counts = np.zeros((len(points), 1), np.float32)
+            np.add.at(accumulated, edges[:, 0], correction)
+            np.add.at(accumulated, edges[:, 1], -correction)
+            np.add.at(counts, edges[:, 0], active[:, None].astype(np.float32))
+            np.add.at(counts, edges[:, 1], active[:, None].astype(np.float32))
+            points += accumulated / np.maximum(counts, 1.0)
         return points
+
+    def _appendage_skin(self, appendage: int) -> tuple[np.ndarray, np.ndarray]:
+        """Return all owned cells and a continuous chassis-to-limb skin weight."""
+        cell_ids = np.flatnonzero(self.organism.appendage_index == appendage)
+        if cell_ids.size == 0:
+            return cell_ids, np.empty(0, np.float32)
+        gene = self.organism.genome.appendages[appendage]
+        root_component = next(component for component in self.organism.genome.components if component.component_id == gene.root_component)
+        points = self.organism.cell_xy.astype(np.float32, copy=False)
+        root_delta = (points[cell_ids] - np.asarray(root_component.anchor, np.float32)) / np.asarray(root_component.radius, np.float32)
+        core_distance = np.max(np.abs(root_delta), axis=1) if int(np.argmax(self.organism.genome.family_mix)) == 4 else np.linalg.norm(root_delta, axis=1)
+        # Smoothstep across a broad living-tissue seam.  Cells deep in the
+        # chassis stay structural, distal appendage cells follow the bones,
+        # and the intermediate band deforms like compliant muscle.
+        weight = np.clip((core_distance - .52) / (.96 - .52), 0.0, 1.0).astype(np.float32)
+        weight = weight * weight * (3.0 - 2.0 * weight)
+        return cell_ids, weight
 
     def _skinned_cell_ids(self, appendage: int) -> np.ndarray:
         """Return limb cells without reclassifying load-bearing torso cells.
@@ -286,15 +375,8 @@ class ArticulatedBody:
         a grasper cannot appear muscular merely because its root crosses the
         chassis.  Distal arms and legs retain the developmental tube thickness.
         """
-        cell_ids = np.flatnonzero(self.organism.appendage_index == appendage)
-        if cell_ids.size == 0:
-            return cell_ids
-        gene = self.organism.genome.appendages[appendage]
-        root_component = next(component for component in self.organism.genome.components if component.component_id == gene.root_component)
-        points = self.organism.cell_xy.astype(np.float32, copy=False)
-        root_delta = (points[cell_ids] - np.asarray(root_component.anchor, np.float32)) / np.asarray(root_component.radius, np.float32)
-        core_distance = np.max(np.abs(root_delta), axis=1) if int(np.argmax(self.organism.genome.family_mix)) == 4 else np.linalg.norm(root_delta, axis=1)
-        return cell_ids[core_distance >= .92]
+        cell_ids, weights = self._appendage_skin(appendage)
+        return cell_ids[weights >= .90]
 
     def geometry(self, appendage: int) -> LimbGeometry:
         gene = self.organism.genome.appendages[appendage]

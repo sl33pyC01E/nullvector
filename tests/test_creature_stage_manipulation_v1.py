@@ -62,6 +62,45 @@ def test_grasper_motion_is_acceleration_bounded_like_grounded_limbs() -> None:
     assert np.linalg.norm(joint_acceleration, axis=2).max() < .18
 
 
+def _cell_components(points: np.ndarray, radius: float = 1.65) -> int:
+    linked = np.linalg.norm(points[:, None] - points[None, :], axis=2) <= radius
+    unseen = set(range(len(points)))
+    components = 0
+    while unseen:
+        components += 1
+        stack = [unseen.pop()]
+        while stack:
+            node = stack.pop()
+            for index in np.flatnonzero(linked[node]):
+                neighbour = int(index)
+                if neighbour in unseen:
+                    unseen.remove(neighbour)
+                    stack.append(neighbour)
+    return components
+
+
+def test_attached_cell_skin_stays_connected_during_all_family_acquisition() -> None:
+    materials = ("biomass", "biomass", "mineral", "phase", "charge")
+    positions = (5.5, 0.0, 4.0, 8.0, 8.5)
+    for genome_index, material, x in zip((0, 2, 4, 6, 8), materials, positions):
+        arena = NeuralManipulationArena(develop(review_genomes()[genome_index]), device="cpu")
+        clump = FoodClump(np.asarray((x, arena.ground_plane_y()), np.float64), np.zeros(2), 1.0, .45, 1.0, (1, 1, 1, 1, 1), material)
+        target_id = arena.add_clump(clump, cohesion=2.0)
+        for tick in range(100):
+            arena.step_family_acquisition(target_id, delta=.05)
+            if tick % 4 == 0:
+                assert _cell_components(arena.articulation.cells()) == 1
+
+
+def test_chassis_posture_carries_every_attached_limb_root() -> None:
+    arena = NeuralManipulationArena(develop(review_genomes()[0]), device="cpu")
+    for _ in range(20):
+        arena.pose_for_acquisition(1.0, delta=.05)
+    for appendage, chain_ids in enumerate(arena.articulation.chain_ids):
+        if arena.articulation.attached[appendage]:
+            assert np.linalg.norm(arena.articulation.nodes[chain_ids[0], :2] - arena.articulation.root(appendage)) < 1e-5
+
+
 def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
     for genome in review_genomes()[::2]:
         arena = NeuralManipulationArena(develop(genome), device="cpu")
