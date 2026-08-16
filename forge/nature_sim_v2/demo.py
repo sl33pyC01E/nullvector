@@ -28,6 +28,7 @@ from .abilities import entity_abilities,use_ability
 from .directed_evolution import evolution_offers,metamorphose
 from .creature_creator import CreatureCreator
 from .succession import choose_successor
+from .social_actions import bond_nearby
 from .world import NatureWorld
 
 
@@ -177,6 +178,7 @@ class NatureDemo:
                     try:self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
+                elif event.key==pg.K_z and self.selected in self.world.organisms:self.message=bond_nearby(self.world,self.world.organisms[self.selected])
                 elif event.key==pg.K_y and self.selected in self.world.organisms:
                     if not self.society.settlements:self.message="BARTER // NO SETTLEMENTS YET"
                     else:
@@ -404,7 +406,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;network=self.world.ecosystem;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} SYM {network.pollinations}/{network.root_transfers}/{network.phase_couplings}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ANATOMICAL ACTIONS  E INTERACT  Q BUILD  T/R CRAFT  U CONTRACT  M ATLAS  L SENSES  F5/F9 SAVE  J/H/X/V TOOLS",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ACTIONS  E INTERACT  Z KIN-BOND  Q BUILD  Y BARTER  T/R CRAFT  U CONTRACT  TAB HISTORY  F5/F9 SAVE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
