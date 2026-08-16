@@ -175,7 +175,8 @@ class NatureDemo:
         color=pg.Color(FAMILY_COLORS[entity.family]);systems=entity.body.snapshot().systems
         if entity.entity_id==self.selected:pg.draw.rect(self.screen,color,pg.Rect(point[0]-size*.55,point[1]-size*.68,size*1.1,size*1.08),2)
         bar=pg.Rect(point[0]-28,point[1]+size*.42,56,4);pg.draw.rect(self.screen,(16,28,32),bar);pg.draw.rect(self.screen,color,pg.Rect(bar.x,bar.y,bar.w*systems["integrity"],bar.h))
-        if entity.colony_id is not None:self.screen.blit(self.small.render(f"C{entity.colony_id}",True,color),(point[0]+22,point[1]-size*.58))
+        if entity.colony_id is not None:
+            role=self.world.colony_ecology.assignment(entity.entity_id) or "kin";self.screen.blit(self.small.render(f"C{entity.colony_id} {role[:3].upper()}",True,color),(point[0]+22,point[1]-size*.58))
 
     def _draw_settlements(self):
         pg=self.pg
