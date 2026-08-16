@@ -36,8 +36,21 @@ as 0.0615 predicted absorption, and a 32-step rollout accumulated reserve MAE
 0.2097 and normalized fullness MAE 0.2975. The immutable evaluation is at
 `outputs/living_body_dynamics_nn/evaluation_v2_feeding_step5000/`.
 
-The next formulation must not merely extend this schedule. It will factor the
-feeding head into semantic contact/compatibility/capacity/route gates and a
-conditional amount head, then train recurrent reserve/fullness transitions
-through multi-step sequences. Promotion remains forbidden until every causal
-and recurrent gate passes.
+## Production-v3 formulation
+
+V3 does not extend the rejected flat head. It factors feeding into a learned
+organ-route logit, learned conditional uptake/release efficiencies, and a hard
+physical envelope supplied by the pixel simulation: explicit feeder contact,
+family diet compatibility, available reserve capacity, material mass, and the
+current feed/metabolize action. Sparse feeder and digestive populations receive
+their own health/fluid/connectivity summaries instead of disappearing into a
+whole-body mean pool.
+
+Absorbed mass is the single conserved event. Nutrition, remaining clump mass,
+reserve, fullness, and release are derived from it and the authored material
+chemistry; they are no longer unrelated regression outputs. The energy head is
+a bounded per-tick cost on top of conserved release rather than an absolute
+recurrent prediction. This makes missed contact, incompatible food, a full
+reserve, and non-feeding actions exactly incapable of creating uptake even in
+an untrained network. Promotion remains forbidden until the new checkpoint
+passes every one-step, ablation, and 32-step recurrent gate.

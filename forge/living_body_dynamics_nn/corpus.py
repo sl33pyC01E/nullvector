@@ -159,7 +159,7 @@ class BodyTransitionCorpus(Dataset[dict[str, torch.Tensor]]):
             for action in range(len(ACTION_KINDS))
             for repeat in range(repeats)
         )
-        digest = hashlib.sha256(b"nullvector-living-body-transition-corpus-v2-feeding\0")
+        digest = hashlib.sha256(b"nullvector-living-body-transition-corpus-v3-conserved-feeding\0")
         for organism in self.organisms:
             digest.update(organism.identity_sha256.encode("ascii") + b"\0")
         digest.update(np.asarray(self.rows, dtype="<i2").tobytes())

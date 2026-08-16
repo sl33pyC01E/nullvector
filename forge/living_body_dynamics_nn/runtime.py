@@ -120,28 +120,37 @@ class NeuralLivingBodyDynamicsRuntime:
         contact_probability = float(1 / (1 + np.exp(-np.clip(raw[6], -30, 30))))
         route_probability = float(1 / (1 + np.exp(-np.clip(raw[7], -30, 30))))
         family_nutrition = float(clump.nutrition_by_family[body.family])
-        requested_absorption = float(raw[0])
+        requested_absorption = max(0.0, float(raw[0]))
         available_nutrition = max(0.0, feeding.reserve_capacity - feeding.reserve)
         allowed_absorption = min(
             clump.mass,
             available_nutrition / max(clump.nutrient_density * family_nutrition, 1e-8),
         ) if family_nutrition > 0 else 0.0
-        physical_gate = bool(contact) and route_probability >= .5 and not body.dead
+        feed_action = action_kind in (4, 6)
+        metabolize_action = action_kind in (5, 6)
+        physical_gate = feed_action and bool(contact) and family_nutrition > 0 and available_nutrition > 0 and route_probability >= .5 and not body.dead
         absorbed = min(requested_absorption, allowed_absorption) if physical_gate else 0.0
         possible_nutrition = max(0.0, absorbed * clump.nutrient_density * family_nutrition)
-        nutrition = min(float(raw[1]) * 4.0, possible_nutrition, available_nutrition) if absorbed > 0 else 0.0
-        reserve = float(np.clip(float(raw[2]) * feeding.reserve_capacity, 0, feeding.reserve_capacity))
-        fullness = float(np.clip(float(raw[3]) * feeding.fullness_capacity_seconds, 0, feeding.fullness_capacity_seconds))
+        nutrition = min(possible_nutrition, available_nutrition) if absorbed > 0 else 0.0
+        released = float(np.clip(float(raw[5]) * .01, 0, feeding.reserve + nutrition)) if metabolize_action and route_probability >= .5 else 0.0
+        reserve = float(np.clip(feeding.reserve + nutrition - released, 0, feeding.reserve_capacity))
+        fullness = float(np.clip(
+            feeding.fullness_seconds - (delta if metabolize_action else 0.0) + nutrition * 42.0,
+            0,
+            feeding.fullness_capacity_seconds,
+        ))
         energy = float(np.clip(float(raw[4]) * 4.0, 0, 4.0))
-        released = float(np.clip(float(raw[5]) * .01, 0, feeding.reserve))
         # Mass conservation is a physical invariant, not a learned preference.
         remaining_mass = max(0.0, clump.mass - absorbed)
         if not physical_gate:
             absorbed = nutrition = 0.0
             remaining_mass = clump.mass
-            if action_kind in (4, 6):
-                reserve = feeding.reserve
-                fullness = feeding.fullness_seconds
+            reserve = float(np.clip(feeding.reserve - released, 0, feeding.reserve_capacity))
+            fullness = float(np.clip(
+                feeding.fullness_seconds - (delta if metabolize_action else 0.0),
+                0,
+                feeding.fullness_capacity_seconds,
+            ))
         return NeuralBodyTransition(
             health=np.clip(cell[:, 0], 0, 1).astype(np.float32),
             fluid=np.clip(cell[:, 1], 0, body.fluid_capacity).astype(np.float32),

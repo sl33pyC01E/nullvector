@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-FORMAT = "nullvector-living-body-graph-dynamics/2.0.0"
-CHECKPOINT_FORMAT = "nullvector-living-body-graph-dynamics-checkpoint/2.0.0"
+FORMAT = "nullvector-living-body-graph-dynamics/3.0.0"
+CHECKPOINT_FORMAT = "nullvector-living-body-graph-dynamics-checkpoint/3.0.0"
 FEATURES = 56
 SYSTEMS = 7
 FEEDING_TARGETS = 9

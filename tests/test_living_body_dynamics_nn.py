@@ -39,6 +39,28 @@ def test_graph_model_predicts_cells_and_whole_body_systems() -> None:
     assert metrics["untouched_drift"] >= 0
 
 
+def test_v3_feeding_head_hard_gates_and_conserves_matter() -> None:
+    corpus = BodyTransitionCorpus(repeats=4)
+    # identity 0, healthy scenario, feed action, repeats encode respectively:
+    # valid contact, missed contact, incompatible diet, and full reserve.
+    base = (0 * 5 * 7 * 4) + (0 * 7 * 4) + (4 * 4)
+    batch = collate_graphs([corpus[base + repeat] for repeat in range(4)])
+    model = LivingBodyDynamicsNet().eval()
+    with torch.no_grad():
+        _, _, feeding = model(batch)
+    assert feeding[0, 0] > 0
+    assert torch.equal(feeding[1:, 0], torch.zeros(3))
+    for graph in range(4):
+        node = int(torch.nonzero(batch["graph_index"] == graph, as_tuple=False)[0, 0])
+        before_reserve = batch["features"][node, 50] * 4.0
+        conversion = batch["features"][node, 48] * 6.0 * batch["features"][node, 49]
+        expected_reserve = torch.clamp(before_reserve + feeding[graph, 0] * conversion, 0, 4.0) / 4.0
+        assert torch.allclose(feeding[graph, 2], expected_reserve, atol=1e-6)
+        mass = batch["features"][node, 47] * 3.0
+        expected_mass = torch.clamp((mass - feeding[graph, 0]) / mass.clamp_min(1e-8), 0, 1)
+        assert torch.allclose(feeding[graph, 8], expected_mass, atol=1e-6)
+
+
 def test_corpus_replay_is_exact() -> None:
     left = BodyTransitionCorpus(repeats=1)[77]
     right = BodyTransitionCorpus(repeats=1)[77]
@@ -79,3 +101,11 @@ def test_runtime_preserves_physical_contact_and_mass_constraints() -> None:
     assert transition.clump_mass == clump.mass
     assert transition.health.shape == body.health.shape
     assert transition.safety_projected
+
+    feeding.reserve = feeding.reserve_capacity
+    transition = runtime.predict(body, feeding, clump, contact=True, action_kind=4)
+    assert transition.absorbed_mass == 0 and transition.clump_mass == clump.mass
+    feeding.reserve = .5
+    clump.nutrition_by_family = (0, 1, 1, 1, 1)
+    transition = runtime.predict(body, feeding, clump, contact=True, action_kind=4)
+    assert transition.absorbed_mass == 0 and transition.nutrition == 0
