@@ -16,7 +16,7 @@ from .state import ColonyState, OrganismState
 class NatureWorld:
     """Persistent deterministic ecology authority and neural teacher."""
 
-    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180) -> None:
+    def __init__(self, *, seed: int = 0x4E4154555245, size: int = 64, max_population: int = 180, motion_policy: object|None = None) -> None:
         if not 24 <= size <= 512 or not 20 <= max_population <= 10_000:
             raise ValueError("nature world bounds drifted")
         self.seed, self.size, self.max_population = int(seed), int(size), int(max_population)
@@ -30,6 +30,7 @@ class NatureWorld:
         self.time = 0.0
         self.births = self.deaths = self.predation_events = self.mutation_count = 0
         self.events: list[dict[str, object]] = []
+        self.motion_policy = motion_policy
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -125,6 +126,10 @@ class NatureWorld:
         family_speed=(1.05,1.35,.18,1.08,.92)[entity.family]
         stage_scale=.45 if entity.stage=="embryo" else .72 if entity.stage=="juvenile" else .65 if entity.stage=="senescent" else 1.0
         target=direction*family_speed*stage_scale*locomotion
+        if self.motion_policy is not None and hasattr(self.motion_policy,"step"):
+            neural_target=np.asarray(self.motion_policy.step(entity,target,delta,self.time),dtype=np.float64)
+            if neural_target.shape!=(2,) or not np.isfinite(neural_target).all():raise FloatingPointError("neural nature locomotion became invalid")
+            target=np.clip(neural_target,-3.2,3.2)
         responsiveness=.22+.58*entity.genome.developmental.traits[6]
         entity.velocity += (target-entity.velocity)*min(1,delta*responsiveness*4)
         entity.velocity *= math.exp(-delta*(.55 if entity.family==3 else 1.15))
@@ -295,4 +300,3 @@ class NatureWorld:
         payload={"tick":self.tick_index,"time":round(self.time,6),"fields":hashlib.sha256(self.fields.astype("<f8").tobytes()).hexdigest(),"organisms":records,"colonies":[(c.colony_id,c.family,sorted(c.member_ids),tuple(np.round(c.center,6)),c.generation,c.fissions) for c in sorted(self.colonies.values(),key=lambda c:c.colony_id)],"stats":(self.births,self.deaths,self.predation_events,self.mutation_count)}
         digest=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),default=list).encode()).hexdigest()
         return WorldSnapshot(self.tick_index,round(self.time,6),len(living),self.births,self.deaths,self.predation_events,len(self.colonies),lineages,family_counts,resource_totals,self.mutation_count,digest)
-

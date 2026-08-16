@@ -53,4 +53,3 @@ def source_sha256()->str:
         if not path.is_file():raise FileNotFoundError(relative)
         digest.update(relative.encode()+b"\0"+path.read_bytes()+b"\0")
     return digest.hexdigest()
-
