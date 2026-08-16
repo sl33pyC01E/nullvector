@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from ..config import PROJECT_ROOT
-from ..creature_stage_developmental import FAMILIES,TISSUES
+from ..creature_stage_developmental import FAMILIES,TISSUES,develop
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..nature_colony_nn import NeuralColonyRuntime
@@ -25,6 +25,7 @@ from .region_store import PersistentRegionStore
 from .senses import sensory_field,visible_targets
 from .abilities import entity_abilities,use_ability
 from .directed_evolution import evolution_offers,metamorphose
+from .creature_creator import CreatureCreator
 from .world import NatureWorld
 
 
@@ -59,7 +60,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime)
@@ -120,8 +121,25 @@ class NatureDemo:
                     else:self._damage_at(event.pos,self.tool)
                 elif event.button==3:self.camera=self.screen_to_world(event.pos)
             if event.type==pg.KEYDOWN:
+                if self.creator.active:
+                    if event.key in (pg.K_ESCAPE,pg.K_n):self.creator.active=False;self.message="CREATURE CREATOR CLOSED"
+                    elif event.key==pg.K_LEFT:self.creator.change(family=-1)
+                    elif event.key==pg.K_RIGHT:self.creator.change(family=1)
+                    elif event.key==pg.K_UP:self.creator.change(variant=1)
+                    elif event.key==pg.K_DOWN:self.creator.change(variant=-1)
+                    elif event.key==pg.K_PAGEUP:self.creator.change(donor=1)
+                    elif event.key==pg.K_PAGEDOWN:self.creator.change(donor=-1)
+                    elif event.key==pg.K_g:self.creator.cycle_graft()
+                    elif event.key==pg.K_TAB:self.creator.cycle_offer_epoch()
+                    elif event.key in (pg.K_1,pg.K_2,pg.K_3):self.creator.toggle_offer({pg.K_1:0,pg.K_2:1,pg.K_3:2}[event.key])
+                    elif event.key in (pg.K_RETURN,pg.K_KP_ENTER):
+                        try:
+                            seed=(self.creator_seed+self.creator.revision*104729+self.world.tick_index*65537)&0x7FFF_FFFF_FFFF_FFFF;entity_id=self.creator.incarnate(self.world,self.adventure,self.camera,seed=seed);self.selected=entity_id;self.camera=self.world.organisms[entity_id].position.copy();self.creator.active=False;self.creator.revision+=1;self.sprite_cache.clear();self.message=f"INCARNATED // {FAMILIES[self.world.organisms[entity_id].family].upper()} // {self.world.organisms[entity_id].body.organism.cell_count} LIVING CELLS"
+                        except ValueError as exc:self.message=f"INCARNATION REJECTED // {exc}"
+                    continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
+                elif event.key==pg.K_n:self.creator.active=True;self.message="CREATURE CREATOR // ASSEMBLE A CELLULAR LINEAGE"
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
@@ -293,6 +311,21 @@ class NatureDemo:
         for index,offer in enumerate(offers):
             x=panel.x+10+index*198;color=(228,185,255) if self.adventure.inventory["knowledge"]>=offer.cost else (102,91,111);self.screen.blit(self.small.render(f"[{index+1}] {offer.label.upper()} ({offer.cost:.1f})",True,color),(x,panel.y+25));self.screen.blit(self.small.render(offer.description[:29].upper(),True,(116,139,148)),(x,panel.y+41))
 
+    def _draw_creator(self):
+        pg=self.pg;shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((0,4,8,225));self.screen.blit(shade,(0,0));width,height=920,610;panel=pg.Rect((self.screen.get_width()-width)//2,(self.screen.get_height()-height)//2,width,height);pg.draw.rect(self.screen,(5,14,20),panel);pg.draw.rect(self.screen,(112,61,145),panel,2);self.screen.blit(self.big.render("CELLULAR CREATURE CREATOR",True,(225,183,255)),(panel.x+28,panel.y+22));self.screen.blit(self.small.render("VALIDATED DEVELOPMENTAL CHASSIS // HERITABLE TRAITS // CROSS-FAMILY GRAFTS",True,(120,191,207)),(panel.x+31,panel.y+64))
+        seed=(self.creator_seed+self.creator.revision*104729+self.world.tick_index*65537)&0x7FFF_FFFF_FFFF_FFFF
+        try:genome=self.creator.genome(seed=seed);organism=develop(genome.developmental)
+        except ValueError as exc:self.screen.blit(self.font.render(f"INVALID BLUEPRINT // {exc}",True,(255,90,90)),(panel.x+40,panel.y+120));return
+        preview=pg.Rect(panel.x+28,panel.y+96,430,430);pg.draw.rect(self.screen,(2,8,12),preview);pg.draw.rect(self.screen,(37,75,88),preview,1);xy=organism.cell_xy.astype(float);extent=np.maximum(np.ptp(xy,axis=0),1);scale=min(9,330/max(extent));center=np.asarray(preview.center)-((xy.min(0)+xy.max(0))*.5*scale)
+        for point,tissue in zip(xy,organism.tissue):
+            p=point*scale+center;color=pg.Color(TISSUE_COLORS[TISSUES[int(tissue)]]);pg.draw.circle(self.screen,color,(int(p[0]),int(p[1])),max(2,int(scale*.42)))
+        x=panel.x+492;y=panel.y+106;family=FAMILIES[self.creator.family].upper();donor=FAMILIES[self.creator.donor_family].upper();self.screen.blit(self.font.render(f"CHASSIS  < {family} >",True,pg.Color(FAMILY_COLORS[self.creator.family])),(x,y));y+=30;self.screen.blit(self.font.render(f"MORPHOLOGY  ^ VARIANT {self.creator.variant+1}/6 v",True,(175,211,219)),(x,y));y+=30;self.screen.blit(self.font.render(f"GRAFT [G]  {self.creator.graft_kind.upper()} // DONOR {donor}",True,(216,143,255)),(x,y));y+=34;self.screen.blit(self.small.render("PAGE UP/DOWN CHANGES DONOR",True,(103,130,140)),(x,y));y+=34
+        self.screen.blit(self.font.render("HERITABLE ADAPTATIONS [TAB REROLL]",True,(176,239,128)),(x,y));y+=28
+        for index,offer in enumerate(self.creator.offers):
+            chosen=index in self.creator.selected_offers;color=(167,255,101) if chosen else (126,151,159);self.screen.blit(self.small.render(f"[{'X' if chosen else ' '}] {index+1} {offer.label.upper()}",True,color),(x,y));y+=18;self.screen.blit(self.small.render(offer.description[:48].upper(),True,(92,119,128)),(x+18,y));y+=24
+        organs=sorted({item.organ for item in genome.developmental.components if item.organ!="none"});appendages={kind:sum(item.kind==kind for item in genome.developmental.appendages) for kind in sorted({item.kind for item in genome.developmental.appendages})};self.screen.blit(self.small.render("ORGANS // "+" ".join(name.upper() for name in organs[:7]),True,(244,184,115)),(x,y));y+=21;self.screen.blit(self.small.render("APPENDAGES // "+" ".join(f"{name.upper()}×{count}" for name,count in appendages.items()),True,(244,184,115)),(x,y));y+=26
+        cost=self.creator.cost();cost_text=" + ".join(f"{amount:.2f} {name.upper()}" for name,amount in cost.items());affordable=all(self.adventure.inventory.get(name,0)>=amount for name,amount in cost.items());self.screen.blit(self.font.render("COST // "+cost_text,True,(134,255,94) if affordable else (255,105,95)),(x,y));y+=32;self.screen.blit(self.font.render(f"{organism.cell_count} CELLS // {len(organism.muscles)} MUSCLES // {len(organs)} ORGAN SYSTEMS",True,(90,218,239)),(x,y));self.screen.blit(self.font.render("ENTER // INCARNATE    N / ESC // CANCEL",True,(225,225,232)),(panel.x+250,panel.bottom-46))
+
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
         self._draw_materials()
@@ -311,6 +344,7 @@ class NatureDemo:
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
             self._draw_evolution_offers(entity)
+        if self.creator.active:self._draw_creator()
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
     def run(self,*,capture:Path|None=None)->None:
@@ -324,7 +358,7 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");args=parser.parse_args();NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase).run(capture=args.capture)
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.run(capture=args.capture)
 
 
 if __name__=="__main__":main()
