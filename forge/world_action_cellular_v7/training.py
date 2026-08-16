@@ -25,6 +25,7 @@ from .model import CellularTemporalActionDiT, load_v5_latent_editor
 
 ACTOR_STATE_CHANGED_WEIGHT = 8.0
 ACTOR_FIELD_CHANGED_WEIGHT = 24.0
+ACTOR_STATE_GATE_WEIGHT = 0.15
 ACTOR_FIELD_GATE_WEIGHT = 0.20
 
 
@@ -298,6 +299,9 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
     train_field_change = np.abs(train_group["target_actor_field"].astype(np.float32) - train_group["actor_field"].astype(np.float32)) > 1e-3
     field_change_frequency = train_field_change.mean((0, 2, 3), dtype=np.float64)
     field_gate_pos_weight = np.clip((1.0 - field_change_frequency) / np.maximum(field_change_frequency, 1e-8), 1.0, 128.0).astype(np.float32)
+    train_actor_change = np.abs(train_group["target_actor_state"].astype(np.float32) - train_group["actor_state"].astype(np.float32)) > 1e-3
+    actor_change_frequency = train_actor_change.mean(0, dtype=np.float64)
+    actor_gate_pos_weight = np.clip((1.0 - actor_change_frequency) / np.maximum(actor_change_frequency, 1e-8), 1.0, 128.0).astype(np.float32)
     rng = np.random.default_rng(training.seed)
     history = []; validation_history = []; best_score = float("inf"); best_step = 0; best_ema = None; start_step = 0
     if resume is not None:
@@ -316,6 +320,8 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
     latent_std = torch.as_tensor(warm_payload["latent_std"], device=device).view(1, -1, 1, 1)
     actor_mean = torch.from_numpy(actor_mean_array).to(device).view(1, -1)
     actor_std = torch.from_numpy(actor_std_array).to(device).view(1, -1)
+    actor_gate_pos_weight_tensor = torch.from_numpy(actor_gate_pos_weight).to(device).view(1, -1)
+    field_gate_pos_weight_tensor = torch.from_numpy(field_gate_pos_weight).to(device).view(1, -1, 1, 1)
     edit_masks = latent_edit_mask(train_group["current_frame"], train_group["target_frame"]).astype(np.float32)
     store = RecoveryCheckpointStore(output / "checkpoints")
     validation_model = CellularTemporalActionDiT(model_config).to(device).eval()
@@ -336,22 +342,24 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
         mask = torch.from_numpy(edit_masks[indices]).to(device); field_mask = ((target_field - field).abs() > 1e-3).float(); actor_change = ((target_actor - actor).abs() > 1e-3).float()
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            predicted, predicted_actor, predicted_field, gate, _, gate_logits, field_gate, field_gate_logits = model.edit(noisy, previous, torch.zeros(len(indices), device=device), action, control, state, actor, field, previous_action, previous_control)
+            predicted, predicted_actor, predicted_field, gate, _, gate_logits, actor_gate, actor_gate_logits, field_gate, field_gate_logits = model.edit(noisy, previous, torch.zeros(len(indices), device=device), action, control, state, actor, field, previous_action, previous_control)
             latent_error = F.smooth_l1_loss(predicted, target, reduction="none"); latent_loss = (latent_error * (1 + training.changed_weight * mask)).mean()
             actor_error = F.smooth_l1_loss(predicted_actor, target_actor, reduction="none"); actor_loss = (actor_error * (1 + ACTOR_STATE_CHANGED_WEIGHT * actor_change)).mean()
             field_error = F.smooth_l1_loss(predicted_field, target_field, reduction="none"); field_loss = (field_error * (1 + ACTOR_FIELD_CHANGED_WEIGHT * field_mask)).mean()
             gate_bce = F.binary_cross_entropy_with_logits(gate_logits.float(), mask, pos_weight=torch.tensor(training.gate_positive_weight, device=device)); intersection = (gate * mask).sum((1, 2, 3)); gate_dice = 1 - ((2 * intersection + 1) / (gate.sum((1, 2, 3)) + mask.sum((1, 2, 3)) + 1)).mean(); leakage = (gate * (1 - mask)).mean()
-            field_pos_weight = torch.from_numpy(field_gate_pos_weight).to(device).view(1, -1, 1, 1)
-            field_gate_bce = F.binary_cross_entropy_with_logits(field_gate_logits.float(), field_mask, pos_weight=field_pos_weight)
+            actor_gate_bce = F.binary_cross_entropy_with_logits(actor_gate_logits.float(), actor_change, pos_weight=actor_gate_pos_weight_tensor)
+            actor_intersection = (actor_gate * actor_change).sum(1); actor_gate_dice = 1 - ((2 * actor_intersection + 1) / (actor_gate.sum(1) + actor_change.sum(1) + 1)).mean()
+            actor_gate_loss = actor_gate_bce + actor_gate_dice
+            field_gate_bce = F.binary_cross_entropy_with_logits(field_gate_logits.float(), field_mask, pos_weight=field_gate_pos_weight_tensor)
             field_intersection = (field_gate * field_mask).sum((2, 3)); field_gate_dice = 1 - ((2 * field_intersection + 1) / (field_gate.sum((2, 3)) + field_mask.sum((2, 3)) + 1)).mean()
             field_gate_loss = field_gate_bce + field_gate_dice
             contrast_count = min(training.contrastive_batch, len(indices)); wrong_action = (action[:contrast_count] + 7) % len(ACTIONS); wrong_control = torch.from_numpy(counterfactual_control(train_group["control"][indices[:contrast_count]])).to(device); correct_error = (predicted[:contrast_count] - target[:contrast_count]).abs().mean((1, 2, 3)); wrong_a = model.edit(noisy[:contrast_count], previous[:contrast_count], torch.zeros(contrast_count, device=device), wrong_action, control[:contrast_count], state[:contrast_count], actor[:contrast_count], field[:contrast_count], previous_action[:contrast_count], previous_control[:contrast_count])[0]; wrong_c = model.edit(noisy[:contrast_count], previous[:contrast_count], torch.zeros(contrast_count, device=device), action[:contrast_count], wrong_control, state[:contrast_count], actor[:contrast_count], field[:contrast_count], previous_action[:contrast_count], previous_control[:contrast_count])[0]; targeted = torch.isin(action[:contrast_count], torch.as_tensor(TARGETED_INDICES, device=device)); contrastive = F.relu(training.contrastive_margin + correct_error - (wrong_a - target[:contrast_count]).abs().mean((1, 2, 3))).mean(); contrastive = contrastive + (F.relu(training.contrastive_margin + correct_error[targeted] - (wrong_c[targeted] - target[:contrast_count][targeted]).abs().mean((1, 2, 3))).mean() if bool(targeted.any()) else correct_error.new_zeros(()))
-            loss = latent_loss + training.actor_state_weight * actor_loss + training.actor_field_weight * field_loss + ACTOR_FIELD_GATE_WEIGHT * field_gate_loss + training.gate_weight * (gate_bce + gate_dice) + training.leakage_weight * leakage + training.contrastive_weight * contrastive
+            loss = latent_loss + training.actor_state_weight * actor_loss + training.actor_field_weight * field_loss + ACTOR_STATE_GATE_WEIGHT * actor_gate_loss + ACTOR_FIELD_GATE_WEIGHT * field_gate_loss + training.gate_weight * (gate_bce + gate_dice) + training.leakage_weight * leakage + training.contrastive_weight * contrastive
         loss.backward(); torch.nn.utils.clip_grad_norm_(model.parameters(), 1); optimizer.step()
         with torch.no_grad():
             for name, value in model.state_dict().items(): ema[name].lerp_(value.detach(), 1 - training.ema_decay)
         if step == 1 or step % 250 == 0 or step == training.steps:
-            row = {"step": step, "loss": round(float(loss), 6), "latent": round(float(latent_loss), 6), "actor_state": round(float(actor_loss), 6), "actor_field": round(float(field_loss), 6), "actor_field_gate": round(float(field_gate_loss), 6), "gate": round(float(gate_bce + gate_dice), 6), "leakage": round(float(leakage), 6), "contrastive": round(float(contrastive), 6)}; history.append(row); print(json.dumps(row), flush=True)
+            row = {"step": step, "loss": round(float(loss), 6), "latent": round(float(latent_loss), 6), "actor_state": round(float(actor_loss), 6), "actor_state_gate": round(float(actor_gate_loss), 6), "actor_field": round(float(field_loss), 6), "actor_field_gate": round(float(field_gate_loss), 6), "gate": round(float(gate_bce + gate_dice), 6), "leakage": round(float(leakage), 6), "contrastive": round(float(contrastive), 6)}; history.append(row); print(json.dumps(row), flush=True)
         validate_now = step % training.validate_every == 0 or step == training.steps
         checkpoint_now = step % training.checkpoint_every == 0 or validate_now or step == segment_end
         if validate_now:

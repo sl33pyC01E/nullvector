@@ -72,6 +72,7 @@ def test_cellular_outputs_have_trainable_gradients():
     loss = output[1].mean() + output[2].mean()
     loss.backward()
     assert model.actor_state_out.weight.grad is not None
+    assert model.actor_state_gate_out.weight.grad is not None
     assert model.actor_field_out.weight.grad is not None
     assert model.actor_field_gate_out.weight.grad is not None
 
