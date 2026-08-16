@@ -27,6 +27,7 @@ from .senses import sensory_field,visible_targets
 from .abilities import entity_abilities,use_ability
 from .directed_evolution import evolution_offers,metamorphose
 from .creature_creator import CreatureCreator
+from .succession import choose_successor
 from .world import NatureWorld
 
 
@@ -201,8 +202,12 @@ class NatureDemo:
         entity=self.world.organisms.get(self.selected)
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2*(1+self.adventure.bonus("locomotion"));entity.intent="player";self.adventure.abrade("core",delta*.00008)
-        previous_position=None if entity is None else entity.position.copy();self.world.step(min(.2,delta*2.2))
+        previous_position=None if entity is None else entity.position.copy();previous_entity=entity;self.world.step(min(.2,delta*2.2))
         entity=self.world.organisms.get(self.selected)
+        if previous_entity is not None and (entity is None or not entity.alive):
+            successor,message=choose_successor(self.world,previous_entity)
+            if successor is not None:self.selected=successor.entity_id;self.camera=successor.position.copy();self.adventure.succession_count+=1;entity=successor;previous_position=None;self.message=message
+            else:self.message=message
         if entity is not None and previous_position is not None:
             jump=entity.position-previous_position;dx=1 if jump[0]<-self.world.size*.5 else -1 if jump[0]>self.world.size*.5 else 0;dy=1 if jump[1]<-self.world.size*.5 else -1 if jump[1]>self.world.size*.5 else 0
             if dx or dy:self._enter_region(dx,dy,entity);entity=self.world.organisms.get(self.selected)
@@ -279,7 +284,7 @@ class NatureDemo:
             if site.richness<=.02:continue
             point=self.world_to_screen(site.position);color=(133,255,80) if site.discovered else (83,122,132);pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),max(3,int(self.zoom*.34)),1)
             if site.discovered:self.screen.blit(self.small.render(site.kind.upper(),True,color),(point[0]+5,point[1]-7))
-        x,y=20,92;self.screen.blit(self.font.render(f"EXPEDITION SCORE {self.adventure.score:04}",True,(183,255,86)),(x,y));y+=24
+        x,y=20,92;self.screen.blit(self.font.render(f"EXPEDITION SCORE {self.adventure.score:04} // LIVES {self.adventure.succession_count+1}",True,(183,255,86)),(x,y));y+=24
         for objective in self.adventure.objectives:
             color=(134,255,91) if objective.complete else (121,153,162);mark="[X]" if objective.complete else "[ ]";text=f"{mark} {objective.description} {objective.progress:.0f}/{objective.target:.0f}";self.screen.blit(self.small.render(text,True,color),(x,y));y+=17
         inventory="  ".join(f"{name[:3].upper()} {value:.1f}" for name,value in self.adventure.inventory.items());self.screen.blit(self.small.render(inventory,True,(225,186,91)),(x,y+4));y+=24

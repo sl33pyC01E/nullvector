@@ -35,7 +35,7 @@ class AdventureState:
     def __init__(self,*,seed:int,size:int)->None:
         self.seed,self.size=int(seed),int(size);self.rng=np.random.default_rng(seed);self.inventory={name:0.0 for name in ("biomass","rock","metal","crystal","water","knowledge")};self.discoveries:set[str]=set();self.buildings=[];self.last_event=0;self.score=0
         self.artifacts:list[Artifact]=[];self.equipped:dict[str,str]={};self.recipe_index=0;self.craft_count=0
-        self.encounters:dict[str,SiteEncounter]={};self.pending_encounter:str|None=None;self.encounters_completed=0
+        self.encounters:dict[str,SiteEncounter]={};self.pending_encounter:str|None=None;self.encounters_completed=0;self.succession_count=0
         self.sites=[]
         for index in range(24):
             kind=self.SITE_KINDS[index%len(self.SITE_KINDS)];position=self.rng.uniform(3,size-3,2);digest=hashlib.sha256(f"{seed}:{index}:{kind}".encode()).hexdigest();self.sites.append(WorldSite(f"site-{digest[:10]}",kind,position,float(self.rng.uniform(.7,1.4))))

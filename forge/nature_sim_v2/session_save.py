@@ -58,6 +58,7 @@ def _adventure_payload(adventure: AdventureState) -> dict:
         "encounters": [_plain(asdict(item)) for item in sorted(adventure.encounters.values(),key=lambda value:value.encounter_id)],
         "pending_encounter": adventure.pending_encounter,
         "encounters_completed": adventure.encounters_completed,
+        "succession_count": adventure.succession_count,
     }
 
 
@@ -75,7 +76,7 @@ def _restore_adventure(payload: dict) -> AdventureState:
     adventure.artifacts = [Artifact(**{**item, "components": tuple(item["components"]), "effects": tuple(tuple(value) for value in item["effects"])}) for item in payload["artifacts"]]
     adventure.equipped = {str(slot): str(item_id) for slot, item_id in payload["equipped"].items()}
     adventure.buildings = [BuildingPlan(**{**item, "origin": tuple(item["origin"]), "cells": tuple(tuple(value) for value in item["cells"]), "entrances": tuple(tuple(value) for value in item["entrances"])}) for item in payload["buildings"]]
-    adventure.encounters={item["encounter_id"]:SiteEncounter(**{**item,"choices":tuple(EncounterChoice(**choice) for choice in item["choices"])}) for item in payload.get("encounters",[])};adventure.pending_encounter=payload.get("pending_encounter");adventure.encounters_completed=int(payload.get("encounters_completed",0))
+    adventure.encounters={item["encounter_id"]:SiteEncounter(**{**item,"choices":tuple(EncounterChoice(**choice) for choice in item["choices"])}) for item in payload.get("encounters",[])};adventure.pending_encounter=payload.get("pending_encounter");adventure.encounters_completed=int(payload.get("encounters_completed",0));adventure.succession_count=int(payload.get("succession_count",0))
     return adventure
 
 
