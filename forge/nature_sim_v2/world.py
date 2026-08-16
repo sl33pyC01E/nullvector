@@ -65,7 +65,7 @@ class NatureWorld:
                 angle = math.tau * (ordinal + copy*.37) / len(genomes)
                 radius = self.size * (.20 + .10*copy)
                 position = (self.size*.5+math.cos(angle)*radius, self.size*.5+math.sin(angle)*radius)
-                self.add_organism(genome, position, energy=.72)
+                energy=.54+.34*((ordinal*7+copy*3)%11)/10;entity_id=self.add_organism(genome, position, energy=energy);entity=self.organisms[entity_id];maturity=12+genome.trait("maturity")*38;entity.age=maturity*(.18+1.05*((ordinal*5+copy)%7)/6);entity.reproduction_cooldown=float((ordinal*7+copy*11)%24);entity.heading=(angle+math.pi*.5)%math.tau;entity.reserve=.16+.42*((ordinal*3+copy)%9)/8;entity.update_stage()
 
     def add_organism(self, genome: EcoGenome, position: tuple[float,float], *, energy: float=.55, parents: tuple[int,...]=()) -> int:
         if len(self.organisms) >= self.max_population:
