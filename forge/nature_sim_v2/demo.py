@@ -269,7 +269,7 @@ class NatureDemo:
         recipe=self.adventure.selected_recipe;self.screen.blit(self.small.render(f"RECIPE [T] {recipe.name.upper()}  [R] CRAFT",True,(196,139,255)),(x,y));y+=17
         for artifact in self.adventure.equipped_artifacts():
             effects=" ".join(f"{name[:3].upper()}+{value:.2f}" for name,value in artifact.effects);self.screen.blit(self.small.render(f"{artifact.slot[:4].upper()} {artifact.name[:28].upper()} {effects}",True,(221,185,255)),(x,y));y+=15
-        y+=6;self.screen.blit(self.small.render(f"NATURAL SELECTION // DIVERSITY {self.evolution.diversity:.2f}",True,(111,238,188)),(x,y));y+=17
+        y+=6;self.screen.blit(self.small.render(f"NATURAL SELECTION // DIV {self.evolution.diversity:.2f} // PAIRS {self.world.breeding.pairings} HYB {self.world.breeding.hybrid_pairings}",True,(111,238,188)),(x,y));y+=17
         for clade in self.evolution.dominant(3):
             self.screen.blit(self.small.render(f"{clade.clade_id[-5:].upper()} F{clade.family} N{clade.population:02} FIT {clade.fitness:.2f} G{clade.max_generation}",True,(99,194,158)),(x,y));y+=15
         y+=6;self.screen.blit(self.small.render(f"CONTRACTS [U] // COMPLETE {self.quests.completed}",True,(255,183,87)),(x,y));y+=17

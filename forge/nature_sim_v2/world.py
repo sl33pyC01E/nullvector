@@ -18,6 +18,7 @@ from .state import ColonyState, OrganismState
 from .colony_ecology import ColonyEcology
 from .climate import ClimateSystem
 from .ecosystem_network import EcosystemNetwork
+from .breeding import BreedingSystem
 
 
 class NatureWorld:
@@ -44,6 +45,7 @@ class NatureWorld:
         self.colony_ecology = ColonyEcology()
         self.climate = ClimateSystem(seed^0x434C494D415445)
         self.ecosystem = EcosystemNetwork()
+        self.breeding = BreedingSystem()
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -213,7 +215,7 @@ class NatureWorld:
             target.energy-=drained;entity.energy=min(1.2,entity.energy+drained*.82)
             y,x=self._cell(entity.position);self.fields[4,y,x]=min(1,self.fields[4,y,x]+drained*.3)
         if entity.intent=="mate" and entity.gestation_remaining<=0:
-            mate=next((o for o in sorted(nearby,key=lambda o:o.entity_id) if o.family==entity.family and o.stage=="mature" and o.reproduction_cooldown<=0 and o.energy>.62),None)
+            mate=self.breeding.choose(entity,nearby)
             if mate is not None:
                 entity.gestation_remaining=4+entity.genome.trait("gestation")*16
                 entity.mate_id=mate.entity_id
@@ -221,6 +223,7 @@ class NatureWorld:
                 mate.reproduction_cooldown=entity.reproduction_cooldown*.75
                 entity.energy-=.12+.16*entity.genome.trait("offspring_investment")
                 mate.energy-=.05
+                self.breeding.record(entity,mate,self.tick_index);self.events.append({"tick":self.tick_index,"type":"courtship","left":entity.entity_id,"right":mate.entity_id,"hybrid":entity.family!=mate.family,"score":round(self.breeding.score(entity,mate),6)})
 
     def _resolve_collisions(self) -> None:
         living=sorted((o for o in self.organisms.values() if o.alive),key=lambda o:o.entity_id)
