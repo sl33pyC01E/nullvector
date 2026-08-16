@@ -345,7 +345,13 @@ class NatureDemo:
             point=self.world_to_screen(projectile.position);pg.draw.circle(self.screen,(255,220,112),(int(point[0]),int(point[1])),max(2,int(projectile.radius*self.zoom)))
         clump_colors={"flora":(143,255,70),"biomass":(236,92,116),"mineral":(170,183,194),"charge":(70,225,255),"phase":(183,112,255)}
         for clump in self.feeding.clumps.values():
-            point=self.world_to_screen(clump.food.position);radius=max(3,int(clump.food.radius*self.zoom));pg.draw.circle(self.screen,clump_colors[clump.food.material],(int(point[0]),int(point[1])),radius);pg.draw.circle(self.screen,(229,248,244),(int(point[0]),int(point[1])),radius,1)
+            ground=self.world_to_screen(clump.food.position);point=ground.copy();point[1]-=clump.height*self.zoom;radius=max(3,int(clump.food.radius*self.zoom));shadow=pg.Rect(int(ground[0]-radius*1.25),int(ground[1]-max(1,radius*.28)),int(radius*2.5),max(2,int(radius*.56)));pg.draw.ellipse(self.screen,(0,0,0,150),shadow)
+            color=clump_colors[clump.food.material]
+            if clump.impact_mode=="roll":
+                cosine,sine=math.cos(clump.angle),math.sin(clump.angle);corners=[]
+                for local_x,local_y in ((-radius,-radius),(radius,-radius),(radius,radius),(-radius,radius)):corners.append((int(point[0]+local_x*cosine-local_y*sine),int(point[1]+local_x*sine+local_y*cosine)))
+                pg.draw.polygon(self.screen,color,corners);pg.draw.polygon(self.screen,(229,248,244),corners,1);pg.draw.line(self.screen,(38,74,81),(int(point[0]),int(point[1])),(int(point[0]+radius*cosine),int(point[1]+radius*sine)),1)
+            else:pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),radius);pg.draw.circle(self.screen,(229,248,244),(int(point[0]),int(point[1])),radius,1)
 
     def _sprite(self,entity):
         pg=self.pg;phase=int((self.world.time*(3.2+np.linalg.norm(entity.velocity)*2)+entity.entity_id*.7)%16)

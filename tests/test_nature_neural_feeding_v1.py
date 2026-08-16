@@ -57,6 +57,25 @@ def test_predation_produces_tangible_matter_not_instant_predator_energy() -> Non
     assert len(produced) == 1 and produced[0].food.material == "flora" and produced[0].food.mass > 0
 
 
+def test_persistent_world_clumps_have_2p5d_material_impacts() -> None:
+    world, system, _ = _single(0, 97)
+    modes = (("phase", "bounce"), ("mineral", "roll"), ("biomass", "thud"))
+    clumps = []
+    for offset, (material, mode) in enumerate(modes):
+        clump_id = system.add_clump((2.0, 4.0 + offset), material=material, impact_mode=mode)
+        system.throw_clump(clump_id, (4.0, 0.0), height=.46, vertical_velocity=3.1)
+        clumps.append(system.clumps[clump_id])
+    rebound = 0.0
+    for _ in range(220):
+        system.step_environment(world, .05)
+        if clumps[0].impacts:
+            rebound = max(rebound, clumps[0].height)
+    assert clumps[0].impacts > 1 and rebound > .3
+    assert clumps[1].impacts == 1 and abs(clumps[1].angle) > .5
+    assert clumps[2].impacts == 1 and np.linalg.norm(clumps[2].food.velocity) < 1e-5
+    assert system.throws == 3
+
+
 def test_neural_feeding_world_replay_is_exact() -> None:
     hashes = []
     for _ in range(2):
@@ -77,6 +96,8 @@ def test_legacy_world_keeps_existing_abstract_path() -> None:
 
 def test_neural_feeding_save_load_preserves_exact_world(tmp_path: Path) -> None:
     world, system, _ = _single(0, 141)
+    ballistic_id = system.add_clump((9.0, 9.0), material="mineral")
+    system.throw_clump(ballistic_id, (2.5, -.4), height=.8, vertical_velocity=2.7)
     for _ in range(80):
         world.step(.05, publish=False)
     before = world.snapshot().semantic_sha256

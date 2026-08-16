@@ -31,6 +31,12 @@ class WorldClump:
     food: FoodClump
     cohesion: float
     source: str
+    height: float = 0.0
+    vertical_velocity: float = 0.0
+    angle: float = 0.0
+    angular_velocity: float = 0.0
+    impact_mode: str = "thud"
+    impacts: int = 0
 
 
 @dataclass(slots=True)
@@ -61,14 +67,62 @@ class NatureNeuralFeedingSystem:
         self.absorbed_mass = 0.0
         self.throws = self.grasps = 0
 
-    def add_clump(self, position, *, material: str, mass: float = 1.0, velocity=(0.0, 0.0), cohesion: float = .7, source: str = "environment") -> int:
+    def add_clump(self, position, *, material: str, mass: float = 1.0, velocity=(0.0, 0.0), cohesion: float = .7, source: str = "environment", impact_mode: str | None = None) -> int:
         if material not in MATERIAL_PROFILES:
             raise ValueError("unknown neural feeding material")
+        mode = {"phase": "bounce", "charge": "bounce", "mineral": "roll"}.get(material, "thud") if impact_mode is None else impact_mode
+        if mode not in {"bounce", "roll", "thud"}:
+            raise ValueError("unknown neural feeding impact mode")
         clump_id = self.next_clump_id; self.next_clump_id += 1
         radius = float(np.clip(.22 + math.sqrt(max(mass, 0)) * .16, .25, 1.2))
         food = FoodClump(np.asarray(position, np.float64), np.asarray(velocity, np.float64), float(mass), radius, 1.0, MATERIAL_PROFILES[material], material)
-        self.clumps[clump_id] = WorldClump(clump_id, food, float(cohesion), source)
+        self.clumps[clump_id] = WorldClump(clump_id, food, float(cohesion), source, impact_mode=mode)
         return clump_id
+
+    def throw_clump(self, clump_id: int, horizontal_velocity, *, height: float = .46, vertical_velocity: float = 3.1) -> None:
+        """Launch a persistent material clump into the 2.5D ballistic layer."""
+        if clump_id not in self.clumps:
+            raise ValueError("unknown neural feeding clump")
+        velocity = np.asarray(horizontal_velocity, np.float64)
+        if velocity.shape != (2,) or not np.isfinite(velocity).all() or float(np.linalg.norm(velocity)) > 18:
+            raise ValueError("neural feeding throw velocity drifted")
+        if not math.isfinite(height) or not 0 <= height <= 8 or not math.isfinite(vertical_velocity) or not 0 <= vertical_velocity <= 12:
+            raise ValueError("neural feeding throw elevation drifted")
+        clump = self.clumps[clump_id]
+        clump.food.velocity = velocity.copy()
+        clump.height = float(height)
+        clump.vertical_velocity = float(vertical_velocity)
+        clump.angular_velocity = float(velocity[0]) / max(clump.food.radius, .1) * .15
+        self.throws += 1
+
+    def _integrate_clump(self, clump: WorldClump, world, delta: float) -> None:
+        clump.food.position = (clump.food.position + clump.food.velocity * delta) % world.size
+        clump.angle = math.fmod(clump.angle + clump.angular_velocity * delta, math.tau)
+        airborne = clump.height > 0 or clump.vertical_velocity > 0
+        if airborne:
+            clump.height += clump.vertical_velocity * delta
+            clump.vertical_velocity -= 4.5 * delta
+            clump.food.velocity *= math.exp(-delta * .10)
+            if clump.height <= 0:
+                clump.height = 0.0; clump.impacts += 1
+                impact_speed = max(0.0, -clump.vertical_velocity)
+                if clump.impact_mode == "bounce" and impact_speed > .42:
+                    clump.vertical_velocity = impact_speed * .58
+                    clump.food.velocity *= .88
+                    clump.angular_velocity += float(clump.food.velocity[0]) * .12
+                elif clump.impact_mode == "roll":
+                    clump.vertical_velocity = 0.0; clump.food.velocity *= .92
+                    clump.angular_velocity = float(clump.food.velocity[0]) / max(clump.food.radius, .1)
+                else:
+                    clump.vertical_velocity = 0.0; clump.food.velocity *= .28; clump.angular_velocity *= .18
+        else:
+            drag = {"bounce": 1.0, "roll": .34, "thud": 3.4}[clump.impact_mode]
+            clump.food.velocity *= math.exp(-delta * drag)
+            if clump.impact_mode == "roll":
+                no_slip = float(clump.food.velocity[0]) / max(clump.food.radius, .1)
+                clump.angular_velocity += (no_slip - clump.angular_velocity) * min(1.0, delta * 8.0)
+            else:
+                clump.angular_velocity *= math.exp(-delta * (1.2 if clump.impact_mode == "bounce" else 5.0))
 
     def seed_from_fields(self, world, *, per_material: int = 8) -> None:
         if self.clumps:
@@ -137,8 +191,7 @@ class NatureNeuralFeedingSystem:
         self.seed_from_fields(world)
         for clump_id in sorted(tuple(self.clumps)):
             clump = self.clumps[clump_id]
-            clump.food.position = (clump.food.position + clump.food.velocity * delta) % world.size
-            clump.food.velocity *= math.exp(-delta * 2.1)
+            self._integrate_clump(clump, world, delta)
             if clump.food.mass <= 1e-5:
                 del self.clumps[clump_id]
         # Bounded conversion of field abundance into tangible matter prevents
@@ -229,7 +282,7 @@ class NatureNeuralFeedingSystem:
     def semantic_sha256(self) -> str:
         payload = {
             "format": FORMAT, "next": self.next_clump_id, "absorbed": round(self.absorbed_mass, 8),
-            "clumps": [(item.clump_id, item.food.material, tuple(np.round(item.food.position, 8)), tuple(np.round(item.food.velocity, 8)), round(item.food.mass, 8), item.source) for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
+            "clumps": [(item.clump_id, item.food.material, tuple(np.round(item.food.position, 8)), tuple(np.round(item.food.velocity, 8)), round(item.food.mass, 8), item.source, round(item.height, 8), round(item.vertical_velocity, 8), round(item.angle, 8), round(item.angular_velocity, 8), item.impact_mode, item.impacts) for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
             "entities": [(key, round(value.feeding.reserve, 8), round(value.feeding.fullness_seconds, 8), value.target_id, value.constraint.attached, value.grasp_appendage) for key, value in sorted(self.entities.items())],
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -243,12 +296,15 @@ class NatureNeuralFeedingSystem:
                 "id": item.clump_id, "position": item.food.position.tolist(), "velocity": item.food.velocity.tolist(),
                 "mass": item.food.mass, "radius": item.food.radius, "density": item.food.nutrient_density,
                 "nutrition": list(item.food.nutrition_by_family), "material": item.food.material,
-                "cohesion": item.cohesion, "source": item.source,
+                "cohesion": item.cohesion, "source": item.source, "height": item.height,
+                "vertical_velocity": item.vertical_velocity, "angle": item.angle,
+                "angular_velocity": item.angular_velocity, "impact_mode": item.impact_mode, "impacts": item.impacts,
             } for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
             "entities": [{
                 "id": entity_id, "reserve": state.feeding.reserve, "capacity": state.feeding.reserve_capacity,
                 "fullness": state.feeding.fullness_seconds, "fullness_capacity": state.feeding.fullness_capacity_seconds,
                 "consumed": state.feeding.consumed_mass, "posed_nodes": state.articulation.nodes.tolist(),
+                "node_velocities": state.articulation.velocities.tolist(),
                 "attached": state.constraint.attached, "target_kind": state.constraint.target_kind,
                 "constraint_target": state.constraint.target_id, "strain": state.constraint.strain,
                 "target_id": state.target_id, "identity": state.identity, "grasp_appendage": state.grasp_appendage,
@@ -265,7 +321,7 @@ class NatureNeuralFeedingSystem:
         self.clumps.clear(); self.entities.clear()
         for raw in payload["clumps"]:
             food = FoodClump(np.asarray(raw["position"]), np.asarray(raw["velocity"]), float(raw["mass"]), float(raw["radius"]), float(raw["density"]), tuple(raw["nutrition"]), str(raw["material"]))
-            item = WorldClump(int(raw["id"]), food, float(raw["cohesion"]), str(raw["source"])); self.clumps[item.clump_id] = item
+            item = WorldClump(int(raw["id"]), food, float(raw["cohesion"]), str(raw["source"]), float(raw.get("height", 0)), float(raw.get("vertical_velocity", 0)), float(raw.get("angle", 0)), float(raw.get("angular_velocity", 0)), str(raw.get("impact_mode", {"phase": "bounce", "charge": "bounce", "mineral": "roll"}.get(str(raw["material"]), "thud"))), int(raw.get("impacts", 0))); self.clumps[item.clump_id] = item
         for raw in payload["entities"]:
             if world is None or int(raw["id"]) not in world.organisms:
                 raise ValueError("neural feeding restore requires matching world anatomy")
@@ -276,6 +332,10 @@ class NatureNeuralFeedingSystem:
             if posed_nodes.shape != articulation.nodes.shape or not np.isfinite(posed_nodes).all():
                 raise ValueError("neural feeding posed anatomy drifted")
             articulation.nodes[:] = posed_nodes
+            velocities = np.asarray(raw.get("node_velocities", np.zeros_like(articulation.velocities)), np.float32)
+            if velocities.shape != articulation.velocities.shape or not np.isfinite(velocities).all():
+                raise ValueError("neural feeding articulation velocity drifted")
+            articulation.velocities[:] = velocities
             self.entities[int(raw["id"])] = EntityFeeding(feeding, articulation, constraint, raw["target_id"], str(raw["identity"]), raw.get("grasp_appendage"))
         if payload.get("semantic_sha256") != self.semantic_sha256():
             raise ValueError("neural feeding save semantic hash drifted")
