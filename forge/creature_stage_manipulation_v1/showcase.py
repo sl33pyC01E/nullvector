@@ -39,6 +39,15 @@ def _point(value: np.ndarray) -> tuple[int, int]:
     return int(round(WIDTH / 2 + value[0] * SCALE)), int(round(HEIGHT / 2 + 18 + value[1] * SCALE))
 
 
+def _visible_skeleton_edges(arena: NeuralManipulationArena):
+    """Yield only physically connected bones; severed roots have no ghost line."""
+    for edge_id, (left, right) in enumerate(arena.organism.skeleton_edges):
+        owner = int(arena.organism.skeleton_edge_appendage[edge_id])
+        if owner >= 0 and not bool(arena.articulation.attached[owner]):
+            continue
+        yield int(left), int(right), owner
+
+
 def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str, step) -> Image.Image:
     image = Image.new("RGBA", (WIDTH, HEIGHT), BG)
     draw = ImageDraw.Draw(image)
@@ -54,12 +63,9 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
     # Render the same explicit musculoskeletal grammar as the accepted
     # grounded-controller review: bones first, then separated tissue cells.
     posed_nodes = arena.articulation.nodes[:, :2].astype(np.float64) + arena.body.position
-    for left, right in arena.organism.skeleton_edges:
+    for left, right, owner in _visible_skeleton_edges(arena):
         ax, ay = _point(posed_nodes[int(left)])
         bx, by = _point(posed_nodes[int(right)])
-        owner = int(arena.organism.skeleton_edge_appendage[
-            np.flatnonzero(np.all(arena.organism.skeleton_edges == (left, right), axis=1))[0]
-        ])
         color = (103, 255, 202, 135) if owner == appendage else (61, 183, 214, 105)
         draw.line((ax, ay, bx, by), fill=color, width=2)
     for index, raw in enumerate(body_points):
@@ -71,8 +77,11 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
         if selected_limb and alive:
             base = tuple(int(round(channel * .55 + accent * .45)) for channel, accent in zip(base, (126,255,196)))
         color = HOT if feeder and alive else (*base, 235) if alive else (50, 42, 49, 210)
-        radius = 2 if feeder else 1
-        draw.rectangle((x - radius, y - radius, x + radius, y + radius), fill=color)
+        # Four-pixel cells meet on the authored four-pixel lattice. This keeps
+        # individual pixels/cells legible without the exaggerated black seams
+        # produced by the former 3x3 marks.
+        bounds = (x - 2, y - 2, x + (2 if feeder else 1), y + (2 if feeder else 1))
+        draw.rectangle(bounds, fill=color)
     target = arena.targets[target_id]
     kinetics = arena.target_kinetics[target_id]
     tx, ground_y = _point(np.asarray((target.position[0], arena.ground_plane_y()), np.float64))
@@ -277,11 +286,9 @@ def _severed_grasper_clip() -> list[Image.Image]:
             break
     if held_step is None:
         raise RuntimeError("severed grasper showcase never acquired its payload")
-    # Prevent the healthy peer arm from immediately hiding the injury by
-    # taking over; this clip isolates the severed chain itself.
-    for grasper in arena.grasper_indices():
-        if grasper != held_step.appendage:
-            arena.damage_appendage(grasper, remaining_health=.04)
+    # The remainder of this clip is free physics only, so the controller never
+    # gets another opportunity to select the healthy peer. Do not fake that
+    # isolation by killing/darkening the opposite arm.
     arena.sever_appendage(held_step.appendage, impulse=(.8, -1.4))
     for tick in range(150):
         arena._step_detached_limbs(.05)

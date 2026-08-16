@@ -6,6 +6,7 @@ from forge.creature_stage_developmental.development import develop
 from forge.creature_stage_developmental.genomes import review_genomes
 from forge.creature_stage_manipulation_v1 import NeuralManipulationArena
 from forge.creature_stage_manipulation_v1.articulation import ArticulatedBody
+from forge.creature_stage_manipulation_v1.showcase import _visible_skeleton_edges
 from forge.creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
 
 
@@ -194,6 +195,10 @@ def test_severed_arm_is_free_falling_and_damaged_arms_cannot_carry() -> None:
     before = arena.articulation.chain(appendage)
     arena.sever_appendage(appendage)
     assert not arena.articulation.attached[appendage]
+    assert all(owner != appendage for _left, _right, owner in _visible_skeleton_edges(arena))
+    peer = next(index for index in arena.grasper_indices() if index != appendage)
+    peer_cells = arena.articulation._skinned_cell_ids(peer)
+    assert np.all(arena.living.health[peer_cells] == 1.0)
     for _ in range(140):
         arena._step_detached_limbs(.05)
     after = arena.articulation.chain(appendage)
