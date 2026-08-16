@@ -53,6 +53,13 @@ class ClimateSystem:
         if exposure<=0:return None,0.0
         damage=min(.065,(.004+exposure*.032)*delta);anchor,radius=self._organ_target(entity,system);entity.body.impact(anchor,radius,damage);return system,damage
 
+    def materialize_event(self,world,state:ClimateState,cycle:int)->int:
+        if state.event not in ("spore_bloom","mineral_upwelling","phase_storm"):return 0
+        rng=np.random.default_rng((self.seed^int(cycle)*0x9E3779B97F4A7C15)&0x7FFF_FFFF_FFFF_FFFF);count={"spore_bloom":14,"mineral_upwelling":9,"phase_storm":7}[state.event];materials={"spore_bloom":("biomass","sap"),"mineral_upwelling":("rock","crystal"),"phase_storm":("crystal",)}[state.event]
+        for index in range(count):
+            point=(float(rng.uniform(1,world.size-1)),float(rng.uniform(1,world.size-1)));material=materials[index%len(materials)];amount=float(rng.uniform(.025,.085));radius=float(rng.uniform(.55,1.8));world.materials.deposit(material,point,amount,radius)
+        return count
+
     def step(self,world,delta:float)->ClimateState:
         state=self.sample(world.time);self.current=state;world.fields[1]=np.clip(world.fields[1]+(state.light-.55)*delta*.00018,0,1);world.fields[0]=np.clip(world.fields[0]+(state.rainfall-.5)*delta*.00016,0,1);world.fields[6]=np.clip(world.fields[6]+(state.heat-.45)*delta*.00012,0,1);world.fields[4]=np.clip(world.fields[4]+state.phase_flux*delta*.00007,0,1);world.fields[7]=np.clip(world.fields[7]+(state.toxin-.025)*delta*.00005,0,1)
         if state.event=="spore_bloom":world.fields[8]=np.clip(world.fields[8]+delta*.00035,0,1)
@@ -65,5 +72,5 @@ class ClimateSystem:
                 if system is not None and damage>.006:world.events.append({"tick":world.tick_index,"type":"climate_injury","entity":entity.entity_id,"system":system,"damage":round(damage,6),"season":state.season,"event":state.event})
         cycle=int(world.time/180)
         if state.event and cycle!=self.last_event_cycle:
-            world.events.append({"tick":world.tick_index,"type":"climate","event":state.event,"season":state.season,"cycle":cycle});self.last_event_cycle=cycle
+            deposits=self.materialize_event(world,state,cycle);world.events.append({"tick":world.tick_index,"type":"climate","event":state.event,"season":state.season,"cycle":cycle,"physical_deposits":deposits});self.last_event_cycle=cycle
         return state

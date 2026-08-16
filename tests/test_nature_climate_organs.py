@@ -18,3 +18,10 @@ def test_phase_storm_spares_anomaly_neural_tissue_but_stresses_humanoid() -> Non
     world=NatureWorld(seed=1802,size=40);genomes=founder_genomes(variants_per_family=1);human=world.organisms[world.add_organism(genomes[0],(10,10),energy=.8)];anomaly=world.organisms[world.add_organism(genomes[3],(30,30),energy=.8)];state=ClimateState("storm",0,.5,.5,.5,1,0,"phase_storm");human_result=world.climate.stress_body(world,human,state,15);anomaly_result=world.climate.stress_body(world,anomaly,state,15)
     assert human_result[0]=="neural" and human_result[1]>0
     assert anomaly_result==(None,0.0)
+
+
+def test_climate_events_leave_deterministic_physical_powder_deposits() -> None:
+    left=NatureWorld(seed=1803,size=40);right=NatureWorld(seed=1803,size=40);state=ClimateState("storm",0,.5,.5,.5,.9,0,"mineral_upwelling");left_count=left.climate.materialize_event(left,state,2);right_count=right.climate.materialize_event(right,state,2)
+    assert left_count==right_count==9
+    assert float(left.materials.mass.sum())>0
+    assert left.materials.semantic_sha256()==right.materials.semantic_sha256()
