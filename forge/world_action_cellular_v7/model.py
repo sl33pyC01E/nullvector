@@ -43,10 +43,12 @@ class CellularTemporalActionDiT(nn.Module):
         self.actor_state_condition = nn.Linear(ACTOR_FEATURES, config.width)
         self.actor_state_out = nn.Linear(config.width, ACTOR_FEATURES)
         self.actor_field_out = nn.Linear(config.width, ACTOR_FIELD_SHAPE[0] * config.patch * config.patch)
-        for module in (self.velocity_patch, self.actor_spatial, self.previous_action, self.previous_control, self.actor_state_condition, self.actor_state_out, self.actor_field_out):
+        self.actor_field_gate_out = nn.Linear(config.width, ACTOR_FIELD_SHAPE[0] * config.patch * config.patch)
+        for module in (self.velocity_patch, self.actor_spatial, self.previous_action, self.previous_control, self.actor_state_condition, self.actor_state_out, self.actor_field_out, self.actor_field_gate_out):
             nn.init.zeros_(module.weight)
             if getattr(module, "bias", None) is not None:
                 nn.init.zeros_(module.bias)
+        nn.init.constant_(self.actor_field_gate_out.bias, -4.0)
         immutable = torch.zeros(ACTOR_FEATURES, dtype=torch.bool)
         for index, name in enumerate(ACTOR_FEATURE_NAMES):
             immutable[index] = name.startswith(("family_", "stage_", "family_mix_", "development_", "ecology_", "diet_"))
@@ -56,9 +58,13 @@ class CellularTemporalActionDiT(nn.Module):
         structural_actions = topology_actions.clone()
         for name in ("impact", "scrape", "cut", "beam", "projectile", "intervention"):
             structural_actions[ACTION_NAMES.index(name)] = True
+        field_growth_actions = topology_actions.clone()
+        for name in ("ability_up", "ability_right", "ability_down", "ability_left"):
+            field_growth_actions[ACTION_NAMES.index(name)] = True
         self.register_buffer("immutable_actor_mask", immutable, persistent=False)
         self.register_buffer("topology_action_lookup", topology_actions, persistent=False)
         self.register_buffer("structural_action_lookup", structural_actions, persistent=False)
+        self.register_buffer("field_growth_action_lookup", field_growth_actions, persistent=False)
 
     @staticmethod
     def time_embedding(time):
@@ -89,17 +95,20 @@ class CellularTemporalActionDiT(nn.Module):
         pooled = token.mean(1)
         actor_state_delta = self.actor_state_out(pooled)
         actor_field_delta = self._unpatch(self.actor_field_out(token), ACTOR_FIELD_SHAPE[0])
-        return delta, gate_logits, actor_state_delta, actor_field_delta
+        actor_field_gate_logits = self._unpatch(self.actor_field_gate_out(token), ACTOR_FIELD_SHAPE[0])
+        return delta, gate_logits, actor_state_delta, actor_field_delta, actor_field_gate_logits
 
     def edit(self, current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control):
-        delta, gate_logits, actor_state_delta, actor_field_delta = self(current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control)
+        delta, gate_logits, actor_state_delta, actor_field_delta, actor_field_gate_logits = self(current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control)
         gate = torch.sigmoid(gate_logits)
+        actor_field_gate = torch.sigmoid(actor_field_gate_logits)
         topology = self.topology_action_lookup[action].to(actor_state_delta.dtype)
         structural = self.structural_action_lookup[action].to(actor_state_delta.dtype)
+        field_growth = self.field_growth_action_lookup[action].to(actor_state_delta.dtype)
         actor_delta_mask = torch.ones_like(actor_state_delta)
         actor_delta_mask[:, self.immutable_actor_mask] = topology[:, None]
         next_actor_state = actor_state + actor_state_delta * actor_delta_mask
-        topology_field = topology[:, None, None, None]
+        topology_field = field_growth[:, None, None, None]
         structural_field = structural[:, None, None, None]
         occupied = actor_field[:, :1].clamp(0, 1)
         dynamic_support = torch.maximum(occupied, topology_field)
@@ -108,8 +117,8 @@ class CellularTemporalActionDiT(nn.Module):
         field_delta_mask[:, 1:5] = dynamic_support
         field_delta_mask[:, :1] = structural_support
         field_delta_mask[:, 5:] = structural_support
-        next_actor_field = (actor_field + actor_field_delta * field_delta_mask).clamp(0, 1)
-        return current + gate * delta, next_actor_state, next_actor_field, gate, delta, gate_logits
+        next_actor_field = (actor_field + actor_field_delta * actor_field_gate * field_delta_mask).clamp(0, 1)
+        return current + gate * delta, next_actor_state, next_actor_field, gate, delta, gate_logits, actor_field_gate, actor_field_gate_logits
 
 
 def load_v5_latent_editor(model: CellularTemporalActionDiT, parent: SparseActionDiT) -> tuple[str, ...]:
@@ -121,7 +130,7 @@ def load_v5_latent_editor(model: CellularTemporalActionDiT, parent: SparseAction
     expected_missing = {
         name
         for name in model.state_dict()
-        if name.startswith(("velocity_patch.", "actor_spatial.", "previous_action.", "previous_control.", "actor_state_condition.", "actor_state_out.", "actor_field_out."))
+        if name.startswith(("velocity_patch.", "actor_spatial.", "previous_action.", "previous_control.", "actor_state_condition.", "actor_state_out.", "actor_field_out.", "actor_field_gate_out."))
     }
     if set(result.missing_keys) != expected_missing:
         raise ValueError("cellular warm-start parameter closure drifted")

@@ -50,7 +50,7 @@ class CellularWorldActionRuntime:
         previous_n = (previous - self.latent_mean) / self.latent_std
         actor_n = (actor_state - self.actor_mean) / self.actor_std
         with torch.inference_mode():
-            latent_n, next_actor_n, next_field, gate, _, _ = self.model.edit(current_n, previous_n, torch.zeros(count, device=self.device), action, control, state, actor_n, actor_field, previous_action, previous_control)
+            latent_n, next_actor_n, next_field, gate, *_ = self.model.edit(current_n, previous_n, torch.zeros(count, device=self.device), action, control, state, actor_n, actor_field, previous_action, previous_control)
         return {
             "latent": latent_n * self.latent_std + self.latent_mean,
             "actor_state": next_actor_n * self.actor_std + self.actor_mean,

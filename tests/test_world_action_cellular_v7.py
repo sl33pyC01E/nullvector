@@ -56,7 +56,7 @@ def test_v5_warm_start_preserves_exact_latent_editor_and_cellular_persistence():
     previous_control = torch.randn(batch, 4)
     with torch.inference_mode():
         expected = parent.edit(current, time, action, control, state)[0]
-        predicted, next_state, next_field, _, _, _ = model.edit(current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control)
+        predicted, next_state, next_field, *_ = model.edit(current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control)
     assert torch.equal(predicted, expected)
     assert torch.equal(next_state, actor_state)
     assert torch.equal(next_field, actor_field)
@@ -73,6 +73,7 @@ def test_cellular_outputs_have_trainable_gradients():
     loss.backward()
     assert model.actor_state_out.weight.grad is not None
     assert model.actor_field_out.weight.grad is not None
+    assert model.actor_field_gate_out.weight.grad is not None
 
 
 def test_cellular_edit_preserves_semantic_authority_outside_topology_actions():
