@@ -11,6 +11,7 @@ from ..creature_stage_developmental import FAMILIES,TISSUES
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..qud_society_v1 import SocietyLayer
+from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
 from .adventure import AdventureState
 from .world import NatureWorld
@@ -30,10 +31,18 @@ class NatureDemo:
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
         self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device)
-        self.world=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
+        self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
         self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
         self.adventure=AdventureState(seed=seed^0x414456,size=self.world.size)
         self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+
+    def _enter_region(self,dx,dy,player):
+        self.atlas_world.record(self.region,self.world);old_world=self.world;self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior)
+        entry=(1.2 if dx>0 else 62.8 if dx<0 else float(player.position[0]),1.2 if dy>0 else 62.8 if dy<0 else float(player.position[1]));new_id=new.add_organism(player.genome,entry,energy=player.energy,parents=player.parent_ids);carried=new.organisms[new_id];carried.body=player.body;carried.reserve=player.reserve;carried.age=player.age;carried.stage=player.stage;carried.reproduction_cooldown=player.reproduction_cooldown;carried.velocity=player.velocity.copy();new.seed_founders(variants_per_family=2)
+        for entity_id in old_world.organisms:self.runtime.forget(entity_id)
+        self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.world=new;self.selected=new_id;self.camera=carried.position.copy();self.society=SocietyLayer(new,seed=seed^0x515544);self.last_society_tick=0
+        previous=self.adventure;self.adventure=AdventureState(seed=seed^0x414456,size=new.size);self.adventure.inventory.update(previous.inventory);self.adventure.discoveries|=previous.discoveries;self.adventure.score=previous.score;self.adventure.objectives=previous.objectives
+        self.message=f"ENTERED REGION {self.region.x:+},{self.region.y:+} // {self.atlas_world.describe(self.region).biome.upper()}"
 
     def world_to_screen(self,position):
         width,height=self.screen.get_size();delta=(np.asarray(position)-self.camera+self.world.size*.5)%self.world.size-self.world.size*.5
@@ -108,7 +117,11 @@ class NatureDemo:
         entity=self.world.organisms.get(self.selected)
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2;entity.intent="player"
-        self.world.step(min(.2,delta*2.2))
+        previous_position=None if entity is None else entity.position.copy();self.world.step(min(.2,delta*2.2))
+        entity=self.world.organisms.get(self.selected)
+        if entity is not None and previous_position is not None:
+            jump=entity.position-previous_position;dx=1 if jump[0]<-self.world.size*.5 else -1 if jump[0]>self.world.size*.5 else 0;dy=1 if jump[1]<-self.world.size*.5 else -1 if jump[1]>self.world.size*.5 else 0
+            if dx or dy:self._enter_region(dx,dy,entity);entity=self.world.organisms.get(self.selected)
         self.adventure.observe(self.world)
         if self.world.tick_index-self.last_society_tick>=60:
             self.society.step_history(1);self.last_society_tick=self.world.tick_index
@@ -191,7 +204,7 @@ class NatureDemo:
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COL {snap.colony_count:02}  FAC {len(self.society.factions):02}  MUT {snap.mutation_count:02}"
+        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  F FOLLOW  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT  C CELLS  O ORGANS",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
