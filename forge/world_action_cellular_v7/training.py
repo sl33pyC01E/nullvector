@@ -75,17 +75,22 @@ class ResourceGuard:
         self.maximum_rss_bytes = 0
         self.maximum_cuda_allocated_bytes = 0
         self.maximum_cuda_reserved_bytes = 0
+        self.below_normal_priority_applied = False
         torch.set_num_threads(training.cpu_threads)
         try:
             torch.set_num_interop_threads(1)
         except RuntimeError:
             pass
         if device.type == "cuda":
-            torch.cuda.set_per_process_memory_fraction(training.cuda_memory_fraction, device)
+            torch.cuda.set_per_process_memory_fraction(training.cuda_memory_fraction, torch.cuda.current_device())
         if os.name == "nt":
             # BELOW_NORMAL_PRIORITY_CLASS. Failure is harmless and reported by
             # the absent effect rather than treated as a training failure.
-            ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x00004000)
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+            kernel32.SetPriorityClass.argtypes = (ctypes.c_void_p, ctypes.c_ulong)
+            kernel32.SetPriorityClass.restype = ctypes.c_int
+            self.below_normal_priority_applied = bool(kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00004000))
         self.sample()
 
     @property
@@ -113,6 +118,7 @@ class ResourceGuard:
             "cuda_memory_fraction": self.training.cuda_memory_fraction,
             "max_process_memory_gib": self.training.max_process_memory_gib,
             "target_duty_cycle": self.training.target_duty_cycle,
+            "below_normal_priority_applied": self.below_normal_priority_applied,
             "maximum_rss_bytes": self.maximum_rss_bytes,
             "maximum_cuda_allocated_bytes": self.maximum_cuda_allocated_bytes,
             "maximum_cuda_reserved_bytes": self.maximum_cuda_reserved_bytes,
