@@ -130,6 +130,54 @@ Cost follows the player's active frontier rather than total explored area.
 Far ecology is advanced in bounded analytical epochs and materializes into
 individuals only when it becomes relevant.
 
+## Planetary patched-sphere roadmap
+
+The unbounded chunk scaffold is an implementation stepping stone. The product
+target is a persistent whole planet that can be viewed as a rotatable,
+zoomable sphere or as an orthographic circle. Its surface is divided into
+stable neural patches with permanent IDs and neighbor relationships. Camera
+zoom, pan, and projection never regenerate those patches or change their
+identity; they only choose the level of detail at which the same state is
+decoded.
+
+The planetary hierarchy has four coupled resolutions:
+
+- **Planet latent:** atmosphere, oceans, seasons, tectonic and anomaly fields,
+  global cultures, and long-range history.
+- **Surface patches:** persistent climate, biome, hydrology, resources,
+  population cohorts, borders, roads, settlements, and migration flux.
+- **Focused macro maps:** selecting a patch expands it into one of the detailed
+  topology-safe maps already used by the creature-stage simulation. Adjacent
+  patches supply exact boundary conditions so rivers, roads, weather fronts,
+  migrations, and political regions cross seams coherently.
+- **Exact local simulation:** the active viewport contains individual cells,
+  organisms, fluids, projectiles, structures, inventories, and neural state.
+
+Patch state should live on a spherical graph rather than in disposable screen
+pixels. An icosahedral, cubed-sphere, or similarly bounded equal-area layout
+can provide stable adjacency and hierarchical subdivision while the UI renders
+it as the requested circle/sphere. A focused patch retains a bidirectional
+summary contract: local events update its coarse latent when focus leaves, and
+refocusing reconstructs the same history rather than sampling a replacement.
+
+Slow planetary change is a separate neural clock. A graph-conditioned
+diffusion transformer or latent image-to-image process advances overlapping
+patch neighborhoods through hours, seasons, and centuries. Candidate channels
+include weather, fronts, precipitation, fires, vegetation, disease, resource
+flows, animal and society migrations, city construction, war, trade, ruins,
+and large anomaly events. Overlap margins and conservation heads constrain
+seams, water and material budgets, population continuity, settlement identity,
+and lineage. The model may invent development inside those constraints, but it
+may not silently erase a city, species, watershed, or recorded event.
+
+This creates multiplicative scale: most of the planet advances as compact
+latents; interesting regions subdivide into more patches; a selected patch
+becomes a macro map; and only the player's active neighborhood pays the full
+cellular simulation cost. Training proceeds in the same three stages as the
+rest of the project: deterministic spherical fields and patch persistence,
+then validated neural weather/ecology/society transitions, then distillation
+into the recurrent planetary context of the final Action-DiT world model.
+
 ## Five non-convergent morphology priors
 
 - **Humanoid:** upright paired legs, manipulators, upper sensory crown, central

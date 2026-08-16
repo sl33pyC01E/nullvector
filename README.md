@@ -56,6 +56,11 @@ The development sequence is deliberately staged:
 See `docs/creature_stage_reboot.md` for the product, simulation, scale, neural
 authority, society/city, and acceptance contracts.
 
+The same roadmap now extends to a persistent patched planet: a zoomable and
+rotatable sphere whose stable surface patches can be focused into detailed
+macro maps, while slower graph-diffusion updates advance weather, ecology,
+migration, settlements, and history without losing patch identity.
+
 The native scaffold also emits strict 240-transition causal teacher rollouts.
 `python -m forge.creature_stage_trace TRACE.json` validates their producer
 hash, state continuity, controls, organ conservation, physiology, and action
