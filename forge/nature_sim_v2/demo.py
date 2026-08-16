@@ -399,11 +399,16 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
     if args.trade and demo.society.settlements:
         settlement=next(iter(demo.society.settlements.values()));demo.trade_settlement=settlement.settlement_id;demo.trade_offers=generate_trade_offers(settlement,reputation=demo.quests.reputation.get(settlement.faction_id,0),epoch=0);demo.message="FINITE SETTLEMENT BARTER // 7/8/9 TRADE"
+    if args.mutant:
+        entity=demo.world.organisms[demo.selected]
+        for target in ("armor_lobes","locomotor_pair"):
+            offer=next(offer for epoch in range(64) for offer in evolution_offers(entity.genome,epoch=epoch) if offer.structural==target);metamorphose(entity,offer,seed=args.seed^len(entity.genome.mutation_log)*7919)
+        demo.message=f"STRUCTURAL METAMORPH // {len(entity.genome.developmental.components)} COMPONENTS // {len(entity.genome.developmental.appendages)} APPENDAGES // WOUNDS PRESERVED"
     demo.run(capture=args.capture)
 
 
