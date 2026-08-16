@@ -55,6 +55,12 @@ def resolve_encounter(encounter:SiteEncounter,choice_index:int,*,world,entity,ad
         if encounter.kind in ("machine_ruin","phase_well","relic_vault") and choice.reward_scale>=1:
             artifact_seed=int.from_bytes(digest[8:16],"little");artifact=generate_artifact(seed=artifact_seed,provenance=encounter.encounter_id,quality=min(1,.5+.3*choice.reward_scale));adventure.artifacts.append(artifact);adventure.equip(artifact.artifact_id);outcome+=f" // RELIC {artifact.name.upper()}"
         if encounter.kind=="spring":entity.body.energy=min(1.2,entity.body.energy+.18);entity.body.heal((0,0),10,.12)
+        if choice.choice_id!="observe":
+            target={"grove":"storage_lobes","mineral_vent":"armor_lobes","machine_ruin":"hardpoint_pair","phase_well":"neural_lobes","spring":"sensor_crown","relic_vault":"sensor_crown"}[encounter.kind]
+            from ..nature_sim_v2.directed_evolution import metamorphose,structural_offer
+            mutation_seed=int.from_bytes(digest[16:24],"little");offer=structural_offer(entity.genome,target,epoch=adventure.encounters_completed)
+            try:metamorphose(entity,offer,seed=mutation_seed);outcome+=f" // MUTATION {offer.label.upper()}"
+            except ValueError:outcome+=" // MUTATION SATURATED"
     else:
         damage=.10+.32*choice.risk;angle=math.tau*roll;point=(math.cos(angle)*5,math.sin(angle)*5);entity.body.impact(point,3.5,damage);entity.energy=max(0,entity.energy-damage*.22);outcome=f"FAILED // LOCAL ORGAN TRAUMA {damage:.2f} // FLUID LOSS"
         if encounter.kind in ("machine_ruin","phase_well","relic_vault"):

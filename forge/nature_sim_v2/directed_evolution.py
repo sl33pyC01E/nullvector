@@ -58,6 +58,12 @@ def evolution_offers(genome: EcoGenome, *, epoch: int = 0, count: int = 3) -> tu
     return tuple(EvolutionOffer(f"evo-{name}-{digest[index]:02x}", label, description, developmental, ecological, cost, structural) for index, (name, label, description, developmental, ecological, structural) in enumerate(selected))
 
 
+def structural_offer(genome:EcoGenome,structural:str,*,epoch:int=0)->EvolutionOffer:
+    template=next((item for item in TEMPLATES if item[-1]==structural),None)
+    if template is None:raise ValueError("unknown structural mutation")
+    name,label,description,developmental,ecological,kind=template;digest=hashlib.sha256(f"{genome.semantic_sha256()}:{structural}:{epoch}".encode()).hexdigest();return EvolutionOffer(f"evo-{name}-{digest[:4]}",label,description,developmental,ecological,1.0+genome.developmental.generation*.06,kind)
+
+
 def _grow_structure(old:DevelopmentalGenome,kind:str,identity:str)->tuple[tuple[ComponentGene,...],tuple[AppendageGene,...]]:
     components=list(old.components);appendages=list(old.appendages);root=next((item for item in components if item.kind=="soma"),components[0]);rx,ry=root.radius;ax,ay=root.anchor
     def component(suffix,component_kind,anchor,radius,side,organ):

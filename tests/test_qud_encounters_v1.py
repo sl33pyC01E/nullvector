@@ -21,3 +21,13 @@ def test_resolution_modifies_physical_body_or_campaign_resources() -> None:
 def test_pending_encounter_survives_full_campaign_save(tmp_path) -> None:
     world=NatureWorld(seed=73,size=40);entity_id=world.add_organism(founder_genomes(variants_per_family=1)[0],(10,10),energy=.8);adventure=AdventureState(seed=74,size=40);site=adventure.sites[0];world.organisms[entity_id].position=site.position.copy();adventure.interact(world,world.organisms[entity_id]);assert adventure.pending_encounter
     society=SocietyLayer(world,seed=75);quests=QuestJournal();atlas=InfiniteNatureAtlas(seed=76);path=tmp_path/"encounter.nvs";save_session(world=world,adventure=adventure,society=society,quests=quests,atlas=atlas,region=RegionKey(0,0),selected=entity_id,path=path);restored=load_session(path);assert restored["adventure"].pending_encounter==adventure.pending_encounter;assert restored["adventure"].encounters[adventure.pending_encounter].title==adventure.encounters[adventure.pending_encounter].title
+
+
+def test_successful_risky_site_choice_grows_physical_heritable_anatomy() -> None:
+    world=NatureWorld(seed=77,size=40);entity=world.organisms[world.add_organism(founder_genomes(variants_per_family=1)[0],(20,20),energy=.9)];adventure=AdventureState(seed=78,size=40);before=len(entity.genome.developmental.components)
+    for index in range(64):
+        encounter=generate_encounter(seed=78,site_id=f"grove-{index}",kind="grove");message=resolve_encounter(encounter,1,world=world,entity=entity,adventure=adventure)
+        if message.startswith("SUCCESS"):break
+    assert "MUTATION STORAGE LOBES" in message
+    assert len(entity.genome.developmental.components)==before+2
+    assert entity.genome.developmental.generation==1
