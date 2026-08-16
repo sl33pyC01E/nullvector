@@ -27,3 +27,25 @@ streams under `outputs/action_teacher_v1/teacher-proof-v1/`. This recorder is th
 dataset boundary between the current validated specialist ensemble and future
 reverse distillation; it deliberately records both rendered evidence and the
 physical state that produced it.
+
+## Balanced physical curriculum v2
+
+`python -m forge.action_teacher_v1.curriculum_v2` drives the native simulator
+through every action class instead of relying on passive play to discover rare
+events. Each cycle includes locomotion, inspection, impact, healing, scraping,
+true cutting, beams, projectiles, site interaction, construction, crafting,
+social bonding, organ and locomotor grafting, all four ability slots, timeline
+intervention, trade, service, and metamorphosis. Aim vectors are bound to the
+actual target entity, and the physical operation happens before the synchronized
+post-action frame is recorded.
+
+The curriculum is multi-seed by design. A report beside every episode records
+requested and successful action counts plus the canonical trajectory hashes, so
+an episode that silently loses an action cannot enter the reverse-distillation
+corpus.
+
+Large grafted organisms are supported by the online locomotion runtime. Anatomy
+larger than the trained eight-appendage / 64-muscle tensor window is partitioned
+into recurrent neural banks. Every appendage and muscle is assigned exactly once,
+bank velocities are anatomy-weighted, and no procedural fallback replaces the
+learned controller.

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import torch
+from types import SimpleNamespace
 
 from forge.creature_stage_neural_locomotion_25d.contract import DYNAMIC_FEATURES,MAX_APPENDAGES,MAX_MUSCLES,ModelConfig
 from forge.creature_stage_neural_locomotion_25d.model import NeuralLocomotion25D
-from forge.creature_stage_neural_locomotion_25d.runtime import NeuralLocomotionRuntime
+from forge.creature_stage_neural_locomotion_25d.runtime import NeuralLocomotionRuntime,_partition_appendages
 from forge.nature_sim_v2 import NatureWorld,founder_genomes
 
 
@@ -29,3 +30,10 @@ def test_online_runtime_populates_physical_control_channels() -> None:
     assert entity.neural_contacts.shape==(len(entity.body.organism.genome.appendages),)
     assert entity.neural_muscles.shape==(len(entity.body.organism.muscles),)
     assert entity.finite()
+
+
+def test_large_grafted_bodies_are_partitioned_without_dropping_appendages_or_muscles() -> None:
+    appendages=tuple(SimpleNamespace() for _ in range(19));muscles=tuple((0,0,owner,0,0,0,joint) for owner in range(19) for joint in range(5));organism=SimpleNamespace(genome=SimpleNamespace(appendages=appendages),muscles=muscles);banks=_partition_appendages(organism)
+    assert [len(bank[0]) for bank in banks]==[8,8,3]
+    assert sorted(index for appendage,_ in banks for index in appendage)==list(range(19))
+    assert sorted(index for _,muscle in banks for index in muscle)==list(range(len(muscles)))
