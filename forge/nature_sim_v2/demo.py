@@ -23,6 +23,7 @@ from .session_save import load_session,save_session
 from .region_store import PersistentRegionStore
 from .senses import sensory_field,visible_targets
 from .abilities import entity_abilities,use_ability
+from .directed_evolution import evolution_offers,metamorphose
 from .world import NatureWorld
 
 
@@ -56,7 +57,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime)
@@ -126,7 +127,7 @@ class NatureDemo:
                 elif event.key==pg.K_F5:
                     report=save_session(world=self.world,adventure=self.adventure,society=self.society,quests=self.quests,atlas=self.atlas_world,region=self.region,selected=self.selected,path=QUICK_SAVE);self.message=f"CAMPAIGN SAVED // CELLS + RELICS + SOCIETIES + CONTRACTS // {report['bytes']/1024:.1f} KIB"
                 elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
-                    restored=load_session(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime);self.world=restored["world"];self.adventure=restored["adventure"];self.society=restored["society"];self.quests=restored["quests"];self.atlas_world=restored["atlas"];self.region=restored["region"];self.selected=restored["selected"];self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.camera=self.world.organisms[self.selected].position.copy();self.last_society_tick=self.world.tick_index;self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.message="CAMPAIGN RESTORED // CELLS + RELICS + SOCIETIES + CONTRACTS + ATLAS EXACT"
+                    restored=load_session(QUICK_SAVE,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime);self.world=restored["world"];self.adventure=restored["adventure"];self.society=restored["society"];self.quests=restored["quests"];self.atlas_world=restored["atlas"];self.region=restored["region"];self.selected=restored["selected"];self.behavior.cache.clear();self.behavior.last_tick=-1;self.visible_physics.states.clear();self.camera=self.world.organisms[self.selected].position.copy();self.last_society_tick=self.world.tick_index;self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=self.world.organisms[self.selected].genome.developmental.generation;self.message="CAMPAIGN RESTORED // CELLS + RELICS + SOCIETIES + CONTRACTS + ATLAS EXACT"
                     self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
                 elif event.key==pg.K_i:self.tool="inspect"
                 elif event.key==pg.K_j:self.tool="damage"
@@ -146,6 +147,11 @@ class NatureDemo:
                     try:self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
+                elif event.key in (pg.K_1,pg.K_2,pg.K_3) and self.selected in self.world.organisms:
+                    entity=self.world.organisms[self.selected];index={pg.K_1:0,pg.K_2:1,pg.K_3:2}[event.key];offer=evolution_offers(entity.genome,epoch=self.evolution_epoch)[index]
+                    if self.adventure.inventory["knowledge"]+1e-9<offer.cost:self.message=f"METAMORPHOSIS NEEDS {offer.cost:.1f} KNOWLEDGE"
+                    else:
+                        seed=(self.world.seed^self.world.tick_index*65537^entity.entity_id*7919^self.evolution_epoch)&0x7FFF_FFFF_FFFF_FFFF;self.adventure.inventory["knowledge"]-=offer.cost;metamorphose(entity,offer,seed=seed);self.runtime.forget(entity.entity_id);self.behavior.cache.pop(entity.entity_id,None);self.visible_physics.states.pop(entity.entity_id,None);self.sprite_cache.clear();self.evolution_epoch+=1;self.world.mutation_count+=1;self.world.events.append({"tick":self.world.tick_index,"type":"directed_evolution","entity":entity.entity_id,"offer":offer.offer_id,"generation":entity.genome.developmental.generation});self.message=f"METAMORPHOSIS // {offer.label.upper()} // WOUNDS MAPPED TO NEW CELLS"
                 elif event.key in (pg.K_UP,pg.K_RIGHT,pg.K_DOWN,pg.K_LEFT) and self.selected in self.world.organisms:
                     entity=self.world.organisms[self.selected];abilities=entity_abilities(entity,equipment_damage=self.adventure.bonus("damage"));index={pg.K_UP:0,pg.K_RIGHT:1,pg.K_DOWN:2,pg.K_LEFT:3}[event.key]
                     if index<len(abilities):self.message=use_ability(self.world,entity,abilities[index],tuple(self.screen_to_world(pg.mouse.get_pos())),power=1+self.adventure.bonus("damage"))
@@ -270,6 +276,11 @@ class NatureDemo:
         for record in records:
             gx=record.key.x-self.region.x+radius;gy=record.key.y-self.region.y+radius;rect=pg.Rect(panel.x+10+gx*cell,panel.y+34+gy*cell,cell-3,cell-3);color=pg.Color(colors[record.biome]);shade=.45+.45*(1-record.danger);color.r=int(color.r*shade);color.g=int(color.g*shade);color.b=int(color.b*shade);pg.draw.rect(self.screen,color,rect);border=(230,255,106) if record.key==self.region else (100,210,220) if record.key in self.atlas_world.visited else (25,45,50);pg.draw.rect(self.screen,border,rect,2 if record.key==self.region else 1);self.screen.blit(self.small.render(record.biome[:2].upper(),True,(3,10,14)),(rect.x+8,rect.y+8))
 
+    def _draw_evolution_offers(self,entity):
+        pg=self.pg;offers=evolution_offers(entity.genome,epoch=self.evolution_epoch);width=610;panel=pg.Rect((self.screen.get_width()-width)//2,self.screen.get_height()-98,width,64);pg.draw.rect(self.screen,(4,12,17),panel);pg.draw.rect(self.screen,(93,64,119),panel,1);self.screen.blit(self.small.render(f"DIRECTED METAMORPHOSIS // KNOWLEDGE {self.adventure.inventory['knowledge']:.2f} // HERITABLE + CELLULAR",True,(214,158,255)),(panel.x+10,panel.y+7))
+        for index,offer in enumerate(offers):
+            x=panel.x+10+index*198;color=(228,185,255) if self.adventure.inventory["knowledge"]>=offer.cost else (102,91,111);self.screen.blit(self.small.render(f"[{index+1}] {offer.label.upper()} ({offer.cost:.1f})",True,color),(x,panel.y+25));self.screen.blit(self.small.render(offer.description[:29].upper(),True,(116,139,148)),(x,panel.y+41))
+
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
         self._draw_materials()
@@ -284,7 +295,9 @@ class NatureDemo:
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ANATOMICAL ACTIONS  E INTERACT  Q BUILD  T/R CRAFT  U CONTRACT  M ATLAS  L SENSES  F5/F9 SAVE  J/H/X/V TOOLS",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
-        if entity is not None and self.show_cells:self._draw_cells(entity)
+        if entity is not None:
+            if self.show_cells:self._draw_cells(entity)
+            self._draw_evolution_offers(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
     def run(self,*,capture:Path|None=None)->None:
