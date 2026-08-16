@@ -4,7 +4,8 @@ import numpy as np
 from pathlib import Path
 
 from forge.creature_stage_developmental import develop
-from forge.nature_sim_v2 import NatureWorld,cohort_conservation,demote_to_cohort,founder_genomes,recombine
+from forge.nature_sim_v2 import NatureWorld,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
+from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
 def test_founders_cover_families_and_spawn_without_cascade() -> None:
@@ -123,3 +124,16 @@ def test_body_leaks_death_and_weapons_enter_material_world() -> None:
     projectile=world.fire_projectile(attacker,(22,16),speed=20,energy=2)
     for _ in range(5):world.step(.1)
     assert all(p.projectile_id!=projectile for p in world.materials.projectiles)
+
+
+def test_organs_and_paired_locomotors_can_cross_lineages() -> None:
+    founders=founder_genomes(variants_per_family=1);animal,machine=founders[1],founders[4]
+    wheel=machine.developmental.appendages[0];harvest=harvest_appendage_pair(machine,wheel.appendage_id)
+    assert len(harvest.source_ids)==2 and harvest.mineral>0
+    wheeled=graft_appendage_pair(animal,machine,wheel.appendage_id,seed=901)
+    organism=develop(wheeled.developmental)
+    assert primary_mode(organism)=="wheel" and any("graft_appendage" in item for item in wheeled.mutation_log)
+    battery=next(c for c in machine.developmental.components if c.organ=="battery")
+    augmented=graft_organ(animal,machine,battery.component_id,seed=902)
+    assert any(c.organ=="battery" for c in augmented.developmental.components)
+    assert develop(augmented.developmental).cell_count>develop(animal.developmental).cell_count
