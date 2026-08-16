@@ -87,6 +87,7 @@ def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:
 
 def test_2p5d_impacts_bounce_roll_or_thud() -> None:
     distances = {}
+    angles = {}
     for mode in ("bounce", "roll", "thud"):
         arena = NeuralManipulationArena(develop(review_genomes()[0]), device="cpu")
         target_id = arena.add_clump(_food((0.0, 0.0)), impact_mode=mode)
@@ -101,12 +102,15 @@ def test_2p5d_impacts_bounce_roll_or_thud() -> None:
             if kinetics.impacts:
                 rebound_height = max(rebound_height, kinetics.height)
         distances[mode] = float(target.position[0])
+        angles[mode] = abs(float(kinetics.angle))
         assert kinetics.impacts >= 1 and kinetics.height >= 0
         if mode == "bounce":
             assert rebound_height > 2.0 and kinetics.impacts > 1
         else:
             assert kinetics.impacts == 1 and kinetics.vertical_velocity == 0
     assert distances["bounce"] > distances["roll"] > distances["thud"] + 10.0
+    assert angles["roll"] > .5
+    assert abs(arena.target_kinetics[target_id].angular_velocity) < 1e-4  # final thud case
 
 
 def test_live_feeder_damage_still_blocks_arena_absorption() -> None:

@@ -58,8 +58,19 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
     radius = max(3, int(round(target.radius * SCALE)))
     shadow_width = max(3, int(round(radius * (1.15 + min(kinetics.height, 12.0) * .025))))
     shadow_height = max(1, int(round(radius * .30)))
-    draw.ellipse((tx - shadow_width, ground_y - shadow_height, tx + shadow_width, ground_y + shadow_height), fill=(0, 0, 0, 115), outline=(25, 61, 66, 180))
-    draw.ellipse((tx - radius, ty - radius, tx + radius, ty + radius), fill=FOOD, outline=(224, 255, 175, 255), width=1)
+    draw.ellipse((tx - shadow_width, ground_y - shadow_height, tx + shadow_width, ground_y + shadow_height), fill=(1, 4, 5, 220), outline=(31, 82, 86, 220))
+    if kinetics.impact_mode == "roll":
+        cosine, sine = np.cos(kinetics.angle), np.sin(kinetics.angle)
+        corners = []
+        for local_x, local_y in ((-radius, -radius), (radius, -radius), (radius, radius), (-radius, radius)):
+            corners.append((int(round(tx + local_x * cosine - local_y * sine)), int(round(ty + local_x * sine + local_y * cosine))))
+        draw.polygon(corners, fill=FOOD, outline=(224, 255, 175, 255))
+        spoke = (int(round(tx + radius * cosine)), int(round(ty + radius * sine)))
+        draw.line((tx, ty, *spoke), fill=(30, 90, 96, 255), width=1)
+    elif kinetics.impact_mode == "thud":
+        draw.ellipse((tx - radius, ty - max(2, radius - 1), tx + radius, ty + max(2, radius - 1)), fill=FOOD, outline=(224, 255, 175, 255), width=1)
+    else:
+        draw.ellipse((tx - radius, ty - radius, tx + radius, ty + radius), fill=FOOD, outline=(224, 255, 175, 255), width=1)
     reserve = min(1.0, arena.feeding.reserve / arena.feeding.reserve_capacity)
     fullness = min(1.0, arena.feeding.fullness_seconds / arena.feeding.fullness_capacity_seconds)
     draw.text((14, HEIGHT - 36), f"FOOD {target.mass:4.2f}  INTAKE {arena.feeding.consumed_mass:4.2f}", fill=(188, 204, 214, 255))

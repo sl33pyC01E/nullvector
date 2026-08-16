@@ -31,6 +31,8 @@ class ManipulationStep:
 class TargetKinetics:
     height: float = 0.0
     vertical_velocity: float = 0.0
+    angle: float = 0.0
+    angular_velocity: float = 0.0
     impact_mode: str = "thud"
     impacts: int = 0
 
@@ -85,6 +87,7 @@ class NeuralManipulationArena:
         target = self.targets[target_id]
         kinetics = self.target_kinetics[target_id]
         target.position += target.velocity * delta
+        kinetics.angle = math.fmod(kinetics.angle + kinetics.angular_velocity * delta, math.tau)
         airborne = kinetics.height > 0 or kinetics.vertical_velocity > 0
         if airborne:
             kinetics.height += kinetics.vertical_velocity * delta
@@ -97,15 +100,23 @@ class NeuralManipulationArena:
                 if kinetics.impact_mode == "bounce" and impact_speed > 1.15:
                     kinetics.vertical_velocity = impact_speed * .58
                     target.velocity *= .88
+                    kinetics.angular_velocity += float(target.velocity[0]) * .12
                 elif kinetics.impact_mode == "roll":
                     kinetics.vertical_velocity = 0.0
                     target.velocity *= .92
+                    kinetics.angular_velocity = float(target.velocity[0]) / max(target.radius, .1)
                 else:
                     kinetics.vertical_velocity = 0.0
                     target.velocity *= .28
+                    kinetics.angular_velocity *= .18
         else:
             drag = {"bounce": 1.0, "roll": .34, "thud": 3.4}[kinetics.impact_mode]
             target.velocity *= math.exp(-delta * drag)
+            if kinetics.impact_mode == "roll":
+                no_slip = float(target.velocity[0]) / max(target.radius, .1)
+                kinetics.angular_velocity += (no_slip - kinetics.angular_velocity) * min(1.0, delta * 8.0)
+            else:
+                kinetics.angular_velocity *= math.exp(-delta * (1.2 if kinetics.impact_mode == "bounce" else 5.0))
 
     def _target_features(self, target: FoodClump) -> tuple[np.ndarray, float]:
         delta = target.position - self.body.position
