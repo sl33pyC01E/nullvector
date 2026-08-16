@@ -10,6 +10,7 @@ import numpy as np
 from ..creature_stage_developmental import FAMILIES, develop
 from ..living_body_substrate import LivingBody
 from ..powder_world_v1 import MaterialGrid
+from ..powder_world_v1.contract import MATERIALS,STATE
 from .contract import ECO_TRAITS, RESOURCE_NAMES, EcoGenome, WorldSnapshot
 from .genetics import founder_genomes, recombine
 from .grafting import graft_appendage_pair, graft_organ
@@ -151,7 +152,15 @@ class NatureWorld:
         responsiveness=.22+.58*entity.genome.developmental.traits[6]
         entity.velocity += (target-entity.velocity)*min(1,delta*responsiveness*4)
         entity.velocity *= math.exp(-delta*(.55 if entity.family==3 else 1.15))
-        entity.position=(entity.position+entity.velocity*delta)%self.size
+        previous=entity.position.copy();proposed=(entity.position+entity.velocity*delta)%self.size
+        def solid(position):
+            y,x=self._cell(position);return STATE[int(self.materials.material[y,x])]=="solid" and self.materials.structure_id[y,x]>0
+        if solid(proposed):
+            horizontal=np.asarray((proposed[0],previous[1]));vertical=np.asarray((previous[0],proposed[1]))
+            if not solid(horizontal):proposed=horizontal;entity.velocity[1]*=-.12
+            elif not solid(vertical):proposed=vertical;entity.velocity[0]*=-.12
+            else:proposed=previous;entity.velocity*=-.10
+        entity.position=proposed
         if np.linalg.norm(entity.velocity)>.02: entity.heading=math.atan2(entity.velocity[1],entity.velocity[0])
         cost=float(np.linalg.norm(entity.velocity))*entity.genome.trait("move_cost")*.0015*delta
         entity.energy=max(0,entity.energy-cost)

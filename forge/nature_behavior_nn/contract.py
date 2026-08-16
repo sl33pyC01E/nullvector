@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass,asdict
+import ast
 import hashlib
 from pathlib import Path
 
@@ -17,14 +18,14 @@ SOURCE_FILES=(
     "forge/nature_behavior_nn/model.py","forge/nature_behavior_nn/corpus.py",
     "forge/nature_behavior_nn/training.py","forge/nature_behavior_nn/runtime.py",
     "forge/nature_sim_v2/contract.py","forge/nature_sim_v2/state.py",
-    "forge/nature_sim_v2/genetics.py","forge/nature_sim_v2/world.py",
+    "forge/nature_sim_v2/genetics.py",
     "forge/living_body_substrate/state.py",
     "forge/creature_stage_developmental/contract.py",
     "forge/creature_stage_developmental/development.py",
 )
 CORPUS_SOURCE_FILES=(
     "forge/nature_behavior_nn/contract.py","forge/nature_behavior_nn/features.py","forge/nature_behavior_nn/corpus.py",
-    "forge/nature_sim_v2/contract.py","forge/nature_sim_v2/state.py","forge/nature_sim_v2/genetics.py","forge/nature_sim_v2/world.py",
+    "forge/nature_sim_v2/contract.py","forge/nature_sim_v2/state.py","forge/nature_sim_v2/genetics.py",
     "forge/living_body_substrate/state.py","forge/creature_stage_developmental/contract.py","forge/creature_stage_developmental/development.py",
 )
 
@@ -52,6 +53,12 @@ def _source_hash(files:tuple[str,...],domain:bytes)->str:
     for relative in files:
         path=PROJECT_ROOT/relative
         digest.update(relative.encode()+b"\0"+path.read_bytes()+b"\0")
+    # Bind only the world methods that define observations and teacher actions.
+    # Material physics, rendering, projectiles, and buildings can evolve without
+    # falsely invalidating an unchanged behavior model.
+    tree=ast.parse((PROJECT_ROOT/"forge/nature_sim_v2/world.py").read_text("utf-8"));selected={"_cell","_delta","_neighbors","_local_gradient","_choose_intent","_can_harvest"}
+    for node in ast.walk(tree):
+        if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in selected:digest.update(node.name.encode()+b"\0"+ast.dump(node,include_attributes=False).encode()+b"\0")
     return digest.hexdigest()
 
 

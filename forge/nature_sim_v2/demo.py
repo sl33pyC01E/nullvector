@@ -12,6 +12,7 @@ from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..qud_society_v1 import SocietyLayer
 from .body_pose import VisibleBodyPhysics
+from .adventure import AdventureState
 from .world import NatureWorld
 
 
@@ -31,6 +32,7 @@ class NatureDemo:
         self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device)
         self.world=NatureWorld(seed=seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.world.seed_founders(variants_per_family=3)
         self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
+        self.adventure=AdventureState(seed=seed^0x414456,size=self.world.size)
         self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + 4.46M BODY CONTROL + 3.56M ECOLOGY MIND";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def world_to_screen(self,position):
@@ -93,6 +95,10 @@ class NatureDemo:
                 elif event.key==pg.K_p:self.tool="projectile"
                 elif event.key==pg.K_g:self._graft_nearest("organ")
                 elif event.key==pg.K_k:self._graft_nearest("locomotor")
+                elif event.key==pg.K_e and self.selected in self.world.organisms:self.message=self.adventure.interact(self.world,self.world.organisms[self.selected])
+                elif event.key==pg.K_q and self.selected in self.world.organisms:
+                    try:self.message=self.adventure.build(self.world,self.world.organisms[self.selected])
+                    except ValueError as exc:self.message=f"BUILD REJECTED // {exc}"
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -103,6 +109,7 @@ class NatureDemo:
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2;entity.intent="player"
         self.world.step(min(.2,delta*2.2))
+        self.adventure.observe(self.world)
         if self.world.tick_index-self.last_society_tick>=60:
             self.society.step_history(1);self.last_society_tick=self.world.tick_index
         if entity is not None and np.linalg.norm(self.manual)>0:self.camera+=(entity.position-self.camera)*min(1,delta*4)
@@ -150,6 +157,17 @@ class NatureDemo:
                 point=self.world_to_screen((x,y));pg.draw.circle(self.screen,(75,88,78),(int(point[0]),int(point[1])),max(1,int(self.zoom*.16)))
             center=self.world_to_screen(settlement.center);self.screen.blit(self.small.render(faction.name.upper(),True,color),(center[0]-40,center[1]-18))
 
+    def _draw_adventure(self):
+        pg=self.pg
+        for site in self.adventure.sites:
+            if site.richness<=.02:continue
+            point=self.world_to_screen(site.position);color=(133,255,80) if site.discovered else (83,122,132);pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),max(3,int(self.zoom*.34)),1)
+            if site.discovered:self.screen.blit(self.small.render(site.kind.upper(),True,color),(point[0]+5,point[1]-7))
+        x,y=20,92;self.screen.blit(self.font.render(f"EXPEDITION SCORE {self.adventure.score:04}",True,(183,255,86)),(x,y));y+=24
+        for objective in self.adventure.objectives:
+            color=(134,255,91) if objective.complete else (121,153,162);mark="[X]" if objective.complete else "[ ]";text=f"{mark} {objective.description} {objective.progress:.0f}/{objective.target:.0f}";self.screen.blit(self.small.render(text,True,color),(x,y));y+=17
+        inventory="  ".join(f"{name[:3].upper()} {value:.1f}" for name,value in self.adventure.inventory.items());self.screen.blit(self.small.render(inventory,True,(225,186,91)),(x,y+4))
+
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,390);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
@@ -169,11 +187,12 @@ class NatureDemo:
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
         self._draw_materials()
         self._draw_settlements()
+        self._draw_adventure()
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();status=f"POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  HUNT {snap.predation_events:04}  COL {snap.colony_count:02}  FAC {len(self.society.factions):02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  F FOLLOW  WHEEL ZOOM  RMB PAN  I INSPECT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT  C CELLS  O ORGANS",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  F FOLLOW  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT  C CELLS  O ORGANS",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()

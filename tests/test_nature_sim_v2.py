@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 
 from forge.creature_stage_developmental import develop
-from forge.nature_sim_v2 import NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
+from forge.nature_sim_v2 import AdventureState,NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
 from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
@@ -157,3 +157,12 @@ def test_visible_body_uses_neural_muscles_and_persistent_contacts() -> None:
     first=solver.step(world,entity,1/60).copy();entity.position+=np.asarray((.35,.22));second=solver.step(world,entity,1/60).copy();appendage=organism.appendage_index>=0
     assert float(np.mean(np.linalg.norm(second[appendage]-first[appendage],axis=1)))>.04
     assert np.allclose(solver.states[entity.entity_id].nodes[0],organism.skeleton_nodes[0,:2],atol=.2)
+
+
+def test_adventure_sites_inventory_building_and_collision_are_physical() -> None:
+    world=NatureWorld(seed=774,size=48,max_population=32);world.seed_founders(variants_per_family=1);entity=world.organisms[1];adventure=AdventureState(seed=44,size=48);site=adventure.sites[0];entity.position=site.position.copy()
+    assert "SALVAGED" in adventure.interact(world,entity) and adventure.discoveries
+    adventure.inventory.update(rock=3,metal=2,biomass=2);message=adventure.build(world,entity)
+    assert "PHYSICAL WALL CELLS" in message and np.any(world.materials.structure_id>0)
+    wall=np.argwhere(world.materials.structure_id>0)[0];entity.position=np.asarray((float(wall[1])-1,float(wall[0])));entity.velocity=np.asarray((5.0,0.0));world._move(entity,np.asarray((1.0,0.0)),.25)
+    assert not (int(entity.position[0])==int(wall[1]) and int(entity.position[1])==int(wall[0]))
