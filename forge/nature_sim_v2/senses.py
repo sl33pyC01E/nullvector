@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import math
 
 import numpy as np
+from ..powder_world_v1.contract import STATE
 
 
 @dataclass(frozen=True,slots=True)
@@ -28,5 +29,9 @@ def visible_targets(world,entity,field:SensoryField)->tuple[int,...]:
         if not field.radial and distance>1e-8:
             angle=math.acos(float(np.clip(np.dot(delta/distance,facing),-1,1)))
             if angle>field.arc_radians*.5:continue
-        result.append(other.entity_id)
+        steps=max(2,int(distance*2));blocked=False
+        for t in np.linspace(0,1,steps,endpoint=False)[1:]:
+            point=(entity.position+delta*t)%world.size;y,x=world._cell(point)
+            if STATE[int(world.materials.material[y,x])]=="solid" and world.materials.structure_id[y,x]>0:blocked=True;break
+        if not blocked:result.append(other.entity_id)
     return tuple(sorted(result))

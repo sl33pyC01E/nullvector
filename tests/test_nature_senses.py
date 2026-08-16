@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from forge.nature_sim_v2 import NatureWorld,founder_genomes,sensory_field,visible_targets
+import numpy as np
 
 
 def test_family_senses_have_direction_range_and_radial_modes() -> None:
@@ -14,3 +15,8 @@ def test_destroying_sensor_organs_reduces_live_range() -> None:
     sensors=[component for component in entity.genome.developmental.components if component.organ=="sensor" or component.kind in ("head","sensor_crown")]
     for component in sensors:entity.body.impact(component.anchor,max(component.radius)*1.4,1)
     assert sensory_field(entity).range<before
+
+
+def test_conglomerate_structures_occlude_sight_without_affecting_radial_range() -> None:
+    world=NatureWorld(seed=2,size=32);genome=founder_genomes(variants_per_family=1)[4];left=world.add_organism(genome,(8,12),energy=.8);right=world.add_organism(genome,(18,12),energy=.8);entity=world.organisms[left];entity.heading=0;field=sensory_field(entity);assert right in visible_targets(world,entity,field)
+    mask=np.zeros((32,32),np.bool_);mask[9:16,12:14]=True;world.materials.add_structure(mask,structure_id=99,material="metal");assert right not in visible_targets(world,entity,field)
