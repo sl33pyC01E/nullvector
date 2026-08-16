@@ -222,14 +222,18 @@ class NatureWorld:
         for left_index,left in enumerate(living):
             for right in living[left_index+1:]:
                 if left.family==right.family:continue  # kin can overlap to mate/cluster
-                delta=self._delta(left.position,right.position);distance=float(np.linalg.norm(delta))
-                if not 1e-6<distance<.72:continue
-                normal=delta/distance;push=(.72-distance)*.5
+                delta=self._delta(left.position,right.position);distance=float(np.linalg.norm(delta));minimum=.54+.22*(left.genome.developmental.traits[0]+right.genome.developmental.traits[0])
+                if not 1e-6<distance<minimum:continue
+                normal=delta/distance;push=(minimum-distance)*.5
                 left.position=(left.position-normal*push)%self.size;right.position=(right.position+normal*push)%self.size
                 relative=right.velocity-left.velocity
                 impulse=float(np.dot(relative,normal))
                 if impulse<0:
                     left.velocity+=normal*impulse*.28;right.velocity-=normal*impulse*.28
+                    closing=-impulse
+                    if closing>1.05:
+                        left_resistance=.35+.45*(left.genome.developmental.traits[3]+left.genome.developmental.traits[5])*.5;right_resistance=.35+.45*(right.genome.developmental.traits[3]+right.genome.developmental.traits[5])*.5;base=min(.075,(closing-1.05)*.026);left_damage=base*(1-left_resistance*.55);right_damage=base*(1-right_resistance*.55);left_cells=left.body.organism.cell_xy;right_cells=right.body.organism.cell_xy;left_point=left_cells[int(np.argmax(left_cells@normal))];right_point=right_cells[int(np.argmin(right_cells@normal))]
+                        left.body.impact(tuple(left_point),2.4,left_damage);right.body.impact(tuple(right_point),2.4,right_damage);self.events.append({"tick":self.tick_index,"type":"collision_trauma","left":left.entity_id,"right":right.entity_id,"closing_speed":round(closing,6),"left_damage":round(left_damage,6),"right_damage":round(right_damage,6)})
 
     def _birth(self, parent: OrganismState) -> None:
         mate=self.organisms.get(parent.mate_id or -1)
