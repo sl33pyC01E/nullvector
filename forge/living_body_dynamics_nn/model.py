@@ -21,6 +21,7 @@ from .contract import (
     FEATURES,
     FOOD_MASS_INDEX,
     FULLNESS_INDEX,
+    LOCAL_ACTION_SLICE,
     NUTRIENT_DENSITY_INDEX,
     RESERVE_INDEX,
     SYSTEMS,
@@ -74,7 +75,7 @@ class LivingBodyDynamicsNet(nn.Module):
         # Route integrity depends on sparse feeder/digestive cell populations;
         # mean pooling alone erased those ablations in v2.  Eleven explicit,
         # permutation-invariant organ statistics preserve the causal signal.
-        self.feeding_summary_width = 11
+        self.feeding_summary_width = 13
         self.feeding_head = nn.Sequential(
             nn.LayerNorm(config.width + config.family_width + self.feeding_summary_width),
             nn.Linear(config.width + config.family_width + self.feeding_summary_width, config.width * 2),
@@ -94,6 +95,38 @@ class LivingBodyDynamicsNet(nn.Module):
         total.index_add_(0, graph_index, value * weight)
         count.index_add_(0, graph_index, weight)
         return total / count.clamp_min(1)
+
+    @staticmethod
+    def _route_reachability(features: Tensor, edges: Tensor, graph_index: Tensor, graph_count: int) -> Tensor:
+        """Differentiable cellular flood from live feeder to digestive cells.
+
+        Six learned message blocks are enough for local trauma but not a path
+        crossing an entire 48px organism. This fixed-depth propagation is an
+        architectural prior, not a target leak: it sees only adjacency, current
+        cell health, and authored feeder/digestive identities.
+        """
+        source, target = edges.long()
+        alive = (features[:, CELL_STATE_SLICE.start] > .08).to(features.dtype)
+        # The transition input describes an imminent cut as a per-cell field;
+        # route propagation must evaluate the post-action graph, matching the
+        # cell head and the authoritative teacher transition.
+        cut_action = features[:, ACTION_SLICE.start + 2].clamp(0, 1)
+        cut_field = features[:, LOCAL_ACTION_SLICE.start + 1].clamp(0, 1)
+        alive *= (1.0 - cut_action * (cut_field >= .5).to(features.dtype))
+        reach = features[:, FEEDER_INDEX].clamp(0, 1) * alive
+        for _ in range(64):
+            incoming = torch.zeros_like(reach)
+            incoming.index_add_(0, target, reach[source])
+            reach = torch.maximum(reach, incoming.clamp(0, 1) * alive)
+        digestive = features[:, DIGESTIVE_INDEX].clamp(0, 1)
+        reached_digestive = reach * digestive
+        maximum = torch.zeros((graph_count, 1), device=features.device, dtype=features.dtype)
+        maximum.scatter_reduce_(0, graph_index[:, None], reached_digestive[:, None], reduce="amax", include_self=True)
+        total = torch.zeros((graph_count, 1), device=features.device, dtype=features.dtype)
+        count = torch.zeros((graph_count, 1), device=features.device, dtype=features.dtype)
+        total.index_add_(0, graph_index, reached_digestive[:, None])
+        count.index_add_(0, graph_index, digestive[:, None])
+        return torch.cat((maximum, total / count.clamp_min(1)), 1)
 
     def forward(self, batch: dict[str, Tensor]) -> tuple[Tensor, Tensor, Tensor]:
         value = self.input(batch["features"].float())
@@ -120,7 +153,8 @@ class LivingBodyDynamicsNet(nn.Module):
         digestive_summary = self._graph_mean(health_fluid_connected, graph_index, graph_count, digestive)
         feeder_fraction = self._graph_mean(feeder[:, None], graph_index, graph_count, node_fraction)
         digestive_fraction = self._graph_mean(digestive[:, None], graph_index, graph_count, node_fraction)
-        summary = torch.cat((global_summary, feeder_fraction, feeder_summary, digestive_fraction, digestive_summary), 1)
+        route_reachability = self._route_reachability(features, batch["edges"], graph_index, graph_count)
+        summary = torch.cat((global_summary, feeder_fraction, feeder_summary, digestive_fraction, digestive_summary, route_reachability), 1)
         raw = self.feeding_head(torch.cat((graph, summary), 1))
 
         # Global physical context is repeated on every node, so graph means are

@@ -61,6 +61,18 @@ def test_v3_feeding_head_hard_gates_and_conserves_matter() -> None:
         assert torch.allclose(feeding[graph, 8], expected_mass, atol=1e-6)
 
 
+def test_v3_route_prior_tracks_post_cut_cellular_reachability() -> None:
+    corpus = BodyTransitionCorpus(repeats=4)
+    indices = [index for index, row in enumerate(corpus.rows) if row[0] in (0, 5, 11, 17, 23, 29)]
+    for start in range(0, len(indices), 32):
+        chosen = indices[start : start + 32]
+        batch = collate_graphs([corpus[index] for index in chosen])
+        reach = LivingBodyDynamicsNet._route_reachability(
+            batch["features"], batch["edges"], batch["graph_index"], len(chosen),
+        )[:, 0]
+        assert torch.equal(reach >= .5, batch["feeding_target"][:, 7] >= .5)
+
+
 def test_corpus_replay_is_exact() -> None:
     left = BodyTransitionCorpus(repeats=1)[77]
     right = BodyTransitionCorpus(repeats=1)[77]
