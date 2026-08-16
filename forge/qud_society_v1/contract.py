@@ -37,6 +37,10 @@ class SettlementState:
     buildings:list[BuildingPlan]=field(default_factory=list)
     roads:set[tuple[int,int]]=field(default_factory=set)
     founded_tick:int=0
+    stockpiles:dict[str,float]=field(default_factory=dict)
+    production:dict[str,float]=field(default_factory=dict)
+    shortages:int=0
+    projects_completed:int=0
 
 
 @dataclass(slots=True)
@@ -76,4 +80,3 @@ class Activity:
     difficulty:float
     reward_materials:tuple[tuple[str,float],...]
     description:str
-

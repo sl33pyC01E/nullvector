@@ -37,3 +37,21 @@ def test_settlement_walls_become_destructible_powder_structures() -> None:
     for _ in range(16):world.materials.beam((wall[1]-2,wall[0]),(wall[1]+2,wall[0]),energy=20,width=.5)
     assert int(np.count_nonzero(world.materials.structure_id))<before
     layer.step_history(1);assert layer.assignments
+
+
+def test_settlement_economy_harvests_finite_fields_and_runs_building_chains() -> None:
+    world=_society_world();layer=SocietyLayer(world,seed=177);faction_id=layer.found_from_colony(1);settlement=layer.settlements[next(iter(layer.factions[faction_id].settlement_ids))]
+    before=float(world.fields[[0,2,3,4,8,9]].sum());layer.step_history(4);after=float(world.fields[[0,2,3,4,8,9]].sum())
+    assert after<before
+    assert settlement.production and settlement.stockpiles["food"]>=0
+    assert settlement.stockpiles["medicine"]>0
+    assert settlement.stockpiles["parts"]>0
+    assert settlement.power>=0 and settlement.population==5
+
+
+def test_material_surplus_constructs_a_new_physical_building() -> None:
+    world=_society_world();layer=SocietyLayer(world,seed=277);faction_id=layer.found_from_colony(1);settlement=layer.settlements[next(iter(layer.factions[faction_id].settlement_ids))]
+    before_buildings=len(settlement.buildings);before_cells=int(np.count_nonzero(world.materials.structure_id));settlement.stockpiles["mineral"]=4;settlement.stockpiles["parts"]=2;layer.step_history(1)
+    assert len(settlement.buildings)==before_buildings+1 and settlement.projects_completed==1
+    assert int(np.count_nonzero(world.materials.structure_id))>=before_cells
+    assert any(event.kind=="construction" for event in layer.history)

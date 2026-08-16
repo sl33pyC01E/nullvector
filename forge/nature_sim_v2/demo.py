@@ -234,6 +234,9 @@ class NatureDemo:
             self.screen.blit(self.small.render(f"{clade.clade_id[-5:].upper()} F{clade.family} N{clade.population:02} FIT {clade.fitness:.2f} G{clade.max_generation}",True,(99,194,158)),(x,y));y+=15
         y+=6;self.screen.blit(self.small.render(f"CONTRACTS [U] // COMPLETE {self.quests.completed}",True,(255,183,87)),(x,y));y+=17
         for quest in self.quests.active(2):self.screen.blit(self.small.render(f"{quest.metric[:5].upper()} {quest.progress:.0f}/{quest.target:.0f} {quest.description[:30].upper()}",True,(213,150,75)),(x,y));y+=15
+        if self.society.settlements:
+            selected=self.world.organisms.get(self.selected);settlement=min(self.society.settlements.values(),key=lambda item:float(np.linalg.norm(self.world._delta(selected.position,np.asarray(item.center))))) if selected is not None else next(iter(self.society.settlements.values()));faction=self.society.factions[settlement.faction_id];y+=5;self.screen.blit(self.small.render(f"{faction.name.upper()} // POP {settlement.population} BUILD {len(settlement.buildings)} SHORT {settlement.shortages}",True,(110,207,242)),(x,y));y+=15
+            economy=" ".join(f"{name[:3].upper()} {settlement.stockpiles.get(name,0):.1f}" for name in ("food","medicine","parts","energy"));self.screen.blit(self.small.render(economy,True,(90,173,204)),(x,y));y+=15
 
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,610);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
