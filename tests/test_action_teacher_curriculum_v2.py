@@ -1,6 +1,7 @@
 from forge.action_teacher_v1.contract import ACTIONS
 from types import SimpleNamespace
 from forge.action_teacher_v1.curriculum_v2 import _ability_actor,_apply
+from forge.action_teacher_v1.curriculum_v3 import spatial_schedule
 
 def test_balanced_curriculum_names_every_action_once_per_cycle():
     schedule=tuple(ACTIONS[index%len(ACTIONS)] for index in range(len(ACTIONS)*3));assert set(schedule)==set(ACTIONS);assert all(schedule.count(name)==3 for name in ACTIONS);assert callable(_apply)
@@ -12,3 +13,12 @@ def test_ability_actor_prefers_current_when_it_has_the_requested_slot(monkeypatc
     monkeypatch.setattr("forge.action_teacher_v1.curriculum_v2.entity_abilities",lambda entity,equipment_damage=0:list(range(4 if entity.entity_id==9 else 2)))
     assert _ability_actor(demo,creatures,3).entity_id==9
     assert _ability_actor(demo,creatures,4) is None
+
+
+def test_spatial_curriculum_brackets_every_action_with_setup_and_settle():
+    schedule=spatial_schedule(4)
+    assert len(schedule)==4*len(ACTIONS)*3
+    for index in range(0,len(schedule),3):
+        assert schedule[index]=="none"
+        assert schedule[index+2]=="none"
+    assert all(schedule[1::3].count(action)==4 for action in ACTIONS)
