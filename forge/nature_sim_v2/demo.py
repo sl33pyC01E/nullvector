@@ -11,6 +11,7 @@ from ..creature_stage_developmental import FAMILIES,TISSUES
 from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
 from ..nature_behavior_nn import NeuralBehaviorRuntime
 from ..nature_colony_nn import NeuralColonyRuntime
+from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..nature_world_scale_v1 import InfiniteNatureAtlas,RegionKey
 from .body_pose import VisibleBodyPhysics
@@ -37,7 +38,7 @@ class NatureDemo:
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
         self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
-        self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0
+        self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544);self.last_society_tick=0;self.quests=QuestJournal()
         self.adventure=AdventureState(seed=seed^0x414456,size=self.world.size)
         if showcase:
             self.adventure.inventory.update({"biomass":5.0,"rock":4.0,"metal":4.0,"crystal":3.0,"water":4.0,"knowledge":2.0})
@@ -47,6 +48,8 @@ class NatureDemo:
                 center=np.asarray((20.0,22.0));members=set()
                 for index,entity in enumerate(founders):entity.position=center+np.asarray((index*.7,-index*.35));entity.colony_id=1;members.add(entity.entity_id)
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
+                self.society.step_history(1)
+                self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
         self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_atlas=showcase;self.manual=np.zeros(2);self.tool="inspect";self.message="VAE CELLS + NEURAL BODY + ECOLOGY MIND + COLONY COORDINATOR";self.sprite_cache={};self.visible_physics=VisibleBodyPhysics()
 
     def _enter_region(self,dx,dy,player):
@@ -127,6 +130,7 @@ class NatureDemo:
                 elif event.key==pg.K_r:
                     try:self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
+                elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
                 elif event.key==pg.K_f and self.selected in self.world.organisms:self.camera=self.world.organisms[self.selected].position.copy()
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
@@ -142,6 +146,8 @@ class NatureDemo:
             jump=entity.position-previous_position;dx=1 if jump[0]<-self.world.size*.5 else -1 if jump[0]>self.world.size*.5 else 0;dy=1 if jump[1]<-self.world.size*.5 else -1 if jump[1]>self.world.size*.5 else 0
             if dx or dy:self._enter_region(dx,dy,entity);entity=self.world.organisms.get(self.selected)
         self.adventure.observe(self.world)
+        completed=self.quests.observe(self.world,self.adventure)
+        if completed:self.message=f"CONTRACT COMPLETE // {completed[-1].description.upper()}"
         self.evolution.observe(self.world)
         if self.world.tick_index-self.last_society_tick>=60:
             self.society.step_history(1);self.last_society_tick=self.world.tick_index
@@ -205,6 +211,8 @@ class NatureDemo:
         y+=6;self.screen.blit(self.small.render(f"NATURAL SELECTION // DIVERSITY {self.evolution.diversity:.2f}",True,(111,238,188)),(x,y));y+=17
         for clade in self.evolution.dominant(3):
             self.screen.blit(self.small.render(f"{clade.clade_id[-5:].upper()} F{clade.family} N{clade.population:02} FIT {clade.fitness:.2f} G{clade.max_generation}",True,(99,194,158)),(x,y));y+=15
+        y+=6;self.screen.blit(self.small.render(f"CONTRACTS [U] // COMPLETE {self.quests.completed}",True,(255,183,87)),(x,y));y+=17
+        for quest in self.quests.active(2):self.screen.blit(self.small.render(f"{quest.metric[:5].upper()} {quest.progress:.0f}/{quest.target:.0f} {quest.description[:30].upper()}",True,(213,150,75)),(x,y));y+=15
 
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,535);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
@@ -225,7 +233,7 @@ class NatureDemo:
             self.screen.blit(self.small.render(f"{trait.grade:>3}  {trait.label.upper()}",True,(177,150,225)),(panel.x+14,y));y+=15
 
     def _draw_atlas(self):
-        pg=self.pg;radius=4;cell=38;records=self.atlas_world.window(self.region,radius);panel=pg.Rect(20,340,cell*(radius*2+1)+20,cell*(radius*2+1)+48);pg.draw.rect(self.screen,(3,10,14),panel);pg.draw.rect(self.screen,(64,127,138),panel,1);self.screen.blit(self.small.render("UNBOUNDED REGION ATLAS // M",True,(93,230,242)),(panel.x+10,panel.y+9));colors={"salt_steppe":"#a8b6a0","fungal_garden":"#cf5da8","glass_dunes":"#e6bc5d","flooded_archive":"#478fd6","phase_reef":"#a768ff","iron_wood":"#8c835e","living_cavern":"#5dbb73","machine_grave":"#8b9baa"}
+        pg=self.pg;radius=4;cell=38;records=self.atlas_world.window(self.region,radius);panel=pg.Rect(20,390,cell*(radius*2+1)+20,cell*(radius*2+1)+48);pg.draw.rect(self.screen,(3,10,14),panel);pg.draw.rect(self.screen,(64,127,138),panel,1);self.screen.blit(self.small.render("UNBOUNDED REGION ATLAS // M",True,(93,230,242)),(panel.x+10,panel.y+9));colors={"salt_steppe":"#a8b6a0","fungal_garden":"#cf5da8","glass_dunes":"#e6bc5d","flooded_archive":"#478fd6","phase_reef":"#a768ff","iron_wood":"#8c835e","living_cavern":"#5dbb73","machine_grave":"#8b9baa"}
         for record in records:
             gx=record.key.x-self.region.x+radius;gy=record.key.y-self.region.y+radius;rect=pg.Rect(panel.x+10+gx*cell,panel.y+34+gy*cell,cell-3,cell-3);color=pg.Color(colors[record.biome]);shade=.45+.45*(1-record.danger);color.r=int(color.r*shade);color.g=int(color.g*shade);color.b=int(color.b*shade);pg.draw.rect(self.screen,color,rect);border=(230,255,106) if record.key==self.region else (100,210,220) if record.key in self.atlas_world.visited else (25,45,50);pg.draw.rect(self.screen,border,rect,2 if record.key==self.region else 1);self.screen.blit(self.small.render(record.biome[:2].upper(),True,(3,10,14)),(rect.x+8,rect.y+8))
 
@@ -239,7 +247,7 @@ class NatureDemo:
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE  G ORGAN GRAFT  K LIMB GRAFT",True,(133,164,174)),(20,self.screen.get_height()-24))
+        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
