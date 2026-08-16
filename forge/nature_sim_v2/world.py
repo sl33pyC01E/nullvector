@@ -26,6 +26,7 @@ class NatureWorld:
         if not 24 <= size <= 512 or not 20 <= max_population <= 10_000:
             raise ValueError("nature world bounds drifted")
         self.seed, self.size, self.max_population = int(seed), int(size), int(max_population)
+        self.biome: str | None = None
         self.rng = np.random.default_rng(seed)
         self.fields = self._make_fields()
         self.organisms: dict[int, OrganismState] = {}

@@ -92,8 +92,8 @@ def _building(item: dict) -> BuildingPlan:
     return BuildingPlan(**{**item, "origin": tuple(item["origin"]), "cells": tuple(tuple(value) for value in item["cells"]), "entrances": tuple(tuple(value) for value in item["entrances"])})
 
 
-def _restore_society(payload: dict, world) -> SocietyLayer:
-    society = SocietyLayer(world, seed=int(payload["seed"]))
+def _restore_society(payload: dict, world, policy=None) -> SocietyLayer:
+    society = SocietyLayer(world, seed=int(payload["seed"]), policy=policy)
     society.tick = int(payload["tick"])
     society.rng.bit_generator.state = payload["rng"]
     for item in payload["factions"]:
@@ -170,7 +170,7 @@ def save_session(*, world, adventure: AdventureState, society: SocietyLayer, que
     return {"path": str(path), "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "world_sha256": world_report["world_sha256"], "selected": int(selected)}
 
 
-def load_session(path: Path, *, motion_policy=None, behavior_policy=None, colony_policy=None) -> dict:
+def load_session(path: Path, *, motion_policy=None, behavior_policy=None, colony_policy=None, society_policy=None) -> dict:
     path = Path(path).resolve()
     if not path.is_file() or path.stat().st_size > MAX_SESSION_BYTES:
         raise ValueError("nature session missing or oversized")
@@ -195,7 +195,7 @@ def load_session(path: Path, *, motion_policy=None, behavior_policy=None, colony
     return {
         "world": world,
         "adventure": _restore_adventure(metadata["adventure"]),
-        "society": _restore_society(metadata["society"], world),
+        "society": _restore_society(metadata["society"], world, society_policy),
         "quests": _restore_journal(metadata["quests"]),
         "atlas": _restore_atlas(metadata["atlas"]),
         "region": region,

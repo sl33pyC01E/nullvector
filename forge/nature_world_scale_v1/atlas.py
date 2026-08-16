@@ -58,7 +58,7 @@ class InfiniteNatureAtlas:
 
     def terraform(self,world,key:RegionKey)->RegionSummary:
         """Apply a region's ecology and organized ruins to a fresh world."""
-        summary=self.describe(key);scale=np.asarray(BIOME_RESOURCE_SCALE[summary.biome],dtype=np.float64)[:,None,None];world.fields[:]=np.clip(world.fields*scale,0,1);world.fields[2]*=.72+.68*summary.mineral;world.fields[4]*=.72+.92*summary.phase;world.fields[8]*=.62+.84*summary.fertility
+        summary=self.describe(key);world.biome=summary.biome;scale=np.asarray(BIOME_RESOURCE_SCALE[summary.biome],dtype=np.float64)[:,None,None];world.fields[:]=np.clip(world.fields*scale,0,1);world.fields[2]*=.72+.68*summary.mineral;world.fields[4]*=.72+.92*summary.phase;world.fields[8]*=.62+.84*summary.fertility
         rng=np.random.default_rng(summary.seed^0x5255494E)
         for index in range(min(5,summary.ruins)):
             width=int(rng.integers(6,11));height=int(rng.integers(6,11));x=int(rng.integers(2,max(3,world.size-width-2)));y=int(rng.integers(2,max(3,world.size-height-2)));mask=np.zeros((world.size,world.size),dtype=np.bool_);mask[y:y+2,x:x+width]=True;mask[y:y+height,x:x+2]=True;mask[y+height-2:y+height,x:x+width]=True;mask[y:y+height,x+width-2:x+width]=True;opening=y+height//2;mask[opening-1:opening+2,x+width-2:x+width]=False

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from types import SimpleNamespace
 
 from forge.nature_sim_v2 import ColonyState,NatureWorld,founder_genomes
 from forge.qud_society_v1 import SocietyLayer,expand_settlement,generate_building,validate_building
@@ -55,3 +56,12 @@ def test_material_surplus_constructs_a_new_physical_building() -> None:
     assert len(settlement.buildings)==before_buildings+1 and settlement.projects_completed==1
     assert int(np.count_nonzero(world.materials.structure_id))>=before_cells
     assert any(event.kind=="construction" for event in layer.history)
+
+
+def test_neural_strategy_controls_activity_labor_diplomacy_and_project() -> None:
+    class Policy:
+        def decide(self,faction,settlement,world):return SimpleNamespace(activity="study_anomaly",labor=(.05,.55,.1,.05,.2,.05),diplomacy="cooperate",project="observatory")
+    world=_society_world();layer=SocietyLayer(world,seed=377,policy=Policy());faction_id=layer.found_from_colony(1);settlement=layer.settlements[next(iter(layer.factions[faction_id].settlement_ids))];settlement.stockpiles["mineral"]=4;settlement.stockpiles["parts"]=2;layer.step_history(1)
+    decision=layer.strategies[settlement.settlement_id];assert decision.activity=="study_anomaly" and decision.labor[1]==.55
+    assert any(activity.kind=="study_anomaly" for activity in layer.activities.values())
+    assert settlement.buildings[-1].purpose=="observatory"

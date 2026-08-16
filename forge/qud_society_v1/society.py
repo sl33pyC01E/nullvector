@@ -16,23 +16,24 @@ SUFFIX=("Concord","Kin","Assembly","Choir","Enclave","Caravan","Collective","War
 
 
 class SocietyLayer:
-    def __init__(self,nature:NatureWorld,*,seed:int=0x515544)->None:
-        self.nature=nature;self.seed=int(seed);self.rng=np.random.default_rng(seed);self.factions:dict[str,FactionState]={};self.settlements:dict[str,SettlementState]={};self.history:list[HistoryEvent]=[];self.activities:dict[str,Activity]={};self.assignments:dict[int,str]={};self.materialized_buildings:set[str]=set();self.tick=0
+    def __init__(self,nature:NatureWorld,*,seed:int=0x515544,policy=None)->None:
+        self.nature=nature;self.seed=int(seed);self.rng=np.random.default_rng(seed);self.policy=policy;self.strategies={};self.factions:dict[str,FactionState]={};self.settlements:dict[str,SettlementState]={};self.history:list[HistoryEvent]=[];self.activities:dict[str,Activity]={};self.assignments:dict[int,str]={};self.materialized_buildings:set[str]=set();self.tick=0
 
     @staticmethod
     def _initial_stockpiles(members)->dict[str,float]:
         return {"water":sum(float(item.consumed[0]) for item in members)+1.0,"flora":sum(float(item.consumed[8]) for item in members)+.5,"biomass":sum(float(item.consumed[9]) for item in members)+.5,"mineral":sum(float(item.consumed[2]) for item in members)+.4,"metal":.2,"crystal":sum(float(item.consumed[4]) for item in members)*.2,"food":sum(item.reserve for item in members)*.3,"medicine":0.0,"parts":0.0,"energy":sum(float(item.consumed[3]) for item in members)*.2,"knowledge":.1}
 
-    def _harvest_environment(self,settlement:SettlementState,members:list)->None:
+    def _harvest_environment(self,settlement:SettlementState,members:list,labor:tuple[float,...]|None=None)->None:
         """Move finite local field resources into a settlement's physical economy."""
-        cx,cy=map(int,settlement.center);radius=max(3,min(8,2+len(members)//2));ys=(np.arange(cy-radius,cy+radius+1)%self.nature.size).astype(int);xs=(np.arange(cx-radius,cx+radius+1)%self.nature.size).astype(int);worker=max(1,len(members));rates={"water":(0,.010),"mineral":(2,.007),"energy":(3,.005),"crystal":(4,.003),"flora":(8,.010),"biomass":(9,.006)}
+        cx,cy=map(int,settlement.center);radius=max(3,min(8,2+len(members)//2));ys=(np.arange(cy-radius,cy+radius+1)%self.nature.size).astype(int);xs=(np.arange(cx-radius,cx+radius+1)%self.nature.size).astype(int);worker=max(1,len(members));forage_scale=.55+3.0*(labor[0] if labor else 1/6);rates={"water":(0,.010),"mineral":(2,.007),"energy":(3,.005),"crystal":(4,.003),"flora":(8,.010),"biomass":(9,.006)}
         for name,(channel,rate) in rates.items():
-            patch=self.nature.fields[channel][np.ix_(ys,xs)];available=float(patch.sum());amount=min(available,rate*worker*(1+.08*len(settlement.buildings)));settlement.stockpiles[name]=settlement.stockpiles.get(name,0.0)+amount
+            patch=self.nature.fields[channel][np.ix_(ys,xs)];available=float(patch.sum());amount=min(available,rate*worker*(1+.08*len(settlement.buildings))*forage_scale);settlement.stockpiles[name]=settlement.stockpiles.get(name,0.0)+amount
             if available>1e-9:self.nature.fields[channel][np.ix_(ys,xs)]=patch*max(0,1-amount/available)
         settlement.production={name:0.0 for name in ("food","medicine","parts","energy","knowledge")}
 
-    def _process_buildings(self,faction:FactionState,settlement:SettlementState)->None:
+    def _process_buildings(self,faction:FactionState,settlement:SettlementState,labor:tuple[float,...]|None=None)->None:
         stock=settlement.stockpiles
+        labor=labor or (1/6,)*6;construction=.55+2.7*labor[1];medicine=.55+2.7*labor[2];research=.55+2.7*labor[4];trade=.55+2.7*labor[5]
         def convert(output:str,amount:float,**inputs:float)->float:
             scale=min((stock.get(name,0.0)/need for name,need in inputs.items()),default=1.0);made=max(0,min(amount,amount*scale))
             if made<=0:return 0.0
@@ -40,12 +41,12 @@ class SocietyLayer:
             for name,need in inputs.items():stock[name]=max(0,stock.get(name,0.0)-need*ratio)
             stock[output]=stock.get(output,0.0)+made;settlement.production[output]=settlement.production.get(output,0.0)+made;return made
         for building in settlement.buildings:
-            if building.purpose=="granary":convert("food",.18,flora=.12,water=.05)
-            elif building.purpose=="clinic":convert("medicine",.07,food=.04,water=.05,biomass=.03)
-            elif building.purpose in ("workshop","graft_house"):convert("parts",.08,mineral=.07,biomass=.02)
+            if building.purpose=="granary":convert("food",.18*construction,flora=.12*construction,water=.05*construction)
+            elif building.purpose=="clinic":convert("medicine",.07*medicine,food=.04*medicine,water=.05*medicine,biomass=.03*medicine)
+            elif building.purpose in ("workshop","graft_house"):convert("parts",.08*construction,mineral=.07*construction,biomass=.02*construction)
             elif building.purpose=="battery_hall":convert("energy",.12,mineral=.03)
-            elif building.purpose=="observatory":convert("knowledge",.04,energy=.025)
-            elif building.purpose=="market":settlement.wealth+=.012+stock.get("parts",0)*.001
+            elif building.purpose=="observatory":convert("knowledge",.04*research,energy=.025*research)
+            elif building.purpose=="market":settlement.wealth+=(.012+stock.get("parts",0)*.001)*trade
             elif building.purpose=="habitat":convert("food",.04,flora=.03,water=.015)
         consumption=.012*max(1,settlement.population);eaten=min(stock.get("food",0),consumption);stock["food"]=max(0,stock.get("food",0)-eaten);settlement.food=stock.get("food",0)
         if eaten+1e-9<consumption:
@@ -53,11 +54,13 @@ class SocietyLayer:
         else:faction.cohesion=min(1,faction.cohesion+.004)
         knowledge=stock.get("knowledge",0);transfer=min(knowledge,.025);stock["knowledge"]-=transfer;faction.knowledge+=transfer;settlement.power=stock.get("energy",0)
 
-    def _invest_surplus(self,faction:FactionState,settlement:SettlementState)->None:
+    def _invest_surplus(self,faction:FactionState,settlement:SettlementState,project:str|None=None)->None:
         stock=settlement.stockpiles
         if len(settlement.buildings)>=min(24,max(4,settlement.population+3)) or stock.get("mineral",0)<.65 or stock.get("parts",0)<.18:return
-        index=len(settlement.buildings);angle=index*2.399963229728653;radius=9+math.sqrt(index)*16;origin=(int(round(settlement.center[0]+math.cos(angle)*radius)),int(round(settlement.center[1]+math.sin(angle)*radius)));purpose=("granary","clinic","workshop","habitat","observatory","battery_hall","market","graft_house")[index%8];building=generate_building(seed=self.seed+self.tick*65537+index*7919,origin=origin,purpose=purpose)
-        settlement.buildings.append(building);stock["mineral"]-=.65;stock["parts"]-=.18;settlement.projects_completed+=1;self._materialize(building);self.history.append(HistoryEvent(self.tick,"construction",(faction.faction_id,),settlement.center,f"{faction.name} completed a {purpose}.",(("buildings",1.0),)))
+        index=len(settlement.buildings);angle=index*2.399963229728653;radius=9+math.sqrt(index)*16;origin=(int(round(settlement.center[0]+math.cos(angle)*radius)),int(round(settlement.center[1]+math.sin(angle)*radius)));purpose=project or ("granary","clinic","workshop","habitat","observatory","battery_hall","market","graft_house")[index%8];building=generate_building(seed=self.seed+self.tick*65537+index*7919,origin=origin,purpose=purpose)
+        try:self._materialize(building)
+        except ValueError:return
+        settlement.buildings.append(building);stock["mineral"]-=.65;stock["parts"]-=.18;settlement.projects_completed+=1;self.history.append(HistoryEvent(self.tick,"construction",(faction.faction_id,),settlement.center,f"{faction.name} completed a {purpose}.",(("buildings",1.0),)))
 
     def _materialize(self,building)->None:
         if building.building_id in self.materialized_buildings:return
@@ -96,7 +99,9 @@ class SocietyLayer:
 
     def _activity(self,faction:FactionState,settlement:SettlementState,index:int)->Activity:
         weights=np.asarray((.7,.3,.5,.2,.5,.8,.9,.7,.8,.7,.4,.5,.2,.2,.4,.2));weights[ACTIVITIES.index("build")]+=faction.cultural_traits[CULTURAL_TRAITS.index("industry")];weights[ACTIVITIES.index("study_anomaly")]+=faction.cultural_traits[-1];weights[ACTIVITIES.index("negotiate")]+=faction.cultural_traits[CULTURAL_TRAITS.index("mercy")]
-        kind=ACTIVITIES[int(self.rng.choice(len(ACTIVITIES),p=weights/weights.sum()))];digest=hashlib.sha256(f"{self.seed}:{self.tick}:{faction.faction_id}:{index}:{kind}".encode()).hexdigest();difficulty=.15+.7*float(self.rng.random());reward=(("biomass",round(2+difficulty*8,2)),("knowledge",round(1+difficulty*5,2)))
+        decision=self.policy.decide(faction,settlement,self.nature) if self.policy is not None else None
+        if decision is not None:self.strategies[settlement.settlement_id]=decision
+        kind=decision.activity if decision is not None else ACTIVITIES[int(self.rng.choice(len(ACTIVITIES),p=weights/weights.sum()))];digest=hashlib.sha256(f"{self.seed}:{self.tick}:{faction.faction_id}:{index}:{kind}".encode()).hexdigest();difficulty=.15+.7*float(self.rng.random());reward=(("biomass",round(2+difficulty*8,2)),("knowledge",round(1+difficulty*5,2)))
         return Activity(f"a-{digest[:14]}",kind,faction.faction_id,settlement.center,difficulty,reward,f"{faction.name} requests: {kind.replace('_',' ')} near {settlement.settlement_id}.")
 
     def step_history(self,years:int=1)->None:
@@ -111,7 +116,7 @@ class SocietyLayer:
                 for settlement_id in sorted(faction.settlement_ids):
                     settlement=self.settlements[settlement_id];settlement.wealth+=.02*len(faction.technologies);activity=self._activity(faction,settlement,0);self.activities[activity.activity_id]=activity
                     members=[entity for entity in self.nature.organisms.values() if entity.alive and (entity.genome.lineage_id==faction.lineage_id or (entity.colony_id in self.nature.colonies and self.nature.colonies[entity.colony_id].founder_lineage==faction.lineage_id))]
-                    settlement.population=len(members);self._harvest_environment(settlement,members);self._process_buildings(faction,settlement);self._invest_surplus(faction,settlement)
+                    decision=self.strategies.get(settlement.settlement_id);labor=None if decision is None else decision.labor;project=None if decision is None else decision.project;settlement.population=len(members);self._harvest_environment(settlement,members,labor);self._process_buildings(faction,settlement,labor);self._invest_surplus(faction,settlement,project)
                     for entity in members:self.assignments[entity.entity_id]=activity.activity_id
                     if "medicine" in faction.technologies and settlement.wealth>.05:
                         for entity in sorted(members,key=lambda item:item.body.systems()["integrity"])[:max(1,len(members)//4)]:entity.body.heal((0,0),12,.06)
@@ -122,7 +127,7 @@ class SocietyLayer:
             ids=sorted(self.factions)
             for i,left_id in enumerate(ids):
                 for right_id in ids[i+1:]:
-                    left,right=self.factions[left_id],self.factions[right_id];value=left.relations.get(right_id,0);compatibility=1-abs(left.cultural_traits[2]-right.cultural_traits[2]);value=float(np.clip(value+(compatibility-.5)*.02+self.rng.normal(0,.008),-1,1));left.relations[right_id]=value;right.relations[left_id]=value
+                    left,right=self.factions[left_id],self.factions[right_id];value=left.relations.get(right_id,0);compatibility=1-abs(left.cultural_traits[2]-right.cultural_traits[2]);stances=[decision.diplomacy for settlement_id,decision in self.strategies.items() if self.settlements[settlement_id].faction_id in (left_id,right_id)];neural_bias=sum(.018 if stance=="cooperate" else -.022 if stance=="hostile" else 0 for stance in stances);value=float(np.clip(value+(compatibility-.5)*.02+neural_bias+self.rng.normal(0,.008),-1,1));left.relations[right_id]=value;right.relations[left_id]=value
             if len(self.activities)>256:self.activities=dict(list(sorted(self.activities.items()))[-256:])
 
     def semantic_sha256(self)->str:
