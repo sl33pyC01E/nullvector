@@ -16,6 +16,7 @@ from .genetics import founder_genomes, recombine
 from .grafting import graft_appendage_pair, graft_organ
 from .state import ColonyState, OrganismState
 from .colony_ecology import ColonyEcology
+from .climate import ClimateSystem
 
 
 class NatureWorld:
@@ -39,6 +40,7 @@ class NatureWorld:
         self.behavior_policy = behavior_policy
         self.materials = MaterialGrid(size,size,seed=seed^0x504F57444552)
         self.colony_ecology = ColonyEcology()
+        self.climate = ClimateSystem(seed^0x434C494D415445)
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -421,6 +423,7 @@ class NatureWorld:
         if not math.isfinite(delta) or not .01<=delta<=.5: raise ValueError("nature timestep drifted")
         self.tick_index+=1;self.time+=delta
         self._environment(delta)
+        self.climate.step(self,delta)
         if self.behavior_policy is not None and hasattr(self.behavior_policy,"prepare"):self.behavior_policy.prepare(self)
         for entity_id in sorted(list(self.organisms)):
             entity=self.organisms.get(entity_id)

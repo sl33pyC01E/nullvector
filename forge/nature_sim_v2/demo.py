@@ -246,7 +246,7 @@ class NatureDemo:
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
+        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY  E INTERACT  Q BUILD  T RECIPE  R CRAFT  U CONTRACT  M ATLAS  J DAMAGE  H HEAL  X SCRAPE  V CUT  B BEAM  P PROJECTILE",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None and self.show_cells:self._draw_cells(entity)
