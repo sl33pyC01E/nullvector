@@ -81,20 +81,32 @@ class NeuralLocomotionRuntime:
         self.states[entity.entity_id]=state;return state
 
     @torch.inference_mode()
+    def step_many(self,requests,delta:float,time:float)->dict[int,np.ndarray]:
+        rows=[];entity_rows={}
+        for entity,desired_velocity in requests:
+            state=self.states.get(entity.entity_id) or self._register(entity);direction=np.asarray(desired_velocity,np.float32);speed=float(np.linalg.norm(direction));state.phase=(state.phase+delta*(.42+speed*.72))%1;entity_rows[entity.entity_id]={"entity":entity,"speed":speed,"contacts":np.zeros(len(entity.body.organism.genome.appendages),np.bool_),"muscles":np.zeros(len(entity.body.organism.muscles),np.float32),"velocities":[],"weights":[]}
+            for bank in state.banks:
+                dynamic=np.concatenate(((math.sin(math.tau*state.phase),math.cos(math.tau*state.phase)),direction,np.asarray(entity.velocity,np.float32),bank.previous_contact)).astype(np.float32)[None,None];rows.append((entity,state,bank,dynamic))
+        if not rows:return {}
+        cat=lambda values:torch.cat(values,dim=0)
+        hidden=[]
+        for _,_,bank,_ in rows:
+            value=bank.hidden
+            if value is None:value=torch.zeros(self.model.config.recurrent_layers,1,self.model.config.width,device=self.device)
+            hidden.append(value)
+        result=self.model(cat([state.global_static for _,state,_,_ in rows]),cat([bank.appendage_meta for _,_,bank,_ in rows]),cat([bank.appendage_mask for _,_,bank,_ in rows]),cat([bank.muscle_meta for _,_,bank,_ in rows]),cat([bank.muscle_owner for _,_,bank,_ in rows]).long(),cat([bank.muscle_mask for _,_,bank,_ in rows]),torch.from_numpy(np.concatenate([dynamic for *_,dynamic in rows])).to(self.device),torch.cat(hidden,dim=1));probability=torch.sigmoid(result.contact_logits[:,0]).float().cpu().numpy();muscle_values=result.muscle[:,0].float().cpu().numpy();velocity_values=result.velocity[:,0].float().cpu().numpy()
+        for index,(entity,_state,bank,_dynamic) in enumerate(rows):
+            bank.hidden=result.hidden[:,index:index+1].detach();bank.previous_contact=(probability[index]>=.5).astype(np.float32);record=entity_rows[entity.entity_id]
+            if bank.appendage_indices:record["contacts"][np.asarray(bank.appendage_indices)]=bank.previous_contact[:len(bank.appendage_indices)].astype(np.bool_)
+            if bank.muscle_indices:record["muscles"][np.asarray(bank.muscle_indices)]=muscle_values[index,:len(bank.muscle_indices)]
+            record["velocities"].append(velocity_values[index]);record["weights"].append(max(1,len(bank.appendage_indices)))
+        outputs={}
+        for entity_id,record in entity_rows.items():
+            entity=record["entity"];entity.neural_contacts=record["contacts"];entity.neural_muscles=record["muscles"];predicted=np.average(np.stack(record["velocities"]),axis=0,weights=np.asarray(record["weights"]));magnitude=min(1.0,record["speed"]/max(float(np.linalg.norm(predicted)),1e-6));outputs[entity_id]=predicted*magnitude
+        return outputs
+
+    @torch.inference_mode()
     def step(self,entity:OrganismState,desired_velocity:np.ndarray,delta:float,time:float)->np.ndarray:
-        state=self.states.get(entity.entity_id) or self._register(entity)
-        speed=float(np.linalg.norm(desired_velocity));state.phase=(state.phase+delta*(.42+speed*.72))%1
-        direction=np.asarray(desired_velocity,np.float32);contacts=np.zeros(len(entity.body.organism.genome.appendages),np.bool_);muscles=np.zeros(len(entity.body.organism.muscles),np.float32);velocities=[];weights=[]
-        for bank in state.banks:
-            dynamic=np.concatenate(((math.sin(math.tau*state.phase),math.cos(math.tau*state.phase)),direction,np.asarray(entity.velocity,np.float32),bank.previous_contact)).astype(np.float32)[None,None]
-            result=self.model(state.global_static,bank.appendage_meta,bank.appendage_mask,bank.muscle_meta,bank.muscle_owner.long(),bank.muscle_mask,torch.from_numpy(dynamic).to(self.device),bank.hidden);bank.hidden=result.hidden.detach();probability=torch.sigmoid(result.contact_logits[0,0]).float().cpu().numpy();bank.previous_contact=(probability>=.5).astype(np.float32)
-            if bank.appendage_indices:contacts[np.asarray(bank.appendage_indices)]=bank.previous_contact[:len(bank.appendage_indices)].astype(np.bool_)
-            if bank.muscle_indices:muscles[np.asarray(bank.muscle_indices)]=result.muscle[0,0,:len(bank.muscle_indices)].float().cpu().numpy()
-            velocities.append(result.velocity[0,0].float().cpu().numpy());weights.append(max(1,len(bank.appendage_indices)))
-        entity.neural_contacts=contacts;entity.neural_muscles=muscles;predicted=np.average(np.stack(velocities),axis=0,weights=np.asarray(weights))
-        # The network predicts the teacher's physical ground velocity. Preserve
-        # analog player magnitude so a barely deflected stick is not full speed.
-        magnitude=min(1.0,speed/max(float(np.linalg.norm(predicted)),1e-6))
-        return predicted*magnitude
+        return self.step_many(((entity,desired_velocity),),delta,time)[entity.entity_id]
 
     def forget(self,entity_id:int)->None:self.states.pop(entity_id,None)

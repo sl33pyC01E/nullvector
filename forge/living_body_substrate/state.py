@@ -57,6 +57,20 @@ class LivingBody:
         self.component_owner = organism.component_weights.argmax(1).astype(np.int16)
         self.organ = tuple(organism.genome.components[int(owner)].organ for owner in self.component_owner)
         self.adjacency = self._build_adjacency()
+        self._edge_left = self.adjacency[:, 0]
+        self._edge_right = self.adjacency[:, 1]
+        neighbors: list[list[int]] = [[] for _ in range(organism.cell_count)]
+        for left, right in self.adjacency:
+            neighbors[int(left)].append(int(right))
+            neighbors[int(right)].append(int(left))
+        self._neighbors = tuple(tuple(row) for row in neighbors)
+        authority = organism.component_weights.max(1).astype(np.float32)
+        self._system_indices = {
+            system: np.asarray([ORGAN_SYSTEM.get(organ, "") == system for organ in self.organ], dtype=np.bool_)
+            for system in ("neural", "circulation", "respiration", "digestion", "senses")
+        }
+        self._system_weights = {system: authority[indices] for system, indices in self._system_indices.items()}
+        self._appendage_mask = organism.appendage_index >= 0
         self.main_seed_cell = self._core_seed()
         self.separation_age = np.zeros(organism.cell_count, dtype=np.float32)
         self.external_puddle: list[dict[str, object]] = []
@@ -67,6 +81,11 @@ class LivingBody:
         self.incapacitated = False
         self.dead = False
         self._last_connected = np.ones(organism.cell_count, dtype=np.bool_)
+        self._connectivity_alive: np.ndarray | None = None
+        self._connectivity_connected: np.ndarray | None = None
+        self._systems_health: np.ndarray | None = None
+        self._systems_fluid: np.ndarray | None = None
+        self._systems_cache: dict[str, float] | None = None
         self._assert_healthy_spawn()
 
     def _build_adjacency(self) -> np.ndarray:
@@ -101,22 +120,24 @@ class LivingBody:
 
     def _connected_to_core(self) -> np.ndarray:
         alive = self.alive_mask
+        if self._connectivity_alive is not None and np.array_equal(alive, self._connectivity_alive):
+            assert self._connectivity_connected is not None
+            return self._connectivity_connected
         connected = np.zeros(self.organism.cell_count, dtype=np.bool_)
         if not alive[self.main_seed_cell]:
+            self._connectivity_alive = alive.copy()
+            self._connectivity_connected = connected
             return connected
-        neighbors: list[list[int]] = [[] for _ in range(self.organism.cell_count)]
-        for left, right in self.adjacency:
-            if alive[left] and alive[right]:
-                neighbors[int(left)].append(int(right))
-                neighbors[int(right)].append(int(left))
         stack = [self.main_seed_cell]
         connected[self.main_seed_cell] = True
         while stack:
             current = stack.pop()
-            for neighbor in neighbors[current]:
-                if not connected[neighbor]:
+            for neighbor in self._neighbors[current]:
+                if alive[neighbor] and not connected[neighbor]:
                     connected[neighbor] = True
                     stack.append(neighbor)
+        self._connectivity_alive = alive.copy()
+        self._connectivity_connected = connected
         return connected
 
     def cut(self, start: tuple[float, float], end: tuple[float, float], *, width: float = .7) -> int:
@@ -178,13 +199,12 @@ class LivingBody:
             })
 
     def _system_capacity(self, system: str, connected: np.ndarray) -> float:
-        indices = np.asarray([ORGAN_SYSTEM.get(organ, "") == system for organ in self.organ], dtype=np.bool_)
+        indices = self._system_indices[system]
         if not indices.any():
             # A family without a mammalian organ uses distributed tissue or a
             # different named equivalent; absence is not spontaneous failure.
             return 1.0
-        authority = self.organism.component_weights.max(1)
-        weights = authority[indices]
+        weights = self._system_weights[system]
         values = self.health[indices] * connected[indices]
         capacity = float((values * weights).sum() / max(float(weights.sum()), 1e-6))
         if system == "circulation":
@@ -193,28 +213,40 @@ class LivingBody:
         return float(np.clip(capacity, 0, 1))
 
     def systems(self) -> dict[str, float]:
+        if (
+            self._systems_cache is not None
+            and self._systems_health is not None
+            and self._systems_fluid is not None
+            and np.array_equal(self.health, self._systems_health)
+            and np.array_equal(self.fluid, self._systems_fluid)
+        ):
+            return self._systems_cache.copy()
         connected = self._connected_to_core()
         self._last_connected = connected
         integrity = float(self.health.mean())
         values = {"integrity": integrity}
         for system in ("neural", "circulation", "respiration", "digestion", "senses"):
             values[system] = self._system_capacity(system, connected)
-        appendage = self.organism.appendage_index >= 0
+        appendage = self._appendage_mask
         if appendage.any():
             values["locomotion"] = float((self.health[appendage] * connected[appendage]).mean())
         else:
             values["locomotion"] = values["integrity"]
-        return {key: round(float(np.clip(values[key], 0, 1)), 8) for key in SYSTEMS}
+        result = {key: round(float(np.clip(values[key], 0, 1)), 8) for key in SYSTEMS}
+        self._systems_health = self.health.copy()
+        self._systems_fluid = self.fluid.copy()
+        self._systems_cache = result
+        return result.copy()
 
     def _diffuse_fluid(self, delta: float) -> None:
         transfer = np.zeros_like(self.fluid)
-        for left_raw, right_raw in self.adjacency:
-            left, right = int(left_raw), int(right_raw)
-            if not (self.alive_mask[left] and self.alive_mask[right]):
-                continue
-            flow = float(self.fluid[left] - self.fluid[right]) * .08 * delta
-            transfer[left] -= flow
-            transfer[right] += flow
+        alive = self.alive_mask
+        valid = alive[self._edge_left] & alive[self._edge_right]
+        left = self._edge_left[valid]
+        right = self._edge_right[valid]
+        flow = (self.fluid[left] - self.fluid[right]) * np.float32(.08 * delta)
+        np.add.at(transfer, left, -flow)
+        np.add.at(transfer, right, flow)
         self.fluid = np.clip(self.fluid + transfer, 0, self.fluid_capacity).astype(np.float32)
         for puddle in self.external_puddle:
             viscosity = float(puddle["viscosity"])
@@ -234,10 +266,6 @@ class LivingBody:
         # Resolve one connected detached component at a time so a limb becomes
         # one polyp/biomass object rather than exploding into per-cell debris.
         unresolved = set(int(index) for index in np.flatnonzero(ready))
-        neighbors: list[list[int]] = [[] for _ in range(self.organism.cell_count)]
-        for left, right in self.adjacency:
-            neighbors[int(left)].append(int(right))
-            neighbors[int(right)].append(int(left))
         while unresolved:
             seed = next(iter(unresolved))
             component = []
@@ -246,7 +274,7 @@ class LivingBody:
             while stack:
                 current = stack.pop()
                 component.append(current)
-                for neighbor in neighbors[current]:
+                for neighbor in self._neighbors[current]:
                     if neighbor in unresolved:
                         unresolved.remove(neighbor)
                         stack.append(neighbor)

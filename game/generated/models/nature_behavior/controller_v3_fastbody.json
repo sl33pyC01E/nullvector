@@ -1,0 +1,82 @@
+{
+  "checkpoint_sha256": "3e4e30926430e155714854e785c422bf060e94e48734599196a923029e7aa0b7",
+  "corpus_sha256": "e7ebcbe62c23afc829acff69068a9f96078a4352b4e209aba7dd7929cf39d7ef",
+  "format": "nullvector-nature-behavior-controller/1.0.0",
+  "rebind": {
+    "corpus_semantic_sha256": "e7ebcbe62c23afc829acff69068a9f96078a4352b4e209aba7dd7929cf39d7ef",
+    "current_source_sha256": "3c01306ca47c76dc702ff50dac088cf8362b4950d22f3392e6e72e5c1b0f5b41",
+    "kind": "semantics-preserving-scaffold-optimization",
+    "previous_source_sha256": "9dc2e3d8f405a184f9c15ae14b47f9a172867257bdd9ab674a6077d23648e7e1",
+    "selected_state_sha256": "77ecceaceedb0fb60cfc2c597c4f0742701eff4dd469bd758dfa3e1101bf3036"
+  },
+  "selected": "model",
+  "selected_state_sha256": "77ecceaceedb0fb60cfc2c597c4f0742701eff4dd469bd758dfa3e1101bf3036",
+  "source_sha256": "3c01306ca47c76dc702ff50dac088cf8362b4950d22f3392e6e72e5c1b0f5b41",
+  "validation": {
+    "direction_cosine": 0.9229059219360352,
+    "direction_mae": 0.12948031723499298,
+    "intent_accuracy": 0.9824786324786324,
+    "per_intent": {
+      "explore": {
+        "accuracy": 0.9559939301972686,
+        "count": 2636,
+        "predicted": 2542
+      },
+      "flee": {
+        "accuracy": 0.9879668049792532,
+        "count": 2410,
+        "predicted": 2397
+      },
+      "follow": {
+        "accuracy": 0.9568567026194145,
+        "count": 649,
+        "predicted": 696
+      },
+      "forage": {
+        "accuracy": 0.5862068965517241,
+        "count": 58,
+        "predicted": 34
+      },
+      "guard": {
+        "accuracy": null,
+        "count": 0,
+        "predicted": 0
+      },
+      "hunt": {
+        "accuracy": 0.9958376690946931,
+        "count": 961,
+        "predicted": 980
+      },
+      "mate": {
+        "accuracy": 0.995253164556962,
+        "count": 632,
+        "predicted": 683
+      },
+      "mine": {
+        "accuracy": 1.0,
+        "count": 936,
+        "predicted": 936
+      },
+      "phase_feed": {
+        "accuracy": 1.0,
+        "count": 936,
+        "predicted": 936
+      },
+      "photosynthesize": {
+        "accuracy": 0.9929577464788732,
+        "count": 142,
+        "predicted": 156
+      },
+      "repair": {
+        "accuracy": 1.0,
+        "count": 2340,
+        "predicted": 2340
+      },
+      "rest": {
+        "accuracy": null,
+        "count": 0,
+        "predicted": 0
+      }
+    }
+  }
+}

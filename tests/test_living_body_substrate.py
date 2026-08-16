@@ -70,3 +70,15 @@ def test_damage_replay_is_deterministic() -> None:
             snapshot = body.tick(.1)
     assert left.snapshot().semantic_sha256 == right.snapshot().semantic_sha256
     assert left.snapshot() == right.snapshot()
+
+
+def test_system_cache_tracks_direct_cell_mutation_without_stale_capacity() -> None:
+    body = _bodies()[0]
+    first = body.systems()
+    assert first == body.systems()
+    brain = body.organism.genome.components[2]
+    indices = body.component_owner == body.organism.genome.components.index(brain)
+    body.health[indices] *= .25
+    second = body.systems()
+    assert second["neural"] < first["neural"]
+    assert second == body.systems()

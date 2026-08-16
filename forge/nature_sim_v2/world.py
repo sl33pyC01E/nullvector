@@ -149,17 +149,23 @@ class NatureWorld:
         if predator.family==1:return prey.family==2 or (prey.family in (0,1) and prey.energy<predator.energy*.72)
         return False
 
-    def _move(self, entity: OrganismState, direction: np.ndarray, delta: float) -> None:
+    def _movement_target(self,entity:OrganismState,direction:np.ndarray)->np.ndarray:
         norm=float(np.linalg.norm(direction))
         if norm>1e-9: direction=direction/norm
         locomotion=entity.body.systems()["locomotion"]
         family_speed=(1.05,1.35,.18,1.08,.92)[entity.family]
         stage_scale=.45 if entity.stage=="embryo" else .72 if entity.stage=="juvenile" else .65 if entity.stage=="senescent" else 1.0
-        target=direction*family_speed*stage_scale*locomotion
-        if self.motion_policy is not None and hasattr(self.motion_policy,"step"):
+        return direction*family_speed*stage_scale*locomotion
+
+    def _move(self, entity: OrganismState, direction: np.ndarray, delta: float, neural_override:np.ndarray|None=None) -> None:
+        target=self._movement_target(entity,direction)
+        if neural_override is not None:target=np.asarray(neural_override,dtype=np.float64)
+        elif self.motion_policy is not None and hasattr(self.motion_policy,"step"):
             neural_target=np.asarray(self.motion_policy.step(entity,target,delta,self.time),dtype=np.float64)
             if neural_target.shape!=(2,) or not np.isfinite(neural_target).all():raise FloatingPointError("neural nature locomotion became invalid")
             target=np.clip(neural_target,-3.2,3.2)
+        if target.shape!=(2,) or not np.isfinite(target).all():raise FloatingPointError("neural nature locomotion became invalid")
+        target=np.clip(target,-3.2,3.2)
         responsiveness=.22+.58*entity.genome.developmental.traits[6]
         entity.velocity += (target-entity.velocity)*min(1,delta*responsiveness*4)
         entity.velocity *= math.exp(-delta*(.55 if entity.family==3 else 1.15))
@@ -438,16 +444,22 @@ class NatureWorld:
         self.tick_index+=1;self.time+=delta
         self._environment(delta)
         self.climate.step(self,delta)
-        if self.behavior_policy is not None and hasattr(self.behavior_policy,"prepare"):self.behavior_policy.prepare(self)
-        for entity_id in sorted(list(self.organisms)):
+        entity_ids=sorted(list(self.organisms))
+        for entity_id in entity_ids:
             entity=self.organisms.get(entity_id)
             if entity is None:continue
-            entity.age+=delta
-            entity.reproduction_cooldown=max(0,entity.reproduction_cooldown-delta)
-            entity.update_stage()
+            entity.age+=delta;entity.reproduction_cooldown=max(0,entity.reproduction_cooldown-delta);entity.update_stage()
+        if self.behavior_policy is not None and hasattr(self.behavior_policy,"prepare"):self.behavior_policy.prepare(self)
+        directions={entity.entity_id:self._choose_intent(entity) for entity in (self.organisms.get(entity_id) for entity_id in entity_ids) if entity is not None and entity.alive}
+        neural_targets={}
+        if self.motion_policy is not None and hasattr(self.motion_policy,"step_many"):
+            requests=[(self.organisms[entity_id],self._movement_target(self.organisms[entity_id],direction)) for entity_id,direction in directions.items()];neural_targets=self.motion_policy.step_many(requests,delta,self.time)
+        for entity_id in entity_ids:
+            entity=self.organisms.get(entity_id)
+            if entity is None:continue
             if entity.alive:
-                direction=self._choose_intent(entity)
-                self._move(entity,direction,delta)
+                direction=directions[entity_id]
+                self._move(entity,direction,delta,neural_targets.get(entity_id))
                 self._consume(entity,delta)
                 self._interactions(entity,delta)
                 if (self.tick_index+entity.entity_id*31)%180==0:self._vegetative_spread(entity)

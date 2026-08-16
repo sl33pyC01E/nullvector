@@ -37,3 +37,12 @@ def test_large_grafted_bodies_are_partitioned_without_dropping_appendages_or_mus
     assert [len(bank[0]) for bank in banks]==[8,8,3]
     assert sorted(index for appendage,_ in banks for index in appendage)==list(range(19))
     assert sorted(index for _,muscle in banks for index in muscle)==list(range(len(muscles)))
+
+
+def test_batched_runtime_preserves_every_entity_output_shape() -> None:
+    world=NatureWorld(seed=71,size=40,max_population=32);world.seed_founders(variants_per_family=1);entities=list(world.organisms.values())[:3];model=NeuralLocomotion25D(ModelConfig(width=192,recurrent_layers=2,dropout=0)).eval();runtime=NeuralLocomotionRuntime(model,device="cpu");requests=[(entity,torch.tensor((.4,-.2)).numpy()) for entity in entities];result=runtime.step_many(requests,.05,1.0)
+    assert set(result)=={entity.entity_id for entity in entities}
+    for entity in entities:
+        assert result[entity.entity_id].shape==(2,)
+        assert entity.neural_contacts.shape==(len(entity.body.organism.genome.appendages),)
+        assert entity.neural_muscles.shape==(len(entity.body.organism.muscles),)
