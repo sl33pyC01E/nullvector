@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from ..action_teacher_v1.contract import ACTIONS as ACTION_NAMES
+from ..action_teacher_v2.actor import ACTOR_FEATURE_NAMES
 from ..action_teacher_v2.contract import ACTOR_FEATURES, ACTOR_FIELD_SHAPE
 from ..world_action_sparse_v5.model import SparseActionDiT, SparseBlock, _modulate, spatial_control_fields
 from ..world_latent_dit.contract import ACTIONS, CONTROL_FEATURES, LATENT_CHANNELS, LATENT_SIZE, STATE_FEATURES
@@ -45,6 +47,18 @@ class CellularTemporalActionDiT(nn.Module):
             nn.init.zeros_(module.weight)
             if getattr(module, "bias", None) is not None:
                 nn.init.zeros_(module.bias)
+        immutable = torch.zeros(ACTOR_FEATURES, dtype=torch.bool)
+        for index, name in enumerate(ACTOR_FEATURE_NAMES):
+            immutable[index] = name.startswith(("family_", "stage_", "family_mix_", "development_", "ecology_", "diet_"))
+        topology_actions = torch.zeros(len(ACTION_NAMES), dtype=torch.bool)
+        for name in ("graft_organ", "graft_locomotor", "metamorphosis"):
+            topology_actions[ACTION_NAMES.index(name)] = True
+        structural_actions = topology_actions.clone()
+        for name in ("impact", "scrape", "cut", "beam", "projectile", "intervention"):
+            structural_actions[ACTION_NAMES.index(name)] = True
+        self.register_buffer("immutable_actor_mask", immutable, persistent=False)
+        self.register_buffer("topology_action_lookup", topology_actions, persistent=False)
+        self.register_buffer("structural_action_lookup", structural_actions, persistent=False)
 
     @staticmethod
     def time_embedding(time):
@@ -80,7 +94,22 @@ class CellularTemporalActionDiT(nn.Module):
     def edit(self, current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control):
         delta, gate_logits, actor_state_delta, actor_field_delta = self(current, previous, time, action, control, state, actor_state, actor_field, previous_action, previous_control)
         gate = torch.sigmoid(gate_logits)
-        return current + gate * delta, actor_state + actor_state_delta, actor_field + actor_field_delta, gate, delta, gate_logits
+        topology = self.topology_action_lookup[action].to(actor_state_delta.dtype)
+        structural = self.structural_action_lookup[action].to(actor_state_delta.dtype)
+        actor_delta_mask = torch.ones_like(actor_state_delta)
+        actor_delta_mask[:, self.immutable_actor_mask] = topology[:, None]
+        next_actor_state = actor_state + actor_state_delta * actor_delta_mask
+        topology_field = topology[:, None, None, None]
+        structural_field = structural[:, None, None, None]
+        occupied = actor_field[:, :1].clamp(0, 1)
+        dynamic_support = torch.maximum(occupied, topology_field)
+        structural_support = torch.maximum(occupied * structural_field, topology_field)
+        field_delta_mask = torch.zeros_like(actor_field_delta)
+        field_delta_mask[:, 1:5] = dynamic_support
+        field_delta_mask[:, :1] = structural_support
+        field_delta_mask[:, 5:] = structural_support
+        next_actor_field = (actor_field + actor_field_delta * field_delta_mask).clamp(0, 1)
+        return current + gate * delta, next_actor_state, next_actor_field, gate, delta, gate_logits
 
 
 def load_v5_latent_editor(model: CellularTemporalActionDiT, parent: SparseActionDiT) -> tuple[str, ...]:

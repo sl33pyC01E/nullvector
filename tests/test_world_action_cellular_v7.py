@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 
+from forge.action_teacher_v1.contract import ACTIONS
+from forge.action_teacher_v2.actor import ACTOR_FEATURE_NAMES
 from forge.action_teacher_v2.contract import ACTOR_FEATURES, ACTOR_FIELD_SHAPE
 from forge.world_action_cellular_v7 import CellularTemporalActionDiT, ModelConfig, RecoveryCheckpointStore, TrainingConfig, align_temporal_cellular, load_encoded_corpus, load_recovery_checkpoint, load_v5_latent_editor, selection_score, source_sha256, validate_encoded_corpus, write_encoded_corpus
 from forge.world_action_cellular_v7.contract import CHECKPOINT_FORMAT
@@ -71,6 +73,34 @@ def test_cellular_outputs_have_trainable_gradients():
     loss.backward()
     assert model.actor_state_out.weight.grad is not None
     assert model.actor_field_out.weight.grad is not None
+
+
+def test_cellular_edit_preserves_semantic_authority_outside_topology_actions():
+    model = CellularTemporalActionDiT(ModelConfig(width=32, layers=1, heads=4, patch=4))
+    with torch.no_grad():
+        model.actor_state_out.bias.fill_(0.25)
+        model.actor_field_out.bias.fill_(0.25)
+    current = torch.zeros(1, LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE)
+    actor_state = torch.zeros(1, ACTOR_FEATURES)
+    actor_field = torch.zeros(1, *ACTOR_FIELD_SHAPE)
+    actor_field[:, 0, 10:12, 10:12] = 1
+    actor_field[:, 1, 10:12, 10:12] = 0.5
+    common = (current, current, torch.zeros(1), None, torch.zeros(1, 4), torch.zeros(1, 64), actor_state, actor_field, torch.zeros(1, dtype=torch.long), torch.zeros(1, 4))
+    inspect = torch.tensor((ACTIONS.index("inspect"),))
+    _, next_actor, next_field, *_ = model.edit(*common[:3], inspect, *common[4:])
+    immutable = torch.tensor([name.startswith(("family_", "stage_", "family_mix_", "development_", "ecology_", "diet_")) for name in ACTOR_FEATURE_NAMES])
+    assert torch.equal(next_actor[:, immutable], actor_state[:, immutable])
+    assert torch.equal(next_field[:, (0, 5, 6, 7)], actor_field[:, (0, 5, 6, 7)])
+    assert torch.equal(next_field[:, 1:5, :10], actor_field[:, 1:5, :10])
+    assert float(next_field[:, 1, 10:12, 10:12].mean()) > 0.5
+    cut = torch.tensor((ACTIONS.index("cut"),))
+    _, _, cut_field, *_ = model.edit(*common[:3], cut, *common[4:])
+    assert bool((cut_field[:, (0, 5, 6, 7), 10:12, 10:12] != actor_field[:, (0, 5, 6, 7), 10:12, 10:12]).any())
+    assert torch.equal(cut_field[:, :, :10], actor_field[:, :, :10])
+    graft = torch.tensor((ACTIONS.index("graft_organ"),))
+    _, graft_actor, graft_field, *_ = model.edit(*common[:3], graft, *common[4:])
+    assert bool((graft_actor[:, immutable] != actor_state[:, immutable]).any())
+    assert bool((graft_field[:, (0, 5, 6, 7)] != actor_field[:, (0, 5, 6, 7)]).any())
 
 
 def test_recovery_checkpoint_is_atomic_and_source_bound(tmp_path):

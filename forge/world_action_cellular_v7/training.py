@@ -23,6 +23,10 @@ from .corpus import load_encoded_corpus
 from .model import CellularTemporalActionDiT, load_v5_latent_editor
 
 
+ACTOR_STATE_CHANGED_WEIGHT = 8.0
+ACTOR_FIELD_CHANGED_WEIGHT = 24.0
+
+
 def _process_rss_bytes() -> int:
     """Return resident process memory without a third-party dependency."""
     if os.name == "nt":
@@ -330,8 +334,8 @@ def train(output: Path, corpus: Path, warm_start: Path, *, train_sessions, valid
         with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
             predicted, predicted_actor, predicted_field, gate, _, gate_logits = model.edit(noisy, previous, torch.zeros(len(indices), device=device), action, control, state, actor, field, previous_action, previous_control)
             latent_error = F.smooth_l1_loss(predicted, target, reduction="none"); latent_loss = (latent_error * (1 + training.changed_weight * mask)).mean()
-            actor_error = F.smooth_l1_loss(predicted_actor, target_actor, reduction="none"); actor_loss = (actor_error * (1 + training.actor_changed_weight * actor_change)).mean()
-            field_error = F.smooth_l1_loss(predicted_field, target_field, reduction="none"); field_loss = (field_error * (1 + training.actor_changed_weight * field_mask)).mean()
+            actor_error = F.smooth_l1_loss(predicted_actor, target_actor, reduction="none"); actor_loss = (actor_error * (1 + ACTOR_STATE_CHANGED_WEIGHT * actor_change)).mean()
+            field_error = F.smooth_l1_loss(predicted_field, target_field, reduction="none"); field_loss = (field_error * (1 + ACTOR_FIELD_CHANGED_WEIGHT * field_mask)).mean()
             gate_bce = F.binary_cross_entropy_with_logits(gate_logits.float(), mask, pos_weight=torch.tensor(training.gate_positive_weight, device=device)); intersection = (gate * mask).sum((1, 2, 3)); gate_dice = 1 - ((2 * intersection + 1) / (gate.sum((1, 2, 3)) + mask.sum((1, 2, 3)) + 1)).mean(); leakage = (gate * (1 - mask)).mean()
             contrast_count = min(training.contrastive_batch, len(indices)); wrong_action = (action[:contrast_count] + 7) % len(ACTIONS); wrong_control = torch.from_numpy(counterfactual_control(train_group["control"][indices[:contrast_count]])).to(device); correct_error = (predicted[:contrast_count] - target[:contrast_count]).abs().mean((1, 2, 3)); wrong_a = model.edit(noisy[:contrast_count], previous[:contrast_count], torch.zeros(contrast_count, device=device), wrong_action, control[:contrast_count], state[:contrast_count], actor[:contrast_count], field[:contrast_count], previous_action[:contrast_count], previous_control[:contrast_count])[0]; wrong_c = model.edit(noisy[:contrast_count], previous[:contrast_count], torch.zeros(contrast_count, device=device), action[:contrast_count], wrong_control, state[:contrast_count], actor[:contrast_count], field[:contrast_count], previous_action[:contrast_count], previous_control[:contrast_count])[0]; targeted = torch.isin(action[:contrast_count], torch.as_tensor(TARGETED_INDICES, device=device)); contrastive = F.relu(training.contrastive_margin + correct_error - (wrong_a - target[:contrast_count]).abs().mean((1, 2, 3))).mean(); contrastive = contrastive + (F.relu(training.contrastive_margin + correct_error[targeted] - (wrong_c[targeted] - target[:contrast_count][targeted]).abs().mean((1, 2, 3))).mean() if bool(targeted.any()) else correct_error.new_zeros(()))
             loss = latent_loss + training.actor_state_weight * actor_loss + training.actor_field_weight * field_loss + training.gate_weight * (gate_bce + gate_dice) + training.leakage_weight * leakage + training.contrastive_weight * contrastive
