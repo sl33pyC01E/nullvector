@@ -40,25 +40,23 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
     draw.text((14, 10), title, fill=INK)
     draw.text((14, 24), note, fill=(129, 153, 167, 255))
     status = feeder_status(arena.living)
-    body_points = arena.organism.cell_xy.astype(np.float64) + arena.body.position
+    appendage = min(int(step.appendage), len(arena.articulation.chain_ids) - 1)
+    body_points = arena.articulation.cells().astype(np.float64) + arena.body.position
     for index, raw in enumerate(body_points):
         x, y = _point(raw)
         alive = bool(arena.living.alive_mask[index])
         feeder = bool(status.feeder_mask[index])
-        color = HOT if feeder and alive else ((72, 212, 220, 255) if alive else (50, 42, 49, 255))
+        selected_limb = int(arena.organism.appendage_index[index]) == appendage
+        color = HOT if feeder and alive else ((126, 255, 196, 255) if selected_limb and alive else (72, 212, 220, 255)) if alive else (50, 42, 49, 255)
         radius = 3 if feeder else 2
         draw.rectangle((x - radius, y - radius, x + radius, y + radius), fill=color)
     target = arena.targets[target_id]
     tx, ty = _point(target.position)
     radius = max(3, int(round(target.radius * SCALE)))
     draw.ellipse((tx - radius, ty - radius, tx + radius, ty + radius), fill=FOOD, outline=(224, 255, 175, 255), width=1)
-    appendage = min(int(step.appendage), len(arena.effectors) - 1)
-    ex, ey = _point(arena.effectors[appendage])
-    bx, by = _point(arena.body.position)
-    draw.line((bx, by, ex, ey), fill=(114, 121, 255, 255), width=2)
+    chain = arena.articulation.chain(appendage) + arena.body.position
+    ex, ey = _point(chain[-1])
     draw.ellipse((ex - 4, ey - 4, ex + 4, ey + 4), outline=INK, width=2)
-    if step.attached:
-        draw.line((ex, ey, tx, ty), fill=HOT, width=2)
     reserve = min(1.0, arena.feeding.reserve / arena.feeding.reserve_capacity)
     fullness = min(1.0, arena.feeding.fullness_seconds / arena.feeding.fullness_capacity_seconds)
     draw.text((14, HEIGHT - 36), f"FOOD {target.mass:4.2f}  INTAKE {arena.feeding.consumed_mass:4.2f}", fill=(188, 204, 214, 255))

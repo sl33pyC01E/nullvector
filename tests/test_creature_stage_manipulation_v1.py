@@ -28,6 +28,7 @@ def test_neural_closed_loop_grasps_carries_and_physically_feeds() -> None:
         assert attached_seen and contact_seen, genome.genome_id
         assert arena.feeding.consumed_mass > .15 and arena.feeding.reserve > .15, genome.genome_id
         assert arena.targets[target_id].mass < .85, genome.genome_id
+        assert arena.articulation.max_length_error() < 1e-4, genome.genome_id
 
 
 def test_neural_throw_releases_only_an_attached_target_with_recoil() -> None:

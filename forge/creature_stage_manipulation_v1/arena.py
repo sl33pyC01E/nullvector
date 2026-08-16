@@ -7,9 +7,10 @@ import numpy as np
 
 from ..creature_stage_developmental.development import DevelopedOrganism
 from ..creature_stage_neural_grasper_v1.constraint import GraspBody, GraspConstraint, solve_grasp
-from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, IntakeResult, absorb_food
+from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, IntakeResult, absorb_food, feeder_status
 from ..creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
 from ..living_body_substrate import LivingBody
+from .articulation import ArticulatedBody
 from .contract import CONTROLLER, assert_controller
 
 
@@ -42,10 +43,11 @@ class NeuralManipulationArena:
         self.controller = NeuralGrasperRuntime.from_checkpoint(CONTROLLER, device=device)
         mass = max(1.0, organism.cell_count * .08)
         self.body = GraspBody(np.zeros(2, dtype=np.float64), np.zeros(2, dtype=np.float64), mass)
-        self.effectors = np.asarray([appendage.endpoint for appendage in organism.genome.appendages], dtype=np.float64)
-        if not 1 <= len(self.effectors) <= 8:
+        self.articulation = ArticulatedBody.from_organism(organism)
+        if not 1 <= len(self.articulation.chain_ids) <= 8:
             raise ValueError("manipulation arena appendage census drifted")
         self.constraint = GraspConstraint()
+        self.grasp_appendage: int | None = None
         self.held_target: int | None = None
         self.targets: dict[int, FoodClump] = {}
         self.cohesion: dict[int, float] = {}
@@ -66,6 +68,15 @@ class NeuralManipulationArena:
         direction = delta / max(distance_cells, 1e-8)
         return direction, min(1.25, distance_cells / 24.0)
 
+    def _feeder_target(self, appendage: int) -> np.ndarray:
+        status = feeder_status(self.living)
+        candidates = self.organism.cell_xy[status.feeder_mask & self.living.alive_mask].astype(np.float64)
+        feasible = [point for point in candidates if self.articulation.feasible(appendage, point, contact_radius=1.8)]
+        if not feasible:
+            return np.asarray(self.organism.genome.appendages[appendage].endpoint, np.float64)
+        endpoint = self.articulation.endpoint(appendage)
+        return min(feasible, key=lambda point: float(np.linalg.norm(point - endpoint)))
+
     def step(self, target_id: int, *, goal: str, delta: float = .05, throw_strength: float = .85) -> ManipulationStep:
         if target_id not in self.targets or not math.isfinite(delta) or not .005 <= delta <= .25:
             raise ValueError("manipulation step drifted")
@@ -83,29 +94,38 @@ class NeuralManipulationArena:
             cohesion=min(1.0, self.cohesion[target_id]), mobility=1.0,
             throw=throw_strength if goal == "throw" else 0.0, attached=attached,
         )
-        appendage = min(command.appendage, len(self.effectors) - 1)
-        desired = self.body.position + np.asarray(command.reach, dtype=np.float64) * 24.0
+        predicted_appendage = min(command.appendage, len(self.articulation.chain_ids) - 1)
+        local_target = target.position - self.body.position
+        if not self.articulation.feasible(predicted_appendage, local_target):
+            feasible = [index for index in range(len(self.articulation.chain_ids)) if self.articulation.feasible(index, local_target)]
+            if feasible:
+                predicted_appendage = min(feasible, key=lambda index: (float(np.linalg.norm(self.articulation.endpoint(index) - local_target)), index))
+        appendage = self.grasp_appendage if self.constraint.attached and self.grasp_appendage is not None else predicted_appendage
+        desired_local = self._feeder_target(appendage) if self.constraint.attached and goal == "consume" else np.asarray(command.reach, dtype=np.float64) * 24.0
+        desired = self.body.position + desired_local
         response = min(1.0, delta * (10.0 + 8.0 * command.force))
-        self.effectors[appendage] += (desired - self.effectors[appendage]) * response
+        effector = self.articulation.solve(appendage, desired - self.body.position, response) + self.body.position
         target_body = GraspBody(target.position, target.velocity, target.mass)
         release = np.asarray(command.throw_impulse, dtype=np.float64) * (6.0 * throw_strength) if command.release and goal == "throw" else None
         result = solve_grasp(
-            self.body, target_body, effector=self.effectors[appendage],
+            self.body, target_body, effector=effector,
             engage=command.engage and not command.release, force=command.force,
             brace=command.brace, cohesion=self.cohesion[target_id], state=self.constraint,
             delta=delta, release_impulse=release,
         )
         if result["attached"]:
             self.held_target = target_id
+            self.grasp_appendage = appendage
         elif self.held_target == target_id:
             self.held_target = None
+            self.grasp_appendage = None
         self.body.position += self.body.velocity * delta
         target.position += target.velocity * delta
         self.body.velocity *= math.exp(-delta * 3.2)
         target.velocity *= math.exp(-delta * (1.2 + .4 / max(target.mass, .1)))
         intake = absorb_food(
             self.living, self.feeding, target, body_position=self.body.position,
-            delta=delta, contact_field=1.50, intake_rate=.55,
+            delta=delta, contact_field=1.80, intake_rate=.55,
         )
         if intake.absorbed_mass > 0 and target.mass <= 1e-8:
             self.constraint.attached = False
