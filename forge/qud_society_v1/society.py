@@ -17,7 +17,15 @@ SUFFIX=("Concord","Kin","Assembly","Choir","Enclave","Caravan","Collective","War
 
 class SocietyLayer:
     def __init__(self,nature:NatureWorld,*,seed:int=0x515544)->None:
-        self.nature=nature;self.seed=int(seed);self.rng=np.random.default_rng(seed);self.factions:dict[str,FactionState]={};self.settlements:dict[str,SettlementState]={};self.history:list[HistoryEvent]=[];self.activities:dict[str,Activity]={};self.tick=0
+        self.nature=nature;self.seed=int(seed);self.rng=np.random.default_rng(seed);self.factions:dict[str,FactionState]={};self.settlements:dict[str,SettlementState]={};self.history:list[HistoryEvent]=[];self.activities:dict[str,Activity]={};self.assignments:dict[int,str]={};self.materialized_buildings:set[str]=set();self.tick=0
+
+    def _materialize(self,building)->None:
+        if building.building_id in self.materialized_buildings:return
+        mask=np.zeros_like(self.nature.materials.material,dtype=np.bool_)
+        for x,y,material in building.cells:
+            if material=="wall":mask[y%self.nature.size,x%self.nature.size]=True
+        structure_id=20_000+int(hashlib.sha256(building.building_id.encode()).hexdigest()[:7],16)%1_000_000
+        self.nature.materials.add_structure(mask,structure_id=structure_id,material="rock");self.materialized_buildings.add(building.building_id)
 
     def _culture(self,colony_id:int,family:int)->tuple[float,...]:
         base=np.asarray((.64,.58,.34,.56,.30,.52,.72,.22),dtype=np.float64);base+=np.asarray(((0,.12,.08,.04,0,.08,.08,.02),(.05,-.02,.12,-.04,.12,-.04,.18,0),(.20,-.04,-.12,.18,.24,-.12,.30,.03),(-.18,.22,.08,-.14,.32,-.08,-.20,.48),(.30,.18,.10,-.04,-.12,.30,-.18,.05))[family]);base+=self.rng.normal(0,.06,len(CULTURAL_TRAITS));return tuple(np.clip(base,0,1))
@@ -34,6 +42,9 @@ class SocietyLayer:
         center=tuple(map(float,colony.center));settlement_id=f"s-{digest[12:24]}";buildings,roads=expand_settlement(seed=int(digest[:12],16),center=center,count=max(3,min(12,len(members)+1)))
         settlement=SettlementState(settlement_id,faction_id,center,len(members),sum(o.reserve for o in members),sum(o.consumed[8]+o.consumed[9] for o in members),sum(o.consumed[3] for o in members),buildings,roads,self.nature.tick_index)
         faction=FactionState(faction_id,name,colony.family,colony.founder_lineage,culture,technologies,{settlement_id},{},doctrine=("adapt","migrate","cultivate","transcend","construct")[colony.family]);self.factions[faction_id]=faction;self.settlements[settlement_id]=settlement
+        for building in buildings:
+            try:self._materialize(building)
+            except ValueError:pass
         self.history.append(HistoryEvent(self.tick,"founding",(faction_id,),center,f"{name} founded {settlement_id}.",(("population",float(len(members))),)))
         return faction_id
 
@@ -59,6 +70,14 @@ class SocietyLayer:
                         technology=unknown[int(self.rng.integers(len(unknown)))];faction.technologies.add(technology);self.history.append(HistoryEvent(self.tick,"discovery",(faction.faction_id,),self.settlements[next(iter(faction.settlement_ids))].center,f"{faction.name} discovered {technology}.",(("knowledge",-0.05),)))
                 for settlement_id in sorted(faction.settlement_ids):
                     settlement=self.settlements[settlement_id];settlement.wealth+=.02*len(faction.technologies);settlement.food=max(0,settlement.food+.03-.002*settlement.population);activity=self._activity(faction,settlement,0);self.activities[activity.activity_id]=activity
+                    members=[entity for entity in self.nature.organisms.values() if entity.alive and (entity.genome.lineage_id==faction.lineage_id or (entity.colony_id in self.nature.colonies and self.nature.colonies[entity.colony_id].founder_lineage==faction.lineage_id))]
+                    for entity in members:self.assignments[entity.entity_id]=activity.activity_id
+                    if "medicine" in faction.technologies and settlement.wealth>.05:
+                        for entity in sorted(members,key=lambda item:item.body.systems()["integrity"])[:max(1,len(members)//4)]:entity.body.heal((0,0),12,.06)
+                        settlement.wealth=max(0,settlement.wealth-.015*len(members))
+                    for building in settlement.buildings:
+                        try:self._materialize(building)
+                        except ValueError:pass
             ids=sorted(self.factions)
             for i,left_id in enumerate(ids):
                 for right_id in ids[i+1:]:
@@ -66,6 +85,5 @@ class SocietyLayer:
             if len(self.activities)>256:self.activities=dict(list(sorted(self.activities.items()))[-256:])
 
     def semantic_sha256(self)->str:
-        payload={"tick":self.tick,"factions":[(f.faction_id,f.name,f.family,f.cultural_traits,sorted(f.technologies),sorted(f.settlement_ids),sorted(f.relations.items()),f.knowledge,f.cohesion,f.doctrine) for f in sorted(self.factions.values(),key=lambda f:f.faction_id)],"settlements":[(s.settlement_id,s.faction_id,s.center,s.population,s.wealth,s.food,s.power,[b.building_id for b in s.buildings],sorted(s.roads)) for s in sorted(self.settlements.values(),key=lambda s:s.settlement_id)],"history":[(h.tick,h.kind,h.actors,h.location,h.description,h.consequences) for h in self.history],"activities":[(a.activity_id,a.kind,a.issuer,a.location,a.difficulty,a.reward_materials,a.description) for a in sorted(self.activities.values(),key=lambda a:a.activity_id)]}
+        payload={"tick":self.tick,"factions":[(f.faction_id,f.name,f.family,f.cultural_traits,sorted(f.technologies),sorted(f.settlement_ids),sorted(f.relations.items()),f.knowledge,f.cohesion,f.doctrine) for f in sorted(self.factions.values(),key=lambda f:f.faction_id)],"settlements":[(s.settlement_id,s.faction_id,s.center,s.population,s.wealth,s.food,s.power,[b.building_id for b in s.buildings],sorted(s.roads)) for s in sorted(self.settlements.values(),key=lambda s:s.settlement_id)],"history":[(h.tick,h.kind,h.actors,h.location,h.description,h.consequences) for h in self.history],"activities":[(a.activity_id,a.kind,a.issuer,a.location,a.difficulty,a.reward_materials,a.description) for a in sorted(self.activities.values(),key=lambda a:a.activity_id)],"assignments":sorted(self.assignments.items()),"materialized":sorted(self.materialized_buildings)}
         return hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),default=list).encode()).hexdigest()
-

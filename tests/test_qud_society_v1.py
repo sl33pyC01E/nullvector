@@ -29,3 +29,11 @@ def test_history_activities_and_relations_replay_exactly() -> None:
     assert left.semantic_sha256()==right.semantic_sha256()
     assert left.history and left.activities and len(next(iter(left.factions.values())).technologies)>4
 
+
+def test_settlement_walls_become_destructible_powder_structures() -> None:
+    world=_society_world();layer=SocietyLayer(world,seed=77);layer.found_from_colony(1)
+    assert layer.materialized_buildings and np.any(world.materials.structure_id>0)
+    before=int(np.count_nonzero(world.materials.structure_id));wall=np.argwhere(world.materials.structure_id>0)[0]
+    for _ in range(16):world.materials.beam((wall[1]-2,wall[0]),(wall[1]+2,wall[0]),energy=20,width=.5)
+    assert int(np.count_nonzero(world.materials.structure_id))<before
+    layer.step_history(1);assert layer.assignments
