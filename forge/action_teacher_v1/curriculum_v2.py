@@ -20,6 +20,14 @@ def _entities(demo):
     target=min(targets,key=lambda item:float(np.linalg.norm(demo.world._delta(entity.position,item.position)))) if targets else entity
     return entity,target,living
 
+def _ability_actor(demo,living,index):
+    current=demo.world.organisms.get(demo.selected)
+    candidates=sorted(living,key=lambda item:(item.entity_id!=getattr(current,"entity_id",-1),item.entity_id))
+    for candidate in candidates:
+        if len(entity_abilities(candidate,equipment_damage=demo.adventure.bonus("damage")))>index:
+            return candidate
+    return None
+
 def _apply(demo,action,step):
     entity,target,living=_entities(demo);demo.teacher_aim_override=target.position.copy();world=demo.world
     if action in ("none","inspect"):return True
@@ -42,8 +50,9 @@ def _apply(demo,action,step):
         if donor is None:return False
         world.graft_from(entity.entity_id,donor.entity_id,kind="organ" if action=="graft_organ" else "locomotor");demo.runtime.forget(entity.entity_id);demo.visible_physics.states.pop(entity.entity_id,None)
     elif action.startswith("ability_"):
-        abilities=entity_abilities(entity,equipment_damage=demo.adventure.bonus("damage"));index=("ability_up","ability_right","ability_down","ability_left").index(action)
-        if index>=len(abilities):return False
+        index=("ability_up","ability_right","ability_down","ability_left").index(action);entity=_ability_actor(demo,living,index)
+        if entity is None:return False
+        demo.selected=entity.entity_id;targets=[item for item in living if item.entity_id!=entity.entity_id];target=min(targets,key=lambda item:float(np.linalg.norm(demo.world._delta(entity.position,item.position)))) if targets else entity;demo.teacher_aim_override=target.position.copy();abilities=entity_abilities(entity,equipment_damage=demo.adventure.bonus("damage"))
         use_ability(world,entity,abilities[index],tuple(target.position),power=.8)
     elif action=="intervention":
         demo.adventure.inventory.update({"rock":8,"metal":8,"biomass":8,"crystal":8,"water":8,"knowledge":8});offer=demo.intervention_offers[step%len(demo.intervention_offers)];apply_intervention(world,demo.adventure,entity,offer,forecast_event=demo.timeline_forecast.event)
