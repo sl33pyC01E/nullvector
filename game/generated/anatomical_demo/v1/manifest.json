@@ -1,0 +1,50 @@
+{
+  "artifacts": {
+    "anatomy": {
+      "bytes": 426183,
+      "path": "anatomy.json",
+      "sha256": "abcaf4f7149f6fd263d3c8ac0cf3ce08176c4f86d564143e126789960ec76ef1"
+    },
+    "atlas": {
+      "bytes": 493783,
+      "path": "neural_motion_atlas.png",
+      "sha256": "7fa7d0c4a81f606f9df13f6f57e92b2c307b1ad7c00126cc21f8b5db8dbbb6f8"
+    }
+  },
+  "capabilities": [
+    "neural_raster",
+    "sixteen_phase_motion",
+    "cell_authority",
+    "organ_authority",
+    "joint_graph",
+    "muscle_pairs",
+    "damage_scaffold",
+    "grounded_locomotion_scaffold"
+  ],
+  "checkpoint": {
+    "ema_state_sha256": "bc48154343b95fe0f6430101d9153f8dff4ed4cf261520c03792d7df00a5ac14",
+    "global_step": 400,
+    "segment": 4,
+    "sha256": "a80921d1120602f38259e832a9cba6de61a9c81cafff9fcdb5d9cbeb4b6f5106",
+    "source_sha256": "09f84290db6adf6b83c5bf607349f48e9dbf897475472b798146d44a1a0de281"
+  },
+  "corpus_sha256": "097d6494fb00017f1abf94ae5337e4bcbb134c9d05e653682ad89bc0e2b4a113",
+  "families": [
+    "humanoid",
+    "animalian",
+    "plantlike",
+    "anomaly",
+    "machine"
+  ],
+  "format": "nullvector-anatomical-creature-demo-bundle/1.0.0",
+  "layout": {
+    "cell_size": 96,
+    "families": 5,
+    "height": 1536,
+    "phases": 16,
+    "width": 480
+  },
+  "manifest_sha256": "97138f11c9046a75c8b80b4f0eed1948c50e4f071e0653f6e475b0c65bac5c34",
+  "source_sha256": "d114be23f06891fa533463539b2406b61315b2cc0e5de5671bb7e68b6669bbd2",
+  "status": "ready"
+}
