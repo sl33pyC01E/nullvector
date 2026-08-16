@@ -8,6 +8,7 @@ import numpy as np
 from ..powder_world_v1.contract import MATERIALS,STATE
 from ..qud_society_v1.architecture import generate_building
 from ..qud_items_v1 import Artifact,RECIPES,craft,generate_artifact
+from ..qud_encounters_v1 import SiteEncounter,generate_encounter,resolve_encounter
 
 
 @dataclass(slots=True)
@@ -34,6 +35,7 @@ class AdventureState:
     def __init__(self,*,seed:int,size:int)->None:
         self.seed,self.size=int(seed),int(size);self.rng=np.random.default_rng(seed);self.inventory={name:0.0 for name in ("biomass","rock","metal","crystal","water","knowledge")};self.discoveries:set[str]=set();self.buildings=[];self.last_event=0;self.score=0
         self.artifacts:list[Artifact]=[];self.equipped:dict[str,str]={};self.recipe_index=0;self.craft_count=0
+        self.encounters:dict[str,SiteEncounter]={};self.pending_encounter:str|None=None;self.encounters_completed=0
         self.sites=[]
         for index in range(24):
             kind=self.SITE_KINDS[index%len(self.SITE_KINDS)];position=self.rng.uniform(3,size-3,2);digest=hashlib.sha256(f"{seed}:{index}:{kind}".encode()).hexdigest();self.sites.append(WorldSite(f"site-{digest[:10]}",kind,position,float(self.rng.uniform(.7,1.4))))
@@ -62,11 +64,17 @@ class AdventureState:
             material,gain=rewards[nearest.kind];self.inventory[material]+=amount*gain
             first=not nearest.discovered
             if first:nearest.discovered=True;self.discoveries.add(nearest.site_id);self._advance("discover",1);self.score+=20
+            if first:
+                encounter=generate_encounter(seed=self.seed,site_id=nearest.site_id,kind=nearest.kind);self.encounters[encounter.encounter_id]=encounter;self.pending_encounter=encounter.encounter_id
             if first and nearest.kind in ("machine_ruin","phase_well","relic_vault"):
                 site_seed=int(hashlib.sha256(f"{self.seed}:{nearest.site_id}:relic".encode()).hexdigest()[:16],16)
                 artifact=generate_artifact(seed=site_seed,provenance=nearest.site_id,quality=min(1,.42+nearest.richness*.3));self.artifacts.append(artifact);self.equip(artifact.artifact_id)
-                return f"RELIC // {artifact.name.upper()} // AUTO-EQUIPPED {artifact.slot.upper()}"
-            return f"SALVAGED {nearest.kind.upper()} // +{amount*gain:.2f} {material.upper()}"
+                return f"ENCOUNTER // {encounter.title.upper()} // 4/5/6 CHOOSE // RELIC {artifact.name.upper()}"
+            if first:return f"ENCOUNTER // {encounter.title.upper()} // 4/5/6 CHOOSE"
+            if self.pending_encounter:
+                pending=self.encounters[self.pending_encounter]
+                return f"ENCOUNTER PENDING // {pending.title.upper()} // 4/5/6 CHOOSE"
+            return f"HARVESTED {amount*gain:.2f} {material.upper()}"
         y,x=world._cell(entity.position);index=int(world.materials.material[y,x])
         if index and STATE[index]!="energy" and world.materials.mass[y,x]>.02:
             amount=min(.25,float(world.materials.mass[y,x]));name=MATERIALS[index];world.materials.mass[y,x]-=amount
@@ -74,6 +82,10 @@ class AdventureState:
             return f"COLLECTED {amount:.2f} {name.upper()}"
         amount=min(.14,float(world.fields[8,y,x]+world.fields[9,y,x]));world.fields[8,y,x]=max(0,world.fields[8,y,x]-amount*.6);world.fields[9,y,x]=max(0,world.fields[9,y,x]-amount*.4);self.inventory["biomass"]+=amount
         return f"FORAGED {amount:.2f} BIOMASS"
+
+    def resolve_pending(self,index:int,world,entity)->str:
+        if self.pending_encounter is None:raise ValueError("no pending encounter")
+        encounter=self.encounters[self.pending_encounter];result=resolve_encounter(encounter,index,world=world,entity=entity,adventure=self);self.pending_encounter=None;self.encounters_completed+=1;return result
 
     def build(self,world,entity)->str:
         cost={"rock":1.4,"metal":.7,"biomass":.4}

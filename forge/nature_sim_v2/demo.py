@@ -167,6 +167,9 @@ class NatureDemo:
                     try:self.message=self.adventure.craft_selected()
                     except ValueError as exc:self.message=f"CRAFT NEEDS // {exc}"
                 elif event.key==pg.K_u and self.selected in self.world.organisms:self.message=self.quests.accept_nearest(self.society,self.world,self.world.organisms[self.selected],self.adventure)
+                elif event.key in (pg.K_4,pg.K_5,pg.K_6) and self.adventure.pending_encounter is not None and self.selected in self.world.organisms:
+                    index={pg.K_4:0,pg.K_5:1,pg.K_6:2}[event.key]
+                    self.message=self.adventure.resolve_pending(index,self.world,self.world.organisms[self.selected])
                 elif event.key in (pg.K_1,pg.K_2,pg.K_3) and self.selected in self.world.organisms:
                     entity=self.world.organisms[self.selected];index={pg.K_1:0,pg.K_2:1,pg.K_3:2}[event.key];offer=evolution_offers(entity.genome,epoch=self.evolution_epoch)[index]
                     if self.adventure.inventory["knowledge"]+1e-9<offer.cost:self.message=f"METAMORPHOSIS NEEDS {offer.cost:.1f} KNOWLEDGE"
@@ -282,6 +285,14 @@ class NatureDemo:
             strategy=self.society.strategies.get(settlement.settlement_id)
             if strategy is not None:self.screen.blit(self.small.render(f"NEURAL STRATEGY // {strategy.activity.upper()} / {strategy.diplomacy.upper()} / {strategy.project.upper()}",True,(178,125,255)),(x,y));y+=15
 
+    def _draw_encounter(self):
+        if self.adventure.pending_encounter is None:return
+        pg=self.pg;encounter=self.adventure.encounters[self.adventure.pending_encounter];width=760;height=252;panel=pg.Rect((self.screen.get_width()-width)//2,96,width,height);shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((0,3,7,118));self.screen.blit(shade,(0,0));pg.draw.rect(self.screen,(5,13,20),panel);pg.draw.rect(self.screen,(190,111,255),panel,2)
+        self.screen.blit(self.small.render(f"SITE ENCOUNTER // {encounter.kind.upper()} // BODY SYSTEMS ARE THE DICE",True,(105,220,242)),(panel.x+22,panel.y+16));self.screen.blit(self.big.render(encounter.title.upper(),True,(235,214,255)),(panel.x+22,panel.y+39));self.screen.blit(self.font.render(encounter.description,True,(157,181,190)),(panel.x+22,panel.y+82))
+        systems=self.world.organisms[self.selected].body.systems() if self.selected in self.world.organisms else {}
+        for index,choice in enumerate(encounter.choices):
+            x=panel.x+22+index*242;box=pg.Rect(x,panel.y+118,224,102);pg.draw.rect(self.screen,(8,22,28),box);pg.draw.rect(self.screen,(48,105,118),box,1);self.screen.blit(self.font.render(f"[{index+4}] {choice.label.upper()}",True,(225,238,241)),(x+12,box.y+11));capacity={"perception":systems.get("senses",0),"integrity":systems.get("integrity",0),"neural":systems.get("neural",0)}[choice.approach];risk_color=(116,255,116) if choice.risk<.25 else (255,210,89) if choice.risk<.5 else (255,103,105);self.screen.blit(self.small.render(f"TEST {choice.approach.upper()}  {capacity:.2f}",True,(133,203,218)),(x+12,box.y+42));self.screen.blit(self.small.render(f"RISK {choice.risk:.2f}  YIELD x{choice.reward_scale:.2f}",True,risk_color),(x+12,box.y+62));self.screen.blit(self.small.render("REAL INJURY ON FAILURE",True,(166,117,130)),(x+12,box.y+80))
+
     def _draw_cells(self,entity):
         pg=self.pg;panel=pg.Rect(self.screen.get_width()-380,72,350,610);pg.draw.rect(self.screen,(5,13,18),panel);pg.draw.rect(self.screen,(38,83,92),panel,1)
         center=np.asarray((panel.centerx,panel.y+165));organism=entity.body.organism;health=entity.body.health;visible=self.visible_physics.cells(entity)
@@ -346,6 +357,7 @@ class NatureDemo:
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
             self._draw_evolution_offers(entity)
+        if self.adventure.pending_encounter is not None:self._draw_encounter()
         if self.creator.active:self._draw_creator()
         self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));pg.display.flip()
 
@@ -360,7 +372,10 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.run(capture=args.capture)
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator
+    if args.encounter:
+        entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
+    demo.run(capture=args.capture)
 
 
 if __name__=="__main__":main()
