@@ -26,16 +26,6 @@ too large for an ordinary GitHub repository.
 |---|---|---|
 | ![Developmental locomotion](examples/showcase/developmental_locomotion.gif) | ![Cellular breeding and symmetry](examples/showcase/cellular_breeding_symmetry.png) | ![Living world scaffold](examples/showcase/living_world.png) |
 
-| Neural grasp + physical feeding | Neural throw + recoil | Damaged feeder fails closed |
-|---|---|---|
-| ![Neural grasper carrying food into live mouth cells](examples/showcase/neural_grasper_feeding.gif) | ![Neural throw with target impulse and body recoil](examples/showcase/neural_grasper_throw.gif) | ![Severed physical feeder blocks nutrition](examples/showcase/neural_feeder_severed.gif) |
-
-These manipulation clips are live closed-loop rollouts from the accepted
-8.01M-parameter grasper runtime. The controller selects an appendage, reach,
-force, brace, release, and throw impulse. Nutrition is granted only after the
-clump physically reaches living feeder cells with an intact path to digestive
-tissue; merely overlapping the chassis is insufficient.
-
 See [examples/README.md](examples/README.md) for maps, trauma, NCA dynamics,
 VAE reconstruction, Action-DiT evidence, source paths, and honest scope notes.
 
@@ -55,6 +45,16 @@ ecology cohorts, seeded settlements/societies, a six-stage expedition arc,
 resource delivery, live gene upgrades, and family-specific construction with
 broad collision hulls. Bodies remain vertically aligned in 2.5D; appendages
 and aim move, but the chassis never flips.
+
+The native ecology can now replace abstract flora/biomass calories with
+persistent material clumps and the accepted neural manipulation runtime.
+Hungry organisms stop at appendage range, articulate a real cell-skinned limb
+with fixed bone lengths, grasp the clump, curl it back to live feeder cells,
+and metabolize the stored reserve over time. Plants retain light/water
+physiology; anomalies and machines favor phase, charge, and mineral matter.
+Predation and death produce tangible matter instead of transferring energy
+instantly. This mode is save/resume and streamed-region persistent; legacy
+teacher worlds remain available when the feeding bridge is omitted.
 
 The development sequence is deliberately staged:
 
