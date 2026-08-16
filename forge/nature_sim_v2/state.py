@@ -35,6 +35,7 @@ class OrganismState:
     consumed: np.ndarray = field(default_factory=lambda: np.zeros(len(RESOURCE_NAMES), dtype=np.float64))
     neural_contacts: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.bool_))
     neural_muscles: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.float32))
+    polyp_cursor: int = 0
 
     @classmethod
     def spawn(cls, entity_id: int, genome: EcoGenome, position: tuple[float,float], *, birth_tick: int = 0, parent_ids: tuple[int,...] = (), energy: float = .55) -> "OrganismState":

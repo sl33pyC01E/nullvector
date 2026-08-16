@@ -17,15 +17,14 @@ SOURCE_FILES=(
     "forge/nature_behavior_nn/contract.py","forge/nature_behavior_nn/features.py",
     "forge/nature_behavior_nn/model.py","forge/nature_behavior_nn/corpus.py",
     "forge/nature_behavior_nn/training.py","forge/nature_behavior_nn/runtime.py",
-    "forge/nature_sim_v2/contract.py","forge/nature_sim_v2/state.py",
-    "forge/nature_sim_v2/genetics.py",
+    "forge/nature_sim_v2/contract.py",
     "forge/living_body_substrate/state.py",
     "forge/creature_stage_developmental/contract.py",
     "forge/creature_stage_developmental/development.py",
 )
 CORPUS_SOURCE_FILES=(
     "forge/nature_behavior_nn/contract.py","forge/nature_behavior_nn/features.py","forge/nature_behavior_nn/corpus.py",
-    "forge/nature_sim_v2/contract.py","forge/nature_sim_v2/state.py","forge/nature_sim_v2/genetics.py",
+    "forge/nature_sim_v2/contract.py",
     "forge/living_body_substrate/state.py","forge/creature_stage_developmental/contract.py","forge/creature_stage_developmental/development.py",
 )
 

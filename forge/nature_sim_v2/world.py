@@ -248,9 +248,39 @@ class NatureWorld:
         self.mutation_count+=len(child_genome.mutation_log)
         self.events.append({"tick":self.tick_index,"type":"birth","entity":child_id,"parents":child.parent_ids,"mutations":child_genome.mutation_log})
 
+    def _spawn_polyps(self,entity:OrganismState)->int:
+        spawned=0
+        while entity.polyp_cursor<len(entity.body.polyps):
+            record=entity.body.polyps[entity.polyp_cursor];entity.polyp_cursor+=1
+            viability=float(record.get("viability",0))
+            if viability<.16 or len(self.organisms)>=self.max_population:continue
+            seed=int(self.rng.integers(0,2**63-1))
+            try:genome=recombine(entity.genome,entity.genome,seed=seed,allow_graft=False)
+            except ValueError:genome=entity.genome
+            centroid=np.asarray(record.get("centroid",(0,0)),float);direction=centroid/max(float(np.linalg.norm(centroid)),1)
+            child_id=self.add_organism(genome,tuple(entity.position+direction*(1.2+viability)),energy=.12+.24*viability,parents=(entity.entity_id,));child=self.organisms[child_id];child.colony_id=entity.colony_id
+            if child.colony_id in self.colonies:self.colonies[child.colony_id].member_ids.add(child_id)
+            self.births+=1;spawned+=1;self.events.append({"tick":self.tick_index,"type":"polyp","entity":child_id,"parent":entity.entity_id,"viability":round(viability,6),"cells":int(record.get("cell_count",0))})
+        return spawned
+
+    def _vegetative_spread(self,entity:OrganismState)->bool:
+        if entity.family!=2 or entity.stage!="mature" or entity.energy<.78 or entity.reserve<.35 or entity.reproduction_cooldown>0 or len(self.organisms)>=self.max_population:return False
+        nearby=[o for o in self._neighbors(entity,3.2) if o.family==2]
+        if len(nearby)>=3:return False
+        seed=int(self.rng.integers(0,2**63-1))
+        try:genome=recombine(entity.genome,entity.genome,seed=seed,allow_graft=False)
+        except ValueError:return False
+        # Golden-angle indexed hex directions yield expanding, non-overlapping
+        # tessellations without a global plant-grid script.
+        direction_index=(entity.entity_id+entity.genome.developmental.generation+self.births)%6;angle=math.tau*direction_index/6;offset=np.asarray((math.cos(angle),math.sin(angle)))*2.35
+        child_id=self.add_organism(genome,tuple(entity.position+offset),energy=.24,parents=(entity.entity_id,));child=self.organisms[child_id];child.colony_id=entity.colony_id
+        if child.colony_id in self.colonies:self.colonies[child.colony_id].member_ids.add(child_id)
+        entity.energy-=.18;entity.reserve-=.22;entity.reproduction_cooldown=32+28*(1-entity.genome.trait("fertility"));self.births+=1;self.mutation_count+=len(genome.mutation_log);self.events.append({"tick":self.tick_index,"type":"vegetative_spread","entity":child_id,"parent":entity.entity_id,"direction":direction_index,"mutations":genome.mutation_log});return True
+
     def _death_and_decay(self, entity: OrganismState, delta: float) -> None:
         if entity.alive:
             snap=entity.body.tick(min(delta,.5))
+            self._spawn_polyps(entity)
             for puddle in entity.body.external_puddle:
                 exported=min(float(puddle["amount"]),.018*delta)
                 if exported<=0:continue
@@ -401,6 +431,7 @@ class NatureWorld:
                 self._move(entity,direction,delta)
                 self._consume(entity,delta)
                 self._interactions(entity,delta)
+                if (self.tick_index+entity.entity_id*31)%180==0:self._vegetative_spread(entity)
                 basal=(.00045+.0018*entity.genome.trait("basal_metabolism"))*delta
                 entity.energy=max(0,entity.energy-basal)
                 if entity.gestation_remaining>0:

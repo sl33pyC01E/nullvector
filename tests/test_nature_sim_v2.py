@@ -166,3 +166,15 @@ def test_adventure_sites_inventory_building_and_collision_are_physical() -> None
     assert "PHYSICAL WALL CELLS" in message and np.any(world.materials.structure_id>0)
     wall=np.argwhere(world.materials.structure_id>0)[0];entity.position=np.asarray((float(wall[1])-1,float(wall[0])));entity.velocity=np.asarray((5.0,0.0));world._move(entity,np.asarray((1.0,0.0)),.25)
     assert not (int(entity.position[0])==int(wall[1]) and int(entity.position[1])==int(wall[0]))
+
+
+def test_polyp_offspring_and_bounded_plant_tessellation() -> None:
+    world=NatureWorld(seed=775,size=48,max_population=32);plant=next(g for g in founder_genomes(variants_per_family=1) if g.family==2);parent_id=world.add_organism(plant,(24,24),energy=1);parent=world.organisms[parent_id];parent.age=100;parent.reserve=.8;parent.update_stage()
+    parent.body.polyps.append({"viability":.72,"centroid":[4,1],"cell_count":9});before=len(world.organisms)
+    assert world._spawn_polyps(parent)==1 and len(world.organisms)==before+1
+    parent.reproduction_cooldown=0;parent.energy=1;parent.reserve=.8
+    assert world._vegetative_spread(parent)
+    children=[o for o in world.organisms.values() if o.parent_ids]
+    assert len(children)==2 and all(o.genome.developmental.generation>=1 for o in children)
+    assert np.linalg.norm(world._delta(parent.position,children[-1].position))>2
+    assert parent.reproduction_cooldown>20 and parent.energy<1

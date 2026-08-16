@@ -1,5 +1,5 @@
 {
-  "checkpoint_sha256": "71b2b327a719c1a4fed73fb277e3c83ed4dbc08f71eaa13fe9ab1d18bfcb4c38",
+  "checkpoint_sha256": "f91eecd6793345397394c61de38560e1cc15b27c53087cfdd2c8423f4e7c4277",
   "corpus_sha256": "e7ebcbe62c23afc829acff69068a9f96078a4352b4e209aba7dd7929cf39d7ef",
   "ema_state_sha256": "e53431c3cf6535d0a47c0c06dd9a254eb2daa3289ad10f27a7cc9c5c2e937c2c",
   "format": "nullvector-nature-behavior-controller/1.0.0",
@@ -267,10 +267,10 @@
   "model_state_sha256": "77ecceaceedb0fb60cfc2c597c4f0742701eff4dd469bd758dfa3e1101bf3036",
   "parameters": 3558415,
   "provenance_rebind": {
-    "previous_source_sha256": "9dc2e3d8f405a184f9c15ae14b47f9a172867257bdd9ab674a6077d23648e7e1",
-    "reason": "behavior-relevant world AST unchanged; material collision and adventure layer excluded"
+    "previous_source_sha256": "c2447444a03b9e6016cfeca14beef168ea1e4a8871b340cb12f7e8a6be5498f7",
+    "reason": "behavior observation and teacher AST unchanged; non-observed organism state extension excluded"
   },
-  "source_sha256": "c2447444a03b9e6016cfeca14beef168ea1e4a8871b340cb12f7e8a6be5498f7",
+  "source_sha256": "5c85701d2bc02af26b7f0ec2494b9e72f08425563d3c9a4f510c519aea862922",
   "validation": {
     "ema": {
       "direction_cosine": 0.7891719937324524,
