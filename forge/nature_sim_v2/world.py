@@ -17,6 +17,7 @@ from .grafting import graft_appendage_pair, graft_organ
 from .state import ColonyState, OrganismState
 from .colony_ecology import ColonyEcology
 from .climate import ClimateSystem
+from .ecosystem_network import EcosystemNetwork
 
 
 class NatureWorld:
@@ -42,6 +43,7 @@ class NatureWorld:
         self.materials = MaterialGrid(size,size,seed=seed^0x504F57444552)
         self.colony_ecology = ColonyEcology()
         self.climate = ClimateSystem(seed^0x434C494D415445)
+        self.ecosystem = EcosystemNetwork()
 
     def _make_fields(self) -> np.ndarray:
         y, x = np.mgrid[:self.size, :self.size]
@@ -453,6 +455,7 @@ class NatureWorld:
             if not entity.finite():raise FloatingPointError(f"entity {entity_id} became non-finite")
         self._update_colonies()
         self.colony_ecology.step(self,delta)
+        self.ecosystem.step(self,delta)
         self._resolve_collisions()
         self._step_projectiles(delta)
         # Decomposed records can leave the active representation after their ledger is complete.

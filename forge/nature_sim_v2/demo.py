@@ -231,6 +231,13 @@ class NatureDemo:
             center=self.world_to_screen(settlement.center);self.screen.blit(self.small.render(faction.name.upper(),True,color),(center[0]-40,center[1]-18));strategy=self.society.strategies.get(settlement.settlement_id)
             if strategy is not None:self.screen.blit(self.small.render(f"NN {strategy.activity.upper()} > {strategy.project.upper()}",True,(190,132,255)),(center[0]-40,center[1]-4))
 
+    def _draw_ecosystem_links(self):
+        pg=self.pg;colors={"pollination":(175,255,89),"root_network":(75,180,91),"phase_charge":(185,105,255),"scavenge":(188,121,72)}
+        for link in self.world.ecosystem.links:
+            left=self.world.organisms.get(link.left);right=self.world.organisms.get(link.right)
+            if left is None or right is None:continue
+            start=self.world_to_screen(left.position);delta=self.world._delta(left.position,right.position);end=self.world_to_screen(left.position+delta);color=colors[link.kind];pg.draw.line(self.screen,color,(int(start[0]),int(start[1])),(int(end[0]),int(end[1])),max(1,int(link.strength*2)))
+
     def _draw_adventure(self):
         pg=self.pg
         for site in self.adventure.sites:
@@ -289,6 +296,7 @@ class NatureDemo:
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
         self._draw_materials()
+        self._draw_ecosystem_links()
         self._draw_settlements()
         self._draw_adventure()
         if self.show_atlas:self._draw_atlas()
@@ -297,7 +305,7 @@ class NatureDemo:
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
         width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
-        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9}  POP {snap.population:03}  BIRTH {snap.births:03}  DEATH {snap.deaths:03}  COL {snap.colony_count:02}  MUT {snap.mutation_count:02}"
+        snap=self.world.snapshot();biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;network=self.world.ecosystem;status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} SYM {network.pollinations}/{network.root_transfers}/{network.phase_couplings}"
         self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD MOVE  ARROWS ANATOMICAL ACTIONS  E INTERACT  Q BUILD  T/R CRAFT  U CONTRACT  M ATLAS  L SENSES  F5/F9 SAVE  J/H/X/V TOOLS",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
