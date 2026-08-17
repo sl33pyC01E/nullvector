@@ -8,6 +8,7 @@ from forge.cellular_nca.model import OrganismCellularAutomaton
 from forge.cellular_nca.teacher import teacher_step
 from forge.cellular_nca_causal.contract import PARENT_OUTPUT, causal_source_sha256
 from forge.cellular_nca_causal.curriculum import SYSTEMS, apply_system_ablation, causal_contrast_loss, make_targeted_pairs, system_mask
+from forge.cellular_nca_causal.training import _valid_generator_state
 
 
 def _batch(count: int = 4):
@@ -42,3 +43,11 @@ def test_small_model_can_backpropagate_causal_pair() -> None:
 def test_contract_binds_parent_and_four_named_systems() -> None:
     assert [row[0] for row in SYSTEMS] == ["circulation", "respiration", "digestion", "neural"]
     assert len(causal_source_sha256()) == 64
+
+
+def test_generator_state_accepts_compact_cuda_philox_without_open_bounds() -> None:
+    assert _valid_generator_state(torch.zeros(16, dtype=torch.uint8))
+    assert _valid_generator_state(torch.zeros(5056, dtype=torch.uint8))
+    assert not _valid_generator_state(torch.zeros(15, dtype=torch.uint8))
+    assert not _valid_generator_state(torch.zeros(100_001, dtype=torch.uint8))
+    assert not _valid_generator_state(torch.zeros(16, dtype=torch.int64))

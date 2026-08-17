@@ -31,6 +31,12 @@ python -m forge.cellular_nca_causal evaluate
 python -m forge.cellular_nca_causal validate
 ```
 
+If a validator-only source correction lands after a child has atomically
+published a valid segment, `rebind` can copy that segment into a new output
+authority.  It validates the old model, optimizer, RNG, history, and hashes,
+requires the semantic training contract to remain identical, and records the
+old/new checkpoint ancestry.  It never edits the interrupted output in place.
+
 Evaluation and validation default to deterministic single-threaded CPU so the
 published causal measurements can be replayed independently of the training
 GPU. `validate` reruns all 32-step general trajectories and all four 16-step

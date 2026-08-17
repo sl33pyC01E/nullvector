@@ -29,6 +29,22 @@ SEED = 0x43415553414C4E43
 MAX_CHECKPOINT_BYTES = 1024 * 1024 * 1024
 
 
+def _valid_generator_state(value: object) -> bool:
+    """Accept bounded Torch RNG encodings without assuming one backend layout.
+
+    Torch 2.6 uses a compact 16-byte Philox state for CUDA generators while
+    CPU generators use a much larger state.  Shape, dtype, and a conservative
+    size ceiling are the durable contract; a 1,000-byte lower bound was an
+    accidental CPU-only assumption.
+    """
+    return (
+        isinstance(value, Tensor)
+        and value.dtype == torch.uint8
+        and value.ndim == 1
+        and 16 <= value.numel() <= 100_000
+    )
+
+
 def checkpoint_name(step: int) -> str:
     return f"causal_segment_{step:07d}.pt"
 
@@ -84,10 +100,11 @@ def prepare_training(output: Path, *, parent_output: Path = PARENT_OUTPUT, total
     return contract
 
 
-def _load_checkpoint(path: Path, contract: dict[str, Any], *, expected_step: int | None = None) -> dict[str, Any]:
+def _load_checkpoint(path: Path, contract: dict[str, Any], *, expected_step: int | None = None, require_current_source: bool = True) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= MAX_CHECKPOINT_BYTES: raise ValueError("Causal checkpoint missing or oversized.")
     payload = torch.load(path, map_location="cpu", weights_only=True); required = {"format", "source_sha256", "contract", "step", "model_state", "ema_state", "optimizer_state", "model_state_sha256", "ema_state_sha256", "cuda_generator_state", "history", "runtime"}
-    if not isinstance(payload, dict) or set(payload) != required or payload["format"] != CHECKPOINT_FORMAT or payload["source_sha256"] != causal_source_sha256() or payload["contract"] != contract: raise ValueError("Causal checkpoint provenance drifted.")
+    expected_source = causal_source_sha256() if require_current_source else contract.get("source_sha256")
+    if not isinstance(payload, dict) or set(payload) != required or payload["format"] != CHECKPOINT_FORMAT or payload["source_sha256"] != expected_source or payload["contract"] != contract: raise ValueError("Causal checkpoint provenance drifted.")
     if type(payload["step"]) is not int or not 1 <= payload["step"] <= contract["total_steps"] or (expected_step is not None and payload["step"] != expected_step) or not isinstance(payload["history"], list) or len(payload["history"]) != payload["step"]: raise ValueError("Causal checkpoint census drifted.")
     history_keys = {"step", "loss", "base_loss", "contrast_loss", "contrast_direction", "contrast_magnitude", "gradient_norm", "health_mae", "oxygen_mae", "energy_mae", "neural_mae"}
     for index, row in enumerate(payload["history"], 1):
@@ -103,8 +120,49 @@ def _load_checkpoint(path: Path, contract: dict[str, Any], *, expected_step: int
     runtime = payload["runtime"]
     if not isinstance(runtime, dict) or set(runtime) != {"segment_seconds", "updates_per_second", "peak_allocated_bytes", "peak_reserved_bytes", "device", "torch"} or any(type(runtime[key]) not in (int, float) or not math.isfinite(float(runtime[key])) or float(runtime[key]) < 0 for key in ("segment_seconds", "updates_per_second", "peak_allocated_bytes", "peak_reserved_bytes")) or not all(isinstance(runtime[key], str) and runtime[key] for key in ("device", "torch")):
         raise ValueError("Causal checkpoint runtime drifted.")
-    if not isinstance(payload["cuda_generator_state"], Tensor) or payload["cuda_generator_state"].dtype != torch.uint8 or payload["cuda_generator_state"].ndim != 1 or not 1000 <= payload["cuda_generator_state"].numel() <= 100000: raise ValueError("Causal checkpoint RNG drifted.")
+    if not _valid_generator_state(payload["cuda_generator_state"]): raise ValueError("Causal checkpoint RNG drifted.")
     return payload
+
+
+def rebind_checkpoint(source_output: Path, output: Path, *, end_step: int) -> dict[str, Any]:
+    """Additively recover a valid checkpoint after validator-only source drift."""
+    source_output = Path(source_output).resolve(); output = Path(output).resolve()
+    old_contract = read_canonical_json(source_output / TRAINING_NAME)
+    if old_contract.get("format") != TRAINING_FORMAT or old_contract.get("source_sha256") == causal_source_sha256():
+        raise ValueError("Rebind requires a stale causal training authority.")
+    old_path = source_output / checkpoint_name(end_step)
+    old_payload = _load_checkpoint(old_path, old_contract, expected_step=end_step, require_current_source=False)
+    project_root = Path(__file__).resolve().parents[2]
+    parent_output = project_root / old_contract["parent"]["path"]
+    new_contract = prepare_training(
+        output,
+        parent_output=parent_output,
+        total_steps=old_contract["total_steps"],
+        segment_steps=old_contract["segment_steps"],
+        batch_size=old_contract["batch_size"],
+        max_attempts=old_contract["supervisor"]["max_attempts_per_segment"],
+    )
+    comparable_old = dict(old_contract); comparable_new = dict(new_contract)
+    comparable_old.pop("source_sha256", None); comparable_new.pop("source_sha256", None)
+    if comparable_old != comparable_new:
+        raise ValueError("Rebind refused a semantic training-contract change.")
+    rebound = dict(old_payload); rebound["source_sha256"] = causal_source_sha256(); rebound["contract"] = new_contract
+    destination = output / checkpoint_name(end_step)
+    if destination.exists(): raise FileExistsError(destination)
+    _atomic_torch(destination, rebound)
+    verified = _load_checkpoint(destination, new_contract, expected_step=end_step)
+    report = {
+        "format": "nullvector-organism-neural-cellular-automaton-causal-rebind-v1",
+        "source_sha256": causal_source_sha256(),
+        "from": {"path": source_output.relative_to(project_root).as_posix(), "source_sha256": old_contract["source_sha256"], "checkpoint_sha256": sha256_file(old_path)},
+        "to": {"path": output.relative_to(project_root).as_posix(), "checkpoint_sha256": sha256_file(destination)},
+        "step": end_step,
+        "model_state_sha256": verified["model_state_sha256"],
+        "ema_state_sha256": verified["ema_state_sha256"],
+        "semantic_contract_unchanged": True,
+    }
+    _atomic_bytes(output / "causal_checkpoint_rebind.json", canonical_json_bytes(report))
+    return report
 
 
 def _validate_telemetry(payload: dict[str, Any]) -> dict[str, Any]:
