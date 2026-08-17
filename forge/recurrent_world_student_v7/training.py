@@ -15,9 +15,6 @@ from .contract import CHECKPOINT_FORMAT,CODEC,CODEC_SHA256,CORPUS,DEFAULT_OUTPUT
 def _atomic(path,payload):
     temporary=path.with_name(f".{path.name}.tmp-{os.getpid()}");torch.save(payload,temporary);os.replace(temporary,path)
 
-def _frame_targets(rows,steps,device,count):
-    values=np.stack([sequence["frame"][start+steps] for sequence,start in rows[:count]]);return torch.from_numpy(values).permute(0,3,1,2).float().div_(255).to(device)
-
 def _rows(sequences,rng,count,steps):
     result=[]
     for _ in range(count):
@@ -49,7 +46,7 @@ def train(output:Path=DEFAULT_OUTPUT,*,plan:TrainingPlan=TrainingPlan()):
     for end in range(start_update+plan.segment_updates,plan.total_updates+1,plan.segment_updates):
         began=time.perf_counter();torch.cuda.reset_peak_memory_stats(device);model.train()
         for update in range(end-plan.segment_updates+1,end+1):
-            rows=_rows(sequences[:4],rng,plan.batch_size,plan.rollout_steps);batch=_batch_from_rows(rows,plan.rollout_steps,device);pixel_count=min(plan.pixel_batch_size,plan.batch_size);frame_target=_frame_targets(rows,plan.rollout_steps,device,pixel_count);optimizer.zero_grad(set_to_none=True);previous=batch["latent"][:,0];current=batch["latent"][:,1];previous_actor=batch["actor"][:,0];actor=batch["actor"][:,1];latent_total=actor_total=0.
+            rows=_rows(sequences[:4],rng,plan.batch_size,plan.rollout_steps);batch=_batch_from_rows(rows,plan.rollout_steps,device);pixel_count=min(plan.pixel_batch_size,plan.batch_size);optimizer.zero_grad(set_to_none=True);previous=batch["latent"][:,0];current=batch["latent"][:,1];previous_actor=batch["actor"][:,0];actor=batch["actor"][:,1];latent_total=actor_total=0.
             for offset in range(plan.rollout_steps):
                 target=batch["latent"][:,offset+2];target_actor=batch["actor"][:,offset+2];visibility=batch["visibility"][:,offset];memory=batch["memory"][:,offset];cn,pn=(current-lm)/ls,(previous-lm)/ls;an,pan,tan=(actor-am)/ass,(previous_actor-am)/ass,(target_actor-am)/ass
                 with torch.autocast("cuda",dtype=torch.bfloat16):
@@ -63,7 +60,9 @@ def train(output:Path=DEFAULT_OUTPUT,*,plan:TrainingPlan=TrainingPlan()):
                 loss.backward(retain_graph=offset==plan.rollout_steps-1);latent_total+=float(latent_loss);actor_total+=float(actor_loss);next_latent=(cn+torch.sigmoid(logits+applied)*delta)*ls+lm
                 if offset==plan.rollout_steps-1:
                     with torch.autocast("cuda",dtype=torch.bfloat16):
-                        decoded=codec.model.decode(next_latent[:pixel_count]);pixel=F.smooth_l1_loss(decoded.float(),frame_target);edge=F.l1_loss(decoded[:,:,:,1:]-decoded[:,:,:,:-1],frame_target[:,:,:,1:]-frame_target[:,:,:,:-1])+F.l1_loss(decoded[:,:,1:]-decoded[:,:,:-1],frame_target[:,:,1:]-frame_target[:,:,:-1]);visual_loss=plan.pixel_weight*pixel+plan.edge_weight*edge
+                        decoded=codec.model.decode(next_latent[:pixel_count])
+                        with torch.no_grad():frame_target=codec.model.decode(target[:pixel_count]).float()
+                        pixel=F.smooth_l1_loss(decoded.float(),frame_target);edge=F.l1_loss(decoded[:,:,:,1:]-decoded[:,:,:,:-1],frame_target[:,:,:,1:]-frame_target[:,:,:,:-1])+F.l1_loss(decoded[:,:,1:]-decoded[:,:,:-1],frame_target[:,:,1:]-frame_target[:,:,:-1]);visual_loss=plan.pixel_weight*pixel+plan.edge_weight*edge
                     visual_loss.backward()
                 with torch.no_grad():next_actor=(an+.9*(actor_result.gate>=.7)*(actor_result.state-an))*ass+am
                 previous,current=current.detach(),next_latent.detach();previous_actor,actor=actor.detach(),next_actor.detach()

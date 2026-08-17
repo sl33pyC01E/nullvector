@@ -9,6 +9,7 @@ def test_v7_backpropagates_decoder_pixel_and_edge_losses():
     source=inspect.getsource(training.train)
     assert "codec.model.requires_grad_(False)" in source
     assert "codec.model.decode(next_latent" in source
+    assert "codec.model.decode(target[:pixel_count])" in source
     assert "visual_loss.backward()" in source
     assert "pixel_weight" in source and "edge_weight" in source
     assert "anchor.gated_action" in source
