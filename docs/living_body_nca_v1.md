@@ -17,3 +17,14 @@ The deterministic body remains the topology, severing, and conservation
 validator. Promotion to game authority additionally requires all reviewed
 chassis to survive healthy rollouts and to respond correctly to targeted
 heart, respiratory, digestive, and neural damage.
+
+Run the fail-closed promotion audit with:
+
+```text
+python -m forge.living_body_nca_v1 audit outputs/living_body_nca_v1/promotion_audit.json --device cuda
+```
+
+The audit evaluates the ten reviewed base/grafted chassis twice, checks exact
+replay, rejects spawn collapse, and compares matched organ ablations with each
+healthy counterpart. An experimental result is preserved but is not eligible
+for game integration.

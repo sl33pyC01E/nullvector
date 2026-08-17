@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import torch
 
 from forge.creature_stage_developmental import develop
 from forge.creature_stage_developmental.genomes import review_genomes
 from forge.cellular_nca.contract import DIRECTION_XY
 from forge.living_body_nca_v1 import LivingBodyNCARuntime, rasterize_body
+from forge.living_body_nca_v1.evaluation import _audit_once, _damage_system
 from forge.living_body_substrate import LivingBody
 
 
@@ -48,3 +50,26 @@ def test_live_bonds_are_reciprocal_and_dead_cells_do_not_conduct() -> None:
         )
         assert np.array_equal(row.live_bonds[channel], reflected)
     assert not np.any(row.live_bonds[:, row.state[11] == 0])
+
+
+def test_targeted_damage_is_local_and_dummy_audit_replays() -> None:
+    class Identity(torch.nn.Module):
+        def forward(self, static, state, bonds):
+            return state
+
+    body = LivingBody(develop(review_genomes()[0]), seed=10)
+    before = body.health.copy()
+    assert _damage_system(body, "neural") > 0
+    changed = body.health != before
+    assert changed.any()
+    assert all(body.organ[index] == "brain" for index in np.flatnonzero(changed))
+    runtime = LivingBodyNCARuntime(Identity(), torch.device("cpu"), blend=.5)
+    first = _audit_once(runtime, 2)
+    second = _audit_once(runtime, 2)
+    assert first == second
+    assert len([row for row in first if row["ablation"] is None]) == 10
+
+
+def test_real_runtime_fails_closed_until_authority_is_ready(tmp_path) -> None:
+    with pytest.raises((FileNotFoundError, ValueError)):
+        LivingBodyNCARuntime.from_output(tmp_path / "missing", device="cpu")

@@ -12,8 +12,10 @@ DEFAULT_AUTHORITY: Final[Path] = PROJECT_ROOT / "outputs/cellular_nca/nca_causal
 CANVAS: Final[int] = 48
 SOURCE_FILES: Final[tuple[str, ...]] = (
     "forge/living_body_nca_v1/__init__.py",
+    "forge/living_body_nca_v1/__main__.py",
     "forge/living_body_nca_v1/contract.py",
     "forge/living_body_nca_v1/adapter.py",
+    "forge/living_body_nca_v1/evaluation.py",
 )
 
 
