@@ -110,7 +110,7 @@ def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
 def test_native_nature_demo_and_launcher_are_present() -> None:
     root=Path(__file__).resolve().parents[1]
     source=(root/"forge/nature_sim_v2/demo.py").read_text("utf-8")
-    for capability in ("PlayableNeuralRuntime","_step_neural_physiology","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
+    for capability in ("PlayableNeuralRuntime","RecurrentWorldRuntime","_step_neural_physiology","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
 
@@ -141,6 +141,7 @@ def test_teacher_frame_is_captured_before_diagnostic_overlays() -> None:
     capture=source.index("self.teacher_frame=self._capture_world_frame()")
     for draw_call in ("self._draw_ecosystem_links()","self._draw_settlements()","self._draw_adventure()","self._draw_sensory_field(selected_entity)"):
         assert capture<source.index(draw_call)
+    assert "if self.dream_frame is None or self.student_view:return" in inspect.getsource(NatureDemo._apply_neural_dream)
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:

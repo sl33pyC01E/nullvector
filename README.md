@@ -95,8 +95,10 @@ action-conditioned future view.
 The next recurrent student carries both visual and 128-feature organism state
 through contiguous rollouts. On the untouched world it beats its unchanged
 parents by 2.36–2.79% at every 4–32 step horizon, while beating initial-frame
-persistence by 9.10–12.33%. It is the long-horizon candidate; the one-step
-Build 3 path remains the live default until integration testing is complete.
+persistence by 9.10–12.33%. Its validated stream runtime is now the live F6
+diagnostic path at 9.4–10.6 recurrent steps/s and 490 MiB peak reserved VRAM. The
+historical training set included diagnostic overlays, so this model is kept out
+of clean student view until it is retrained on the new overlay-free targets.
 
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The

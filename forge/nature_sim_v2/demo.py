@@ -18,6 +18,7 @@ from ..creature_stage_manipulation_v1.contract import NEURAL_TARGET_FIELD_CONTRO
 from ..creature_stage_neural_target_field_v1.runtime import NeuralTargetFieldRuntime
 from ..action_teacher_v1 import ACTIONS as TEACHER_ACTIONS,FRAME_SIZE,TeacherTrajectoryRecorder
 from ..action_teacher_v2 import extract_actor_features
+from ..recurrent_world_runtime_v1 import RecurrentWorldRuntime
 from ..neural_action_frame_v1 import NeuralActionFrameRuntime
 from ..playable_neural_runtime_v1 import PlayableNeuralRuntime
 from ..qud_quests_v1 import QuestJournal
@@ -66,7 +67,10 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.neural=PlayableNeuralRuntime.from_release(device=device);self.action_frame=NeuralActionFrameRuntime.from_release(device=device);self.runtime=self.neural.locomotion;self.behavior=self.neural.behavior;self.colony_runtime=self.neural.colony;self.society_runtime=self.neural.society;self.timeline_runtime=self.neural.timeline;self.counterfactual_runtime=self.neural.counterfactual;self.composite=self.neural.composite;assert_neural_target_field_controller();self.target_field_runtime=NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER,device=device)
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.neural=PlayableNeuralRuntime.from_release(device=device);self.recurrent_world=None;self.action_frame=None
+        try:self.recurrent_world=RecurrentWorldRuntime.from_release(device=device);self.world_predictor="V3 RECURRENT +4"
+        except (FileNotFoundError,ValueError):self.action_frame=NeuralActionFrameRuntime.from_release(device=device);self.world_predictor="BUILD3 FALLBACK +1"
+        self.runtime=self.neural.locomotion;self.behavior=self.neural.behavior;self.colony_runtime=self.neural.colony;self.society_runtime=self.neural.society;self.timeline_runtime=self.neural.timeline;self.counterfactual_runtime=self.neural.counterfactual;self.composite=self.neural.composite;assert_neural_target_field_controller();self.target_field_runtime=NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.feeding=NatureNeuralFeedingSystem(seed=region_seed^0x46454544,device=device);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior,feeding_system=self.feeding);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
         self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
         self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=0;self.quests=QuestJournal()
@@ -145,14 +149,14 @@ class NatureDemo:
 
     def _compute_neural_dream(self,frame,previous_frame,action,control,state,actor_state):
         def run():
-            current=self.action_frame.codec.encode(frame);previous=self.action_frame.codec.encode(previous_frame)
-            future,_=self.action_frame.step(frame[None],current,previous,action=np.asarray((TEACHER_ACTIONS.index(action),)),control=control,state=state,actor_state=actor_state)
-            return future[0].permute(1,2,0).numpy()
+            if self.recurrent_world is not None:
+                forecast=self.recurrent_world.forecast(frame,np.asarray(actor_state).reshape(128),previous_frame=previous_frame,actions=np.asarray((TEACHER_ACTIONS.index(action),)),controls=np.asarray(control).reshape(4),states=np.asarray(state).reshape(64),horizon=4);return forecast.final_frame
+            current=self.action_frame.codec.encode(frame);previous=self.action_frame.codec.encode(previous_frame);future,_=self.action_frame.step(frame[None],current,previous,action=np.asarray((TEACHER_ACTIONS.index(action),)),control=control,state=state,actor_state=actor_state);return np.clip(future[0].permute(1,2,0).numpy()*255,0,255).astype(np.uint8)
         if self.neural_stream is None:decoded=run()
         else:
-            with torch.cuda.stream(self.neural_stream),torch.autocast("cuda",dtype=torch.bfloat16):decoded=run()
+            with torch.cuda.stream(self.neural_stream):decoded=run()
             self.neural_stream.synchronize()
-        return np.clip(decoded*255,0,255).astype(np.uint8),action
+        return decoded,action
 
     def _poll_neural_job(self):
         if self.neural_future is None or not self.neural_future.done():return
@@ -186,9 +190,8 @@ class NatureDemo:
         entity=self.world.organisms.get(self.selected);aim=self.screen_to_world(self.pg.mouse.get_pos()) if self.teacher_aim_override is None else np.asarray(self.teacher_aim_override);delta=np.zeros(2) if entity is None else self.world._delta(entity.position,aim)/max(1,self.world.size*.5);return np.asarray((self.manual[0],self.manual[1],delta[0],delta[1]),np.float32)
 
     def _apply_neural_dream(self):
-        if self.dream_frame is None:return
-        surface=self.pg.surfarray.make_surface(np.transpose(self.dream_frame,(1,0,2)));viewport=self._world_viewport_rect();self.screen.blit(self.pg.transform.scale(surface,viewport.size),viewport)
-        if not self.student_view:self.pg.draw.rect(self.screen,(255,74,190),viewport,2);label=self.small.render(f"RECURRENT ACTION DiT + VAE DELTA // {self.dream_action.upper()} // NON-AUTHORITATIVE",True,(255,105,209));self.screen.blit(label,(viewport.x+10,viewport.y+9))
+        if self.dream_frame is None or self.student_view:return
+        surface=self.pg.surfarray.make_surface(np.transpose(self.dream_frame,(1,0,2)));viewport=self._world_viewport_rect();self.screen.blit(self.pg.transform.scale(surface,viewport.size),viewport);self.pg.draw.rect(self.screen,(255,74,190),viewport,2);label=self.small.render(f"RECURRENT ACTION DiT + VAE DELTA // {self.dream_action.upper()} // NON-AUTHORITATIVE",True,(255,105,209));self.screen.blit(label,(viewport.x+10,viewport.y+9))
 
     def _record_teacher_frame(self):
         if not self.trajectory.active:return
@@ -589,7 +592,7 @@ class NatureDemo:
             ("MUSCLE GATE",f"{len(muscles):03}  MEAN {(float(np.abs(muscles).mean()) if muscles.size else 0):.3f}  PEAK {(float(np.abs(muscles).max()) if muscles.size else 0):.3f}"),
             ("CONTACT GATE",f"{int(contacts.sum()):02}/{len(contacts):02} GROUNDED"),
             ("FEEDING",f"TARGET {feed_target}  {'ATTACHED' if attached else 'FREE'}"),
-            ("PRESENTATION",f"CELL VAE {'LIVE' if entity.body.organism.identity_sha256 not in self.neural_sprite_unsupported else 'FALLBACK'}  WORLD {'VAE' if self.neural_raster else 'RAW'}"),
+            ("PRESENTATION",f"CELL VAE {'LIVE' if entity.body.organism.identity_sha256 not in self.neural_sprite_unsupported else 'FALLBACK'}  {self.world_predictor}"),
             ("FORECAST",f"{self.timeline_forecast.event.upper()}  {self.timeline_forecast.confidence:.0%}"),
         )
         y=panel.y+55
