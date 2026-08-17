@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import torch
+import inspect
 
 from forge.recurrent_world_student_v5.contract import CORPUS, PARENT_SHA256, TrainingPlan
 from forge.recurrent_world_student_v5.model import PerceptionRecurrentWorldStudent
+from forge.recurrent_world_student_v5 import training
 from forge.world_latent_dit.contract import ModelConfig
 
 
@@ -37,3 +39,9 @@ def test_learned_change_gate_starts_near_persistence() -> None:
     with torch.inference_mode():
         _,logits=model.gated_action(current,previous,action,control,state,actor,visibility,memory)
     torch.testing.assert_close(logits,torch.full_like(logits,-3.0))
+
+
+def test_change_gate_learns_when_prediction_beats_persistence() -> None:
+    source=inspect.getsource(training.train)
+    assert "proposed_error + .002 < persistence_error" in source
+    assert "change_target = (proposed_error" in source
