@@ -110,6 +110,21 @@ are checked in with the rollout comparison below.
 
 ![Mobile cellular NCA: injury, teacher, and compact student](examples/showcase/mobile_cell_nca_rollout_v1.png)
 
+## Android preview
+
+The Android build now opens into a playable 2.5D neural habitat instead of the
+old model harness. It runs the recurrent action core, cellular physiology NCA,
+continuous organism cell VAE, and neural garden map together. Touch controls
+move and aim; materials persist, collide, feed physiology, and can be thrown
+with height, shadow, bounce, roll, and impact response.
+
+| Playable habitat | Optional neural debug |
+|---|---|
+| ![Android neural habitat](examples/showcase/android_neural_habitat_v040.png) | ![Android neural runtime debug](examples/showcase/android_neural_debug_v040.png) |
+
+The debug view identifies the old blurry image correctly as a world-latent
+decoder probe. It is hidden during play and only runs at debug cadence.
+
 Composite Build 2 loads 67.7M parameters across the
 Action-DiT, world VAE, exact-parent pixel refiner, actor-state student, organism
 cell VAE, and causal physiology model. The larger 13-specialist teacher
