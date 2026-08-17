@@ -115,6 +115,14 @@ safety repair stage.
 
 ## World-model research
 
+### Rollout-aware decoder
+
+![Rollout-aware decoder](showcase/neural_rollout_decoder_v2.gif)
+
+Teacher, frozen decoder, and rollout-aware decoder over one continuous
+untouched-world rollout. The adapter removes most ghost geometry and cuts
+rollout MAE by 70.8%; later frames remain visibly soft.
+
 | World VAE | Sparse Action-DiT |
 |---|---|
 | ![World VAE](showcase/world_vae_reconstruction.png) | ![Sparse Action-DiT](showcase/sparse_action_dit.png) |

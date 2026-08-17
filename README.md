@@ -62,6 +62,10 @@ physiology, feeding, behavior, colonies, societies, and forecasts.
 |---|
 | ![Five-family continuous cell VAE](examples/showcase/neural_cell_vae_five_family.gif) |
 
+| Recurrent world rollout: old decoder vs rollout-aware decoder |
+|---|
+| ![Rollout-aware neural decoder](examples/showcase/neural_rollout_decoder_v2.gif) |
+
 More results are in the [output gallery](examples/README.md).
 
 ## What is neural
@@ -91,6 +95,12 @@ reconstruction MAE by 91.0% while keeping the original encoder and latent
 contract frozen. This result is promoted as a tested component, not yet as the
 authoritative world simulation. It is callable in the nature stage as the live
 action-conditioned future view.
+
+The rollout-aware decoder is trained on the recurrent model's predicted latent
+distribution, not only exact VAE encodings. On an untouched world it reduces
+rollout-frame MAE from 0.05742 to 0.01677 (70.8%) while also improving exact
+frame reconstruction. It removes most duplicated-body trails, although long
+rollouts remain softer than the target and are not yet game-quality.
 
 The next recurrent student carries both visual and 128-feature organism state
 through contiguous rollouts. On the untouched world it beats its unchanged
