@@ -7,7 +7,7 @@ from forge.neural_foundation_v3.release import build, validate
 
 def test_foundation_build_and_validation(tmp_path: Path) -> None:
     result = build(tmp_path / "foundation")
-    assert result["passed"] and result["components"] == 8
+    assert result["passed"] and result["components"] == 10
     assert result["recurrent_frames_per_second"] >= 30
     assert result["organism_physics_hz"] >= 12
     assert validate(tmp_path / "foundation") == result
