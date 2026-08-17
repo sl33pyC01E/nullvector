@@ -22,6 +22,18 @@ World synthesis runs on region creation or in a background worker. It is not in
 the display loop: the live target remains 30 FPS with 30 Hz organism physics
 and a 15 Hz causal world.
 
+## Native runtime cache
+
+The additive sync step projects a validated synthesis bank into two native
+files: one PNG atlas and one canonical JSON catalog. It ships no checkpoint and
+requires neither Python nor CUDA during play.
+
+```powershell
+python -m forge.neural_world_synthesis_sync `
+  --source outputs/neural_world_synthesis_v1/build_004 `
+  --destination game/generated/neural_world_synthesis/v1
+```
+
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=':4096:8'
 python -m forge.neural_world_synthesis_v1 build
