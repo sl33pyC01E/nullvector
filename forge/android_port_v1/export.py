@@ -12,13 +12,13 @@ import onnxruntime as ort
 import torch
 from torch import Tensor, nn
 
-from ..monolithic_world_model_v1.contract import CHECKPOINT_FORMAT, DECODER, DirectContextConfig
+from ..mobile_frame_decoder_v1.contract import CHECKPOINT_FORMAT as MOBILE_DECODER_FORMAT, MobileDecoderConfig
+from ..mobile_frame_decoder_v1.model import MobileFrameDecoder
+from ..monolithic_world_model_v1.contract import CHECKPOINT_FORMAT, DirectContextConfig
 from ..monolithic_world_model_v1.model import FusedStructuredActionModel
 from ..safety import require_disk_floor
-from ..world_frame_vae.contract import ModelConfig as DecoderConfig
-from ..world_frame_vae.model import WorldFrameVAE
 from ..world_latent_dit.contract import ModelConfig as RecurrentConfig
-from .contract import DEFAULT_OUTPUT, FORMAT, MONOLITHIC, MONOLITHIC_SHA256, TARGET, canonical, file_sha256, source_sha256
+from .contract import DEFAULT_OUTPUT, FORMAT, MOBILE_DECODER, MOBILE_DECODER_SHA256, MONOLITHIC, MONOLITHIC_SHA256, TARGET, canonical, file_sha256, source_sha256
 
 
 class ActionGraph(nn.Module):
@@ -34,11 +34,11 @@ class ActionGraph(nn.Module):
 
 
 class DecoderGraph(nn.Module):
-    def __init__(self, decoder: WorldFrameVAE) -> None:
+    def __init__(self, decoder: MobileFrameDecoder) -> None:
         super().__init__(); self.decoder = decoder
 
     def forward(self, latent: Tensor) -> Tensor:
-        return self.decoder.decode(latent)
+        return self.decoder(latent)
 
 
 def _export(module: nn.Module, inputs: tuple[Tensor, ...], names: tuple[list[str], list[str]], path: Path) -> None:
@@ -59,14 +59,15 @@ def _benchmark(path: Path, feeds: dict[str, np.ndarray], *, warmup: int, steps: 
 def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     output = Path(output).resolve()
     if output.exists(): raise FileExistsError(output)
-    if file_sha256(MONOLITHIC) != MONOLITHIC_SHA256: raise ValueError("Monolithic Android parent drifted.")
+    if file_sha256(MONOLITHIC) != MONOLITHIC_SHA256 or file_sha256(MOBILE_DECODER) != MOBILE_DECODER_SHA256: raise ValueError("Android neural parent drifted.")
     require_disk_floor(output.parent, floor_gb=100, planned_bytes=1 << 30); output.mkdir(parents=True)
     payload = torch.load(MONOLITHIC, map_location="cpu", weights_only=True)
     if payload.get("format") != CHECKPOINT_FORMAT or payload.get("status") != "monolithic_foundation_ready": raise ValueError("Monolithic Android parent is not promoted.")
     model = FusedStructuredActionModel(DirectContextConfig(**payload["model_config"]), RecurrentConfig(**payload["recurrent_config"]))
     model.load_state_dict(payload["state"], strict=True); model.eval()
-    decoder_payload = torch.load(DECODER, map_location="cpu", weights_only=True)
-    decoder = WorldFrameVAE(DecoderConfig(**decoder_payload["model_config"])); decoder.load_state_dict(decoder_payload["state"], strict=True); decoder.eval()
+    decoder_payload = torch.load(MOBILE_DECODER, map_location="cpu", weights_only=True)
+    if decoder_payload.get("format") != MOBILE_DECODER_FORMAT or decoder_payload.get("status") != "mobile_decoder_ready": raise ValueError("Mobile decoder is not promoted.")
+    decoder = MobileFrameDecoder(MobileDecoderConfig(**decoder_payload["model_config"])); decoder.load_state_dict(decoder_payload["state"], strict=True); decoder.eval()
 
     generator = torch.Generator().manual_seed(0x414E44524F494431)
     terrain = torch.zeros(1, 32, 32, dtype=torch.long); city = torch.zeros_like(terrain)
@@ -88,7 +89,7 @@ def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     for name, path in fp32.items():
         onnx.checker.check_model(onnx.load(path)); records[name] = {"path": path.name, "bytes": path.stat().st_size, "sha256": file_sha256(path), "desktop_cpu_reference": _benchmark(path, feeds[name], warmup=2, steps=5)}
     total = sum(row["bytes"] for row in records.values()); gates = {"all_models_valid_onnx": True, "fp32_bundle_under_256_mib": total < 256 * 1024**2, "action_model_plus_vae_shape": True, "android_toolchain_targeted": True}
-    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
+    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "mobile_decoder_sha256": MOBILE_DECODER_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
     manifest["manifest_sha256"] = hashlib.sha256(canonical(manifest)).hexdigest(); (output / "manifest.json").write_bytes(canonical(manifest)); return manifest
 
 

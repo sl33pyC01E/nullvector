@@ -21,6 +21,8 @@ TARGET = {
 }
 MONOLITHIC = PROJECT_ROOT / "outputs/monolithic_world_model_v1/production_002/runtime.pt"
 MONOLITHIC_SHA256 = "eab44d442b0b33d82a3ba156a234815169e5e7ac688815d4cbab3253d9dd255f"
+MOBILE_DECODER = PROJECT_ROOT / "examples/models/mobile_frame_decoder_v1.pt"
+MOBILE_DECODER_SHA256 = "dcf4d3808a49f6fd966aa2cd637729abd47b7180f552b9eb21a1bdd038d449d1"
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/android_port_v1/export_001"
 SOURCE_FILES = (
     "forge/android_port_v1/__init__.py",

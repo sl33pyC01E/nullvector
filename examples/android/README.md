@@ -2,6 +2,6 @@
 
 `nullvector-mobile-context-v1-debug.apk` is the first arm64 Android foundation build for the Samsung Galaxy S25 Ultra.
 
-It runs the distilled structured-world encoder locally through ONNX Runtime, attempts NNAPI first, and displays the selected backend and measured inference latency. The action model and frame VAE have valid Android ONNX exports but are not bundled into this APK until physical-device profiling confirms their execution-provider partitioning and frame rate.
+It runs the distilled structured-world encoder and 91k-parameter mobile neural rasterizer locally through ONNX Runtime, attempts NNAPI first, displays a real decoded game frame, and reports measured inference latency. The action model has a valid external Android ONNX export but is not bundled until physical-device profiling confirms its execution-provider partitioning and frame rate.
 
-Current APK SHA-256: `4127b9c48452bb83907b23eda9758ad485bd124e0ae9f09e3d70d99e57934dd1`.
+Current APK SHA-256: `164c719f80bbb2c92d3af16b1200ecdaa85e3773206cbf8bc2bed22718d40681`.

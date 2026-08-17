@@ -2,7 +2,7 @@
 
 Android deployment foundation for the Samsung Galaxy S25 Ultra.
 
-The first APK runs the distilled structured-world encoder through ONNX Runtime and reports the selected Android execution provider and measured latency. The action core and continuous frame VAE are exported beside it for physical-device profiling before they are bundled or downloaded as an asset pack.
+The APK runs the distilled structured-world encoder and the 91k-parameter mobile frame VAE through ONNX Runtime, displays a real neural frame, and reports the selected Android execution provider plus measured context/raster latency. The action core remains an external profiling artifact until its device partitioning is verified.
 
 Runtime order:
 
