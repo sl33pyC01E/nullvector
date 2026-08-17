@@ -67,7 +67,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="HIGH-FIDELITY WORLD VAE [F7] + ACTION DIT FUTURE [F6] + NEURAL ECOLOGY";self.sprite_cache={};self.sprite_budget=16;self.field_cache=None;self.field_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.previous_positions={entity_id:entity.position.copy() for entity_id,entity in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics(self.target_field_runtime);self.physiology=self.composite.physiology;self.physiology_unsupported=set();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="CONTINUOUS CELL VAE + CAUSAL PHYSIOLOGY + ACTION DIT + NEURAL ECOLOGY";self.sprite_cache={};self.sprite_budget=16;self.neural_sprite_unsupported=set();self.field_cache=None;self.field_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics(self.target_field_runtime);self.physiology=self.composite.physiology;self.cell_vae=self.composite.organism;self.physiology_unsupported=set();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new_feeding=NatureNeuralFeedingSystem(seed=seed^0x46454544,device=str(self.feeding.controller.device));loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,feeding_system=new_feeding,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -365,7 +365,16 @@ class NatureDemo:
                 pg.draw.polygon(self.screen,color,corners);pg.draw.polygon(self.screen,(229,248,244),corners,1);pg.draw.line(self.screen,(38,74,81),(int(point[0]),int(point[1])),(int(point[0]+radius*cosine),int(point[1]+radius*sine)),1)
             else:pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),radius);pg.draw.circle(self.screen,(229,248,244),(int(point[0]),int(point[1])),radius,1)
 
-    def _sprite(self,entity):
+    def _posed_cell_features(self,entity):
+        organism=entity.body.organism;points=self.visible_physics.step(self.world,entity,1/60);rest=organism.cell_xy.astype(np.float32);feeding_state=self.feeding.entities.get(entity.entity_id)
+        if feeding_state is not None and feeding_state.target_id is not None:points=points+(feeding_state.articulation.cells()-rest)
+        features,mask=self.cell_vae.organism_features(organism,points,phase=(self.world.time*.45+entity.entity_id*.037)%1);mask[:organism.cell_count]&=torch.from_numpy(entity.body.health>.08)
+        return features,mask
+
+    def _surface_from_neural_rgba(self,rgba):
+        pg=self.pg;canvas=(np.clip(rgba.permute(1,2,0).numpy(),0,1)*255+.5).astype(np.uint8);canvas=np.transpose(canvas,(1,0,2));sprite=pg.Surface((96,96),pg.SRCALPHA);pixels=pg.surfarray.pixels3d(sprite);pixels[:]=canvas[:,:,:3];del pixels;opacity=pg.surfarray.pixels_alpha(sprite);opacity[:]=canvas[:,:,3];del opacity;return sprite
+
+    def _procedural_sprite(self,entity):
         pg=self.pg;phase=int((self.world.time*(3.2+np.linalg.norm(entity.velocity)*2)+entity.entity_id*.7)%16)
         organism=entity.body.organism;points=self.visible_physics.step(self.world,entity,1/60);rest=organism.cell_xy.astype(np.float32);feeding_state=self.feeding.entities.get(entity.entity_id)
         if feeding_state is not None and feeding_state.target_id is not None:points=points+(feeding_state.articulation.cells()-rest)
@@ -373,6 +382,15 @@ class NatureDemo:
         for dx,dy in ((0,0),(-1,0),(1,0),(0,-1),(0,1)):
             x=xy[:,0]+dx;y=xy[:,1]+dy;valid=(x>=0)&(x<96)&(y>=0)&(y<96);canvas[x[valid],y[valid],:3]=rgb[valid];canvas[x[valid],y[valid],3]=alpha[valid]
         sprite=pg.Surface((96,96),pg.SRCALPHA);pixels=pg.surfarray.pixels3d(sprite);pixels[:]=canvas[:,:,:3];del pixels;opacity=pg.surfarray.pixels_alpha(sprite);opacity[:]=canvas[:,:,3];del opacity;return sprite
+
+    def _sprite(self,entity):
+        identity=entity.body.organism.identity_sha256
+        if identity in self.neural_sprite_unsupported:return self._procedural_sprite(entity)
+        try:
+            features,mask=self._posed_cell_features(entity);rgba=self.cell_vae.render_features(features,mask)[0];return self._surface_from_neural_rgba(rgba)
+        except ValueError as exc:
+            if "posed-cell geometry drifted" not in str(exc):raise
+            self.neural_sprite_unsupported.add(identity);return self._procedural_sprite(entity)
 
     def _prepare_sprites(self):
         living=[entity for entity in self.world.organisms.values() if entity.alive];living_ids={entity.entity_id for entity in living}
@@ -382,7 +400,17 @@ class NatureDemo:
             cached=self.sprite_cache.get(entity.entity_id);health=float(entity.body.health.sum());fluid=float(entity.body.fluid.sum());changed=cached is None or abs(cached[1]-health)>1e-5 or abs(cached[2]-fluid)>1e-5;age=10**9 if cached is None else self.world.tick_index-cached[0];return (entity.entity_id!=self.selected,not changed,-age,entity.entity_id)
         stale=[entity for entity in living if entity.entity_id not in self.sprite_cache or self.sprite_cache[entity.entity_id][0]!=self.world.tick_index]
         budget=min(self.sprite_budget,max(1,(len(living)+1)//2))
-        for entity in sorted(stale,key=priority)[:budget]:self.sprite_cache[entity.entity_id]=(self.world.tick_index,float(entity.body.health.sum()),float(entity.body.fluid.sum()),self._sprite(entity))
+        chosen=sorted(stale,key=priority)[:budget];neural=[];fallback=[]
+        for entity in chosen:
+            if entity.body.organism.identity_sha256 in self.neural_sprite_unsupported:fallback.append(entity);continue
+            try:features,mask=self._posed_cell_features(entity);neural.append((entity,features,mask))
+            except ValueError as exc:
+                if "posed-cell geometry drifted" not in str(exc):raise
+                self.neural_sprite_unsupported.add(entity.body.organism.identity_sha256);fallback.append(entity)
+        if neural:
+            rgba=self.cell_vae.render_features(torch.stack([item[1] for item in neural]),torch.stack([item[2] for item in neural]))
+            for (entity,_,_),image in zip(neural,rgba):self.sprite_cache[entity.entity_id]=(self.world.tick_index,float(entity.body.health.sum()),float(entity.body.fluid.sum()),self._surface_from_neural_rgba(image))
+        for entity in fallback:self.sprite_cache[entity.entity_id]=(self.world.tick_index,float(entity.body.health.sum()),float(entity.body.fluid.sum()),self._procedural_sprite(entity))
 
     def _draw_entity(self,entity):
         pg=self.pg;render_position=self._render_position(entity);point=self.world_to_screen(render_position);scale=.78+render_position[1]/self.world.size*.18;size=int(96*scale);cached=self.sprite_cache.get(entity.entity_id)

@@ -47,7 +47,13 @@ class ContinuousCellVAERuntime:
             raise ValueError("continuous cell VAE posed-cell geometry drifted")
         family = int(np.argmax(np.asarray(organism.genome.family_mix, dtype=np.float32)))
         value = np.zeros((MAX_CELLS, CELL_FEATURES), np.float32)
-        value[:count, :2] = cell_xy / 47 * 2 - 1
+        # Training targets are 48x48 anatomy rasters centered at 23.5. Live
+        # physics coordinates remain organism-local and may be negative; bind
+        # them to the same raster frame without erasing posed motion.
+        rest = np.asarray(organism.cell_xy, dtype=np.float32)
+        midpoint = (rest.min(0) + rest.max(0)) * .5
+        raster_xy = cell_xy + (np.asarray((23.5, 23.5), np.float32) - midpoint)
+        value[:count, :2] = raster_xy / 47 * 2 - 1
         value[np.arange(count), 2 + np.asarray(organism.tissue, dtype=np.int64)] = 1
         value[:count, 17 + family] = 1
         value[:count, 22:37] = np.asarray(organism.trait_fields, dtype=np.float32)
