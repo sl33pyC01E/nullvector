@@ -9,8 +9,8 @@ android {
         applicationId = "world.nullvector.mobile"
         minSdk = 29
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.6.0-physical-interaction-preview"
+        versionCode = 9
+        versionName = "0.6.1-input-deadlock-hotfix"
         ndk { abiFilters += if (emulatorAbi) "x86_64" else "arm64-v8a" }
     }
     flavorDimensions += "runtime"
