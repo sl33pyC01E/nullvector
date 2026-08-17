@@ -8,10 +8,32 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 3
-        versionName = "0.3.0-int8-candidate"
+        versionName = "0.3.0-preview"
         ndk { abiFilters += "arm64-v8a" }
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    flavorDimensions += "runtime"
+    productFlavors {
+        create("fp32") {
+            dimension = "runtime"
+            applicationIdSuffix = ".fp32"
+            versionNameSuffix = "-fp32"
+            buildConfigField("boolean", "SPLIT_ACTION", "false")
+        }
+        create("int8") {
+            dimension = "runtime"
+            applicationIdSuffix = ".int8"
+            versionNameSuffix = "-int8"
+            buildConfigField("boolean", "SPLIT_ACTION", "true")
+        }
+    }
+    buildFeatures { buildConfig = true }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            // Preview releases are development-signed so they can be sideloaded.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
