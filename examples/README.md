@@ -45,7 +45,7 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ### Articulated neural manipulation
 
-![Grounded locomotion transitions into neural articulated grasping and physical feeding](showcase/articulated_grounded_feeding_v9.gif)
+![Causal neural grounded locomotion transitions into neural articulated grasping and physical feeding](showcase/articulated_grounded_feeding_v10.gif)
 
 This is the quality-floor integration proof: the approved grounded gait first
 approaches the clump, then the same full skeleton, planted contacts, projected
@@ -56,7 +56,7 @@ joint curvature inside the deterministic PBD safety envelope. The physical
 projector still owns exact roots, hands, bone lengths, and ground contacts; it
 is not yet an unconstrained end-to-end neural trajectory.
 
-![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v9.gif)
+![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v10.gif)
 
 The accepted neural controller selects the appendage, reach, force, and brace.
 A segment-local skin keeps the cellular arm as thick as the legs. Recurrent
@@ -69,35 +69,35 @@ root seam. Chassis posture carries attached chains, while grounded feet and
 wheels are re-solved against the floor; explicit severing alone removes those
 cross-seam constraints.
 
-![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v9.gif)
+![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v10.gif)
 
 The released clump retains its impulse, gains independent elevation, casts a
 feet-plane shadow, falls under gravity, and transfers recoil to the body.
 Horizontal air drag is low enough for a long, legible throw arc.
 
-![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v9.gif)
+![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v10.gif)
 
 Phase/charge matter rebounds, rounded mineral matter keeps rolling, and soft
 biomass absorbs impact and thuds. These use the same neural throw command with
 different physical material responses.
 
-![Severed articulated arm drops its payload, twitches briefly, and settles](showcase/articulated_severed_grasper_v9.gif)
+![Severed articulated arm drops its payload, twitches briefly, and settles](showcase/articulated_severed_grasper_v10.gif)
 
 The arm is fully disconnected at its root bridge. Its cells and bone chain fall
 under gravity, retain only a brief decaying residual twitch, and then become
 inert. The released payload follows its own material physics.
 
-![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v9.gif)
+![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v10.gif)
 
 Severe muscle/neural damage leaves a weak residual motion but insufficient
 capacity to attach or transport the clump.
 
-![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v9.gif)
+![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v10.gif)
 
 Damage to the feeder cells prevents reserve gain even after physical contact.
-Source: `outputs/creature_stage_manipulation_v1/showcase_v9_neural_limb/`.
+Source: `outputs/creature_stage_manipulation_v1/showcase_v10_full/`. The approach phase uses the 3.50M-parameter causal grounded feedback network; reach uses the 2.34M-parameter neural inverse-muscle controller. Both execute through the same exact skeleton and PBD constraints.
 
-![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v9.gif)
+![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v10.gif)
 
 One synchronized replay exposes distinct ground-acquisition strategies:
 humanoid kneel-and-grasp, animal ground bite, plant root siphon, anomaly phase
