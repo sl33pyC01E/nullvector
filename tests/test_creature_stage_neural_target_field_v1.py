@@ -15,6 +15,7 @@ from forge.creature_stage_neural_target_field_v1.dataset import (
 )
 from forge.creature_stage_neural_target_field_v1.model import NeuralGroundedTargetField
 from forge.creature_stage_neural_target_field_v1.bank import load_training_bank, validate_training_bank
+from forge.creature_stage_neural_target_field_v1.audit import validate_audit
 
 
 def _inputs():
@@ -68,3 +69,9 @@ def test_published_training_bank_is_source_bound_and_loadable() -> None:
     train, augmentation = load_training_bank(root)
     assert train.samples == manifest["train_samples"]
     assert augmentation.samples == manifest["augmentation_samples"]
+
+
+def test_published_exhaustive_audit_is_hash_closed() -> None:
+    root = Path("outputs/creature_stage_neural_target_field_v1/production_6000_v11_exhaustive_audit_v2")
+    if root.is_dir():
+        assert validate_audit(root)["gates"]["all_passed"]
