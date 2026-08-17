@@ -100,6 +100,12 @@ diagnostic path at 9.4–10.6 recurrent steps/s and 490 MiB peak reserved VRAM. 
 historical training set included diagnostic overlays, so this model is kept out
 of clean student view until it is retrained on the new overlay-free targets.
 
+The overlay-free successor corpus now contains 2,376 contiguous frames across
+six worlds and all 22 action classes. Its first clean recurrent student beats
+the historical model at every 1–32 step horizon and beats frame persistence at
+8, 16, and 32 steps. It still misses the four-step persistence gate, so it
+remains an experimental checkpoint rather than runtime authority.
+
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The
 callable ensemble is now integrated into the nature stage; the next phase is
@@ -142,7 +148,8 @@ status HUD. `F2` switches to a clean student view containing only the world,
 entities, structures, materials, shadows, and physical effects, then restores
 the previous overlay configuration when pressed again. `L` toggles the vision
 field directly; `Shift+L` toggles sensed-target markers. Teacher trajectories
-are captured before any diagnostic overlay is composited.
+are captured before any diagnostic overlay is composited. These controls never
+pause or disable simulation, physics, AI, metabolism, damage, or ecology.
 
 ## Forge and tests
 

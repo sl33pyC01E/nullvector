@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 
-from forge.recurrent_world_student_v4 import contract, evaluation, training
+from forge.recurrent_world_student_v4 import calibration, contract, evaluation, training
 
 
 def test_clean_student_binds_clean_corpus_parent_and_codec() -> None:
@@ -17,3 +17,9 @@ def test_clean_student_requires_long_horizon_causal_improvement() -> None:
     assert "all_long_horizons_beat_persistence" in source
     assert "all_long_horizons_beat_parent" in source
     assert "gates[\"all_passed\"]" in source
+
+
+def test_change_gate_is_selected_on_validation_before_untouched_test() -> None:
+    source=inspect.getsource(calibration.calibrate)
+    assert "sequences[4]" in source and "sequences[5]" in source
+    assert source.index("chosen =") < source.index("test =")
