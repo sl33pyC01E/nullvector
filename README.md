@@ -50,6 +50,10 @@ scale exist as scaffolds and research systems rather than a finished game.
 |---|---|
 | ![Neural cellular locomotion](examples/showcase/neural_cellular_locomotion.gif) | ![Anatomical VAE motion](examples/showcase/anatomical_vae_motion.gif) |
 
+| Continuous neural cell raster |
+|---|
+| ![Five-family continuous cell VAE](examples/showcase/neural_cell_vae_five_family.gif) |
+
 More results are in the [output gallery](examples/README.md).
 
 ## What is neural
@@ -60,7 +64,7 @@ they are still the safer or better authority.
 | System | Current authority |
 |---|---|
 | Creature fields and identity | Neural categorical generation with validated anatomy fields |
-| Sprite rasterization | Continuous anatomical VAE and deterministic presentation layers |
+| Sprite rasterization | Promoted continuous cell VAE; current posed cells in, 96x96 RGBA out |
 | Grounded motion | Neural muscle/contact feedback inside physical constraints |
 | Limb pose and grasping | Neural inverse-muscle and grasp controllers inside an articulated solver |
 | Local cell dynamics | Neural cellular automata experiments; deterministic physiology remains primary |

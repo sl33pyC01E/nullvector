@@ -76,6 +76,14 @@ A continuous anatomical graph VAE reconstructing held-out creature motion.
 
 Target and reconstruction frames across families and motion phases.
 
+### Continuous cell VAE
+
+![Five-family continuous cell VAE](showcase/neural_cell_vae_five_family.gif)
+
+The promoted runtime renders current continuous cell positions rather than
+selecting a sprite frame. The motion scaffold supplies the pose; the neural
+decoder predicts cell appearance, opacity, footprint, and sub-pixel placement.
+
 ## Cells, inheritance, and trauma
 
 | Breeding and symmetry | Cellular trauma | Neural cellular dynamics |
