@@ -23,7 +23,7 @@ SOURCE_FILES = (
     "forge/nature_sim_v2/breeding.py",
     "forge/nature_neural_feeding_v1/system.py",
 )
-ARRAY_NAMES = ("frame", "state", "actor_state", "actor_field", "visibility", "control", "action", "selected", "timeline_event", "timeline", "counterfactual", "tick", "episode_step")
+ARRAY_NAMES = ("frame", "state", "actor_state", "actor_field", "visibility", "memory", "control", "action", "selected", "timeline_event", "timeline", "counterfactual", "tick", "episode_step")
 
 
 def canonical(value):

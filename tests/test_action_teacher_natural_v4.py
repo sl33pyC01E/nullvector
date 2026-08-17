@@ -12,12 +12,13 @@ from forge.action_teacher_natural_v4.curriculum import generate
 def test_natural_teacher_roundtrip_has_one_actor_and_no_camera_cuts(tmp_path) -> None:
     recorder=NaturalPlayRecorder(tmp_path,max_frames=128);recorder.start("natural-test",world_seed=7,tick=10)
     for step in range(128):
-        recorder.append(frame=np.zeros((FRAME_SIZE[1],FRAME_SIZE[0],3),np.uint8),state=np.zeros(STATE_FEATURES,np.float32),actor_state=np.zeros(ACTOR_FEATURES,np.float32),actor_field=np.zeros(ACTOR_FIELD_SHAPE,np.float16),visibility=np.ones((1,32,32),np.float16),control=np.zeros(4,np.float32),action="none",selected=4,timeline_event=0,timeline=np.zeros(3,np.float32),counterfactual=np.zeros(COUNTERFACTUAL_SHAPE,np.float32),tick=11+step,episode_step=step)
+        recorder.append(frame=np.zeros((FRAME_SIZE[1],FRAME_SIZE[0],3),np.uint8),state=np.zeros(STATE_FEATURES,np.float32),actor_state=np.zeros(ACTOR_FEATURES,np.float32),actor_field=np.zeros(ACTOR_FIELD_SHAPE,np.float16),visibility=np.ones((1,32,32),np.float16),memory=np.ones((1,32,32),np.float16),control=np.zeros(4,np.float32),action="none",selected=4,timeline_event=0,timeline=np.zeros(3,np.float32),counterfactual=np.zeros(COUNTERFACTUAL_SHAPE,np.float32),tick=11+step,episode_step=step)
     manifest=validate_trajectory(recorder.finish())
     assert manifest["frames"]==128
     assert manifest["view_contract"]["fixed_actor_camera"]
     assert manifest["view_contract"]["no_staged_camera_cuts"]
     assert manifest["view_contract"]["visibility_is_explicit_conditioning"]
+    assert manifest["view_contract"]["memory_is_explicit_conditioning"]
 
 
 def test_natural_curriculum_never_calls_staged_teleport_helper() -> None:

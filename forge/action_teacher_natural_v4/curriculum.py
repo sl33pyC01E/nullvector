@@ -26,7 +26,7 @@ def _record(demo, recorder, action, step):
     actor=demo.world.organisms.get(demo.selected)
     if actor is None or not actor.alive:raise RuntimeError("natural teacher fixed actor died")
     demo.camera=actor.position.copy();control=demo._neural_control().copy();frame=demo.capture_clean_target();forecast=demo.timeline_forecast;timeline=np.asarray((forecast.confidence,forecast.population_delta,forecast.resource_delta),np.float32);counterfactual=np.asarray([[demo.counterfactuals[name].benefit,demo.counterfactuals[name].risk,demo.counterfactuals[name].population_delta,demo.counterfactuals[name].resource_delta] for name in COUNTERFACTUAL_ACTIONS],np.float32)
-    recorder.append(frame=frame,state=extract_world_features(demo.world,demo.society),actor_state=extract_actor_features(demo.world,demo.selected),actor_field=extract_actor_field(demo.world,demo.selected),visibility=demo.teacher_visibility.copy(),control=control,action=action,selected=demo.selected,timeline_event=TIMELINE_EVENTS.index(forecast.event),timeline=timeline,counterfactual=counterfactual,tick=demo.world.tick_index,episode_step=step)
+    recorder.append(frame=frame,state=extract_world_features(demo.world,demo.society),actor_state=extract_actor_features(demo.world,demo.selected),actor_field=extract_actor_field(demo.world,demo.selected),visibility=demo.teacher_visibility.copy(),memory=demo.teacher_memory.copy(),control=control,action=action,selected=demo.selected,timeline_event=TIMELINE_EVENTS.index(forecast.event),timeline=timeline,counterfactual=counterfactual,tick=demo.world.tick_index,episode_step=step)
 
 
 def generate(*, root:Path=DEFAULT_ROOT, session_id:str, frames=1200, seed=0x4E41545552414C34, device="cuda"):

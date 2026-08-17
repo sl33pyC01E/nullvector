@@ -16,7 +16,7 @@ from ..world_frame_decoder_adapt_v1.runtime import AdaptedWorldFrameCodec
 from .contract import CODEC_CHECKPOINT,CODEC_SHA256,DEFAULT_OUTPUT,FORMAT,SOURCE_NAMES,SOURCE_ROOT,canonical,file_sha256,source_sha256
 
 
-RAW_NAMES=("frame","state","actor_state","actor_field","visibility","control","action","selected","timeline_event","timeline","counterfactual","tick","episode_step")
+RAW_NAMES=("frame","state","actor_state","actor_field","visibility","memory","control","action","selected","timeline_event","timeline","counterfactual","tick","episode_step")
 
 
 def _encode(runtime,frames,batch=8):

@@ -15,4 +15,4 @@ def test_natural_corpus_requires_full_episode_continuity() -> None:
 
 
 def test_natural_corpus_preserves_full_cellular_authority() -> None:
-    assert corpus.RAW_NAMES==("frame","state","actor_state","actor_field","visibility","control","action","selected","timeline_event","timeline","counterfactual","tick","episode_step")
+    assert corpus.RAW_NAMES==("frame","state","actor_state","actor_field","visibility","memory","control","action","selected","timeline_event","timeline","counterfactual","tick","episode_step")

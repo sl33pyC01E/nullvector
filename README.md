@@ -145,8 +145,9 @@ only controls presentation and information: vision and sensed-target markers,
 anatomy and organs, integrity bars, labels, ecology links, settlements, sites,
 atlas, shadows, selection, evolution offers, mechanism telemetry, and the
 status HUD. `F2` switches to the controlled organism's clean perception view:
-perfect awareness of its own cells, a small proximity bubble, and its live
-aimed cone or radial sense. Unseen organisms remain simulated but unrendered.
+perfect awareness of its own cells, a broad hearing bubble, and its live aimed
+cone or radial sense. Seen map materials persist as last-known memory; unseen
+organisms and moving objects remain simulated but unrendered.
 `L` toggles the cone visualization; `Shift+L` toggles sensed-target markers.
 Neither key disables sensing. Teacher trajectories record the visibility field
 before diagnostic overlays are composited. These controls never pause or

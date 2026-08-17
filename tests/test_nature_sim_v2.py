@@ -176,12 +176,15 @@ def test_perception_only_filters_render_observation_not_world_state() -> None:
 
 def test_controlled_perception_has_self_authority_and_omnidirectional_bubble() -> None:
     world=NatureWorld(seed=612,size=32,max_population=20);genome=founder_genomes(variants_per_family=1)[1]
-    actor_id=world.add_organism(genome,(16,16),energy=.8);near_id=world.add_organism(genome,(14,16),energy=.8);far_id=world.add_organism(genome,(10,16),energy=.8)
+    actor_id=world.add_organism(genome,(16,16),energy=.8);near_id=world.add_organism(genome,(14,16),energy=.8);far_id=world.add_organism(genome,(0,16),energy=.8)
     actor=world.organisms[actor_id];actor.heading=0.0;field=sensory_field(actor);visible=visible_targets(world,actor,field)
     assert near_id in visible and far_id not in visible
     draw_source=inspect.getsource(NatureDemo.draw)
     assert "{self.selected,*visible_targets" in draw_source
     assert "field.proximity_range*self.zoom" in inspect.getsource(NatureDemo._draw_perception_fog)
+    memory_source=inspect.getsource(NatureDemo._update_perception_memory)
+    assert "record[\"material\"][visible]=self.world.materials.material[visible]" in memory_source
+    assert "self.world.organisms" not in memory_source
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:

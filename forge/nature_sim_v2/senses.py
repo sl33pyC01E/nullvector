@@ -18,7 +18,7 @@ class SensoryField:
 
 
 def sensory_field(entity,*,equipment_bonus:float=0)->SensoryField:
-    integrity=float(entity.body.systems()["senses"]);perception=entity.genome.trait("perception");developmental=entity.genome.developmental.traits[13];base=(perception+developmental)*.5;family_range=(10,12,7,13,16)[entity.family];arc=(math.radians(100),math.radians(132),math.tau,math.tau,math.radians(62))[entity.family];radial=entity.family in (2,3);sensor_organs=sum(component.organ in ("sensor","neural") or component.kind in ("head","sensor_crown") for component in entity.genome.developmental.components);value=(2+family_range*base)*(0.12+.88*integrity)*(1+equipment_bonus);proximity=float(np.clip(2.2+math.sqrt(entity.body.organism.cell_count)*.17,3.0,4.8));return SensoryField(round(value,6),arc,radial,max(3,min(16,3+sensor_organs*2)),integrity,round(proximity,6))
+    integrity=float(entity.body.systems()["senses"]);perception=entity.genome.trait("perception");developmental=entity.genome.developmental.traits[13];base=(perception+developmental)*.5;family_range=(10,12,7,13,16)[entity.family];arc=(math.radians(100),math.radians(132),math.tau,math.tau,math.radians(62))[entity.family];radial=entity.family in (2,3);sensor_organs=sum(component.organ in ("sensor","neural") or component.kind in ("head","sensor_crown") for component in entity.genome.developmental.components);value=(2+family_range*base)*(0.12+.88*integrity)*(1+equipment_bonus);proximity=float(np.clip((2.2+math.sqrt(entity.body.organism.cell_count)*.17)*3.0,8.0,14.4));return SensoryField(round(value,6),arc,radial,max(3,min(16,3+sensor_organs*2)),integrity,round(proximity,6))
 
 
 def visible_targets(world,entity,field:SensoryField)->tuple[int,...]:
