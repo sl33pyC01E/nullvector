@@ -11,6 +11,8 @@ def test_v7_backpropagates_decoder_pixel_and_edge_losses():
     assert "codec.model.decode(next_latent" in source
     assert "visual_loss.backward()" in source
     assert "pixel_weight" in source and "edge_weight" in source
+    assert "anchor.gated_action" in source
+    assert "parent_anchor_weight" in source
 def test_v7_selection_and_test_include_pixel_space_gates():
     source=inspect.getsource(evaluation.evaluate)
     assert "min(rows" in source and "sequences[5]" in source
