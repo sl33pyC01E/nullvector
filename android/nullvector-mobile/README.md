@@ -4,7 +4,7 @@ Android deployment foundation for the Samsung Galaxy S25 Ultra.
 
 The APK runs the complete compact neural loop through ONNX Runtime: structured world context, recurrent action/state prediction, and the 91k-parameter mobile frame VAE. It continuously advances a latent world, displays decoded neural frames, and reports the selected execution provider plus measured context/action/raster latency.
 
-The current FP32 bundle is 52.9 MiB. The action student retains 74% of the desktop teacher's raw counter-action sensitivity at 32.7% of its parameters; its executed response is independently gated for nonzero magnitude and absolute teacher parity. The packaged APK is arm64-only and approximately 78 MiB.
+The recovery FP32 bundle is 53.1 MiB. The current candidate splits the runtime into a 13.2 MiB INT8 QDQ action graph and a 2.3 MiB FP32 physiology graph. It preserves actor outputs to numerical precision and diverges from the FP32 action rollout by 0.0090 latent units after 16 prediction-fed steps. The action student retains 74% of the desktop teacher's raw counter-action sensitivity at 32.7% of its parameters.
 
 Runtime order:
 

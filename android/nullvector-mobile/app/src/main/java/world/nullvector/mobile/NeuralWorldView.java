@@ -90,14 +90,15 @@ public final class NeuralWorldView extends View {
                 for (OnnxTensor tensor : inputs.values()) tensor.close();
                 status = provider + " · structured world encoder live";
             }
-            try (OrtSession actionSession = environment.createSession(assetFile("action_core_fp32.onnx").getAbsolutePath(), options);
+            try (OrtSession actionSession = environment.createSession(assetFile("action_delta_int8_qdq.onnx").getAbsolutePath(), options);
+                 OrtSession actorSession = environment.createSession(assetFile("actor_state_fp32.onnx").getAbsolutePath(), options);
                  OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options)) {
                 float[] rawInitial = latentAsset(), latentNorm = floatAsset("latent_normalization.f32", 96), current = new float[rawInitial.length];
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
                 float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
                 java.util.Arrays.fill(visibility, 1f); int tick = 0;
-                status += " · compact action core + mobile VAE live";
+                status += " · INT8 action + FP32 physiology + mobile VAE live";
                 while (running) {
                     long frameBegan = System.nanoTime(); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = 0f;
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
@@ -107,7 +108,6 @@ public final class NeuralWorldView extends View {
                     actionInputs.put("control", OnnxTensor.createTensor(environment, FloatBuffer.wrap(control), new long[]{1, 4}));
                     actionInputs.put("context", OnnxTensor.createTensor(environment, FloatBuffer.wrap(context), new long[]{1, 64}));
                     actionInputs.put("actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(actor), new long[]{1, 128}));
-                    actionInputs.put("previous_actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previousActor), new long[]{1, 128}));
                     actionInputs.put("visibility", OnnxTensor.createTensor(environment, FloatBuffer.wrap(visibility), new long[]{1, 1, 32, 32}));
                     actionInputs.put("memory", OnnxTensor.createTensor(environment, FloatBuffer.wrap(memory), new long[]{1, 1, 32, 32}));
                     float[] next = current.clone();
@@ -116,12 +116,13 @@ public final class NeuralWorldView extends View {
                         float[][][][] delta = (float[][][][])result.get(0).getValue(); float[][][][] gate = (float[][][][])result.get(1).getValue();
                         float bias = 1.5f * Math.min(tick / 2f, 1f);
                         previous = current; for (int c = 0, i = 0; c < 48; c++) for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++, i++) next[i] += (float)(1.0 / (1.0 + Math.exp(-(gate[0][gate[0].length == 1 ? 0 : c][y][x] + bias)))) * delta[0][c][y][x];
-                        float[] proposedActor = ((float[][])result.get(2).getValue())[0]; float[] actorGate = ((float[][])result.get(3).getValue())[0]; float[] nextActor = actor.clone();
-                        for (int i = 0; i < actor.length; i++) if (actorGate[i] >= .7f) nextActor[i] += .9f * (proposedActor[i] - actor[i]);
-                        previousActor = actor; actor = nextActor;
                     }
                     actionMilliseconds = (System.nanoTime() - actionBegan) / 1_000_000.0; current = next;
                     for (OnnxTensor tensor : actionInputs.values()) tensor.close();
+                    Map<String, OnnxTensor> actorInputs = new HashMap<>();
+                    actorInputs.put("actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(actor), new long[]{1, 128})); actorInputs.put("previous_actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previousActor), new long[]{1, 128})); actorInputs.put("action", OnnxTensor.createTensor(environment, LongBuffer.wrap(new long[]{actionId}), new long[]{1})); actorInputs.put("control", OnnxTensor.createTensor(environment, FloatBuffer.wrap(control), new long[]{1, 4})); actorInputs.put("context", OnnxTensor.createTensor(environment, FloatBuffer.wrap(context), new long[]{1, 64})); actorInputs.put("visibility", OnnxTensor.createTensor(environment, FloatBuffer.wrap(visibility), new long[]{1, 1, 32, 32})); actorInputs.put("memory", OnnxTensor.createTensor(environment, FloatBuffer.wrap(memory), new long[]{1, 1, 32, 32}));
+                    try (OrtSession.Result result = actorSession.run(actorInputs)) { float[] proposedActor = ((float[][])result.get(0).getValue())[0]; float[] actorGate = ((float[][])result.get(1).getValue())[0]; float[] nextActor = actor.clone(); for (int i = 0; i < actor.length; i++) if (actorGate[i] >= .7f) nextActor[i] += .9f * (proposedActor[i] - actor[i]); previousActor = actor; actor = nextActor; }
+                    for (OnnxTensor tensor : actorInputs.values()) tensor.close();
                     float[] rawLatent = new float[current.length]; for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) rawLatent[i] = current[i] * latentNorm[48 + c] + latentNorm[c];
                     Map<String, OnnxTensor> decoderInput = new HashMap<>(); decoderInput.put("latent", OnnxTensor.createTensor(environment, FloatBuffer.wrap(rawLatent), new long[]{1, 48, 32, 32}));
                     long decoderBegan = System.nanoTime(); try (OrtSession.Result result = decoder.run(decoderInput)) { neuralFrame = bitmap((float[][][][])result.get(0).getValue()); }

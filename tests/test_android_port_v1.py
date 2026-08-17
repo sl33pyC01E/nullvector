@@ -1,5 +1,6 @@
 from forge.android_port_v1.contract import TARGET
 from forge.android_port_v1.export import export_mobile_bundle
+from forge.android_port_v1.quantization import FORMAT as QUANTIZATION_FORMAT
 
 
 def test_android_target_contract() -> None:
@@ -14,3 +15,7 @@ def test_android_export_owns_latent_normalization_boundary() -> None:
     names = export_mobile_bundle.__code__.co_names
     assert "load_sequences" in names
     assert "tofile" in names
+
+
+def test_android_quantization_contract_is_candidate_scoped() -> None:
+    assert "qdq" in QUANTIZATION_FORMAT
