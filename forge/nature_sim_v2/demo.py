@@ -101,11 +101,12 @@ class NatureDemo:
             identity=entity.body.organism.identity_sha256
             if entity.alive and identity not in self.physiology_unsupported:active.append((entity.entity_id,entity.body))
         if active:
-            # Spread causal-cell inference across simulation ticks instead of
-            # pausing one frame to update the entire population.  Every body
-            # remains neural-authoritative; the cursor gives one body its next
-            # cellular state per tick (about 1 Hz at population 15).
-            population=len(active);count=1;start=self.physiology_cursor%population;active=[active[start]];self.physiology_cursor=(start+count)%population
+            # A small batched round-robin keeps causal physiology responsive
+            # without stalling presentation on a full-population inference.
+            # Four bodies cost substantially less than four single-body calls
+            # on the release NCA and give a 15-body world about 3.2 Hz state
+            # updates at the 12 Hz causal cadence.
+            population=len(active);count=min(4,population);start=self.physiology_cursor%population;active=[active[(start+offset)%population] for offset in range(count)];self.physiology_cursor=(start+count)%population
             try:self.physiology.step_many(active)
             except ValueError as exc:
                 if not any(term in str(exc) for term in ("exceeds causal NCA canvas","raster coordinates drifted")):raise
