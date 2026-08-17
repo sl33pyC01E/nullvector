@@ -16,3 +16,5 @@ def test_v7_selection_and_test_include_pixel_space_gates():
     assert "min(rows" in source and "sequences[5]" in source
     assert "all_pixel_horizons_beat_persistence" in source
     assert "pixel_motion_at_32" in source
+    pixel_source=inspect.getsource(training._pixel_metrics)
+    assert "codec.model.decode(initial)" in pixel_source
