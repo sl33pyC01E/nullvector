@@ -8,11 +8,11 @@ clearly labeled research prototypes.
 
 ### Grounded locomotion and feeding
 
-![Grounded locomotion and feeding](showcase/articulated_grounded_feeding_v11.gif)
+![Grounded locomotion and feeding](showcase/articulated_grounded_feeding_v12.gif)
 
-The grounded neural controller approaches a material clump, then an articulated
-arm carries it into live feeder cells. Feet remain planted and the held object
-stays constrained to the hand.
+The neural target field, muscle controller, and contact controller approach a
+material clump. An articulated arm then carries it into live feeder cells. Feet
+remain planted and the held object stays constrained to the hand.
 
 ### Five acquisition strategies
 

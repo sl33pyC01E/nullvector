@@ -40,7 +40,7 @@ scale exist as scaffolds and research systems rather than a finished game.
 
 | Grounded motion and feeding | Five feeding strategies |
 |---|---|
-| ![Grounded neural feeding](examples/showcase/articulated_grounded_feeding_v11.gif) | ![Five-family feeding](examples/showcase/articulated_five_family_feeding_v11.gif) |
+| ![Grounded neural feeding](examples/showcase/articulated_grounded_feeding_v12.gif) | ![Five-family feeding](examples/showcase/articulated_five_family_feeding_v11.gif) |
 
 | Ballistic throwing | True limb severing |
 |---|---|
@@ -167,6 +167,7 @@ that neural game systems can be deep, coherent, inspectable, and worth playing.
 
 - [Creature-stage design](docs/creature_stage_reboot.md)
 - [Neural motion training](docs/creature_stage_neural_motion.md)
+- [Neural grounded target field](docs/creature_stage_neural_target_field.md)
 - [Sprite field training](docs/multifield_training.md)
 - [Sprite evaluation](docs/multifield_evaluation.md)
 - [Neural rig bridge](docs/neural_rig_bridge.md)

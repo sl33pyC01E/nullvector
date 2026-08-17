@@ -1,0 +1,121 @@
+{
+  "artifacts": {
+    "articulated_ballistic_throw_v12.gif": {
+      "bytes": 951992,
+      "frames": 164,
+      "sha256": "5001cc2f7c0f3542556ec8248623302108001317cbc80c4c8c8dde777d7cec3c"
+    },
+    "articulated_damaged_grasper_v12.gif": {
+      "bytes": 704951,
+      "frames": 122,
+      "sha256": "66a1b41869262508f3916180dfb7c7921ec0d6a73ffe6b93973f48bd5f6c34b7"
+    },
+    "articulated_feeder_ablation_v12.gif": {
+      "bytes": 465582,
+      "frames": 84,
+      "sha256": "a4b96f03a773ca9f49a38ea22b1523af9ff8197c85b41a521d8fbd8eb5913639"
+    },
+    "articulated_five_family_feeding_v12.gif": {
+      "bytes": 62057,
+      "frames": 33,
+      "sha256": "425d735d11e824bbfe170aa5d93f5efdfe5e2bc488e58e3e6c6246c34fca3360"
+    },
+    "articulated_grounded_feeding_v12.gif": {
+      "bytes": 749842,
+      "frames": 122,
+      "sha256": "29100a783dea74032d29812223e625cc9e9b1aa9ea4ba192932810119c7e7d20"
+    },
+    "articulated_impact_modes_v12.gif": {
+      "bytes": 50857,
+      "frames": 96,
+      "sha256": "21e9b49b9211a3351cad40df713f43f53aa1593d3ba139324ff8c08b3ca0f367"
+    },
+    "articulated_inertial_feeding_v12.gif": {
+      "bytes": 211957,
+      "frames": 40,
+      "sha256": "970e23356cd3c5cdcfeb747573dfbe7d54847a6faa2928239c6c66ef1aa4def9"
+    },
+    "articulated_severed_grasper_v12.gif": {
+      "bytes": 482475,
+      "frames": 94,
+      "sha256": "f96fb6a2d76b9cdb141e81b431a1a41b6e09aeb6b2d7250bed1a74d3004eb32f"
+    }
+  },
+  "controllers": {
+    "high_level_grasper_sha256": "cd550ae1d75140555b4f51d4d27271da7012f9dfc3c4b99f85eca5b21e8b3e50",
+    "neural_grounded_feedback_metrics": {
+      "advance_ratio_max": 1.0033286128726826,
+      "advance_ratio_min": 0.9903851811408908,
+      "body_drive_mae": 0.08413071185350418,
+      "causal_distance_gain": 614275.1206723497,
+      "contact_f1": 0.9973128598848369,
+      "contact_iou": 0.9946401225114855,
+      "loop_seam_max_abs": 0.0001068115234375,
+      "maximum_contact_slip_px": 0.02010934241116047,
+      "maximum_edge_strain": 0.10569197684526443,
+      "muscle_mae": 0.02173248678445816,
+      "muscle_p95": 0.05229423567652702,
+      "rollout_distance_mean": 6.1427512067234975,
+      "rollout_node_l1": 0.0074287114664912226,
+      "vertical_axis_max_degrees": 2.98349883294987,
+      "zero_policy_distance_mean": 0.0
+    },
+    "neural_grounded_feedback_sha256": "d7f431662afabb270df74fd358030f72da194d127298646fb80f8c035058a8f2",
+    "neural_limb_pose_gates": {
+      "all_passed": true,
+      "bone_lengths_exact": true,
+      "closed_loop_trajectory_accuracy": true,
+      "confidence_calibrated": true,
+      "grounded_motion_floor": true,
+      "inverse_pose_accuracy": true
+    },
+    "neural_limb_pose_metrics": {
+      "confidence_mean": 0.996015191078186,
+      "maximum_bone_length_error_px": 1.430511474609375e-06,
+      "maximum_endpoint_acceleration_px": 1.2575101893090785,
+      "maximum_endpoint_velocity_px": 1.3085729539446462,
+      "pose_mae_px": 0.01978781633079052,
+      "pose_p95_px": 0.07881033420562744,
+      "pose_p99_px": 0.1223163828253746,
+      "rollout_cases": 31.0,
+      "rollout_node_mae_px": 0.09890132666025973
+    },
+    "neural_limb_pose_sha256": "ffeddc23501700d5d98b62b5b0ca6b7352ff75705e14fe17050d4ffc9d01ad78",
+    "neural_target_field_audit_sha256": "5f2bbb7d9ae51279e670dc2767ef7a05b9af105cbbc18acf7c0f8fe84235ac79",
+    "neural_target_field_sha256": "c82fe0d6b17ac1e292e7ffa12bd3634fbf3b854c1a886933675e51cb138474e6"
+  },
+  "five_family_intake_all_passed": true,
+  "five_family_intake_audit": {
+    "animalian": {
+      "consumed_mass": 0.828,
+      "passed_visible_intake_gate": true,
+      "remaining_mass": 0.172,
+      "strategy": "ground_bite"
+    },
+    "anomaly": {
+      "consumed_mass": 0.253,
+      "passed_visible_intake_gate": true,
+      "remaining_mass": 0.747,
+      "strategy": "phase_tractor"
+    },
+    "humanoid": {
+      "consumed_mass": 0.21,
+      "passed_visible_intake_gate": true,
+      "remaining_mass": 0.79,
+      "strategy": "kneel_grasp"
+    },
+    "machine": {
+      "consumed_mass": 0.671,
+      "passed_visible_intake_gate": true,
+      "remaining_mass": 0.329,
+      "strategy": "suspension_tool"
+    },
+    "plantlike": {
+      "consumed_mass": 0.483,
+      "passed_visible_intake_gate": true,
+      "remaining_mass": 0.517,
+      "strategy": "root_siphon"
+    }
+  },
+  "format": "nullvector-neural-manipulation-showcase/12.0.0"
+}

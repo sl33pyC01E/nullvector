@@ -13,6 +13,10 @@ LIMB_POSE_CONTROLLER = PROJECT_ROOT / "outputs/creature_stage_neural_limb_pose_v
 LIMB_POSE_CONTROLLER_SHA256 = "ffeddc23501700d5d98b62b5b0ca6b7352ff75705e14fe17050d4ffc9d01ad78"
 GROUNDED_FEEDBACK_CONTROLLER = PROJECT_ROOT / "outputs/creature_stage_neural_grounded_feedback_v2/production_3000_v2/runtime.pt"
 GROUNDED_FEEDBACK_CONTROLLER_SHA256 = "d7f431662afabb270df74fd358030f72da194d127298646fb80f8c035058a8f2"
+NEURAL_TARGET_FIELD_CONTROLLER = PROJECT_ROOT / "outputs/creature_stage_neural_target_field_v1/production_6000_v11_tail/runtime.pt"
+NEURAL_TARGET_FIELD_CONTROLLER_SHA256 = "c82fe0d6b17ac1e292e7ffa12bd3634fbf3b854c1a886933675e51cb138474e6"
+NEURAL_TARGET_FIELD_AUDIT = PROJECT_ROOT / "outputs/creature_stage_neural_target_field_v1/production_6000_v11_exhaustive_audit_v2"
+NEURAL_TARGET_FIELD_AUDIT_SHA256 = "5f2bbb7d9ae51279e670dc2767ef7a05b9af105cbbc18acf7c0f8fe84235ac79"
 
 
 def file_sha256(path: Path) -> str:
@@ -36,3 +40,13 @@ def assert_limb_pose_controller() -> None:
 def assert_grounded_feedback_controller() -> None:
     if file_sha256(GROUNDED_FEEDBACK_CONTROLLER) != GROUNDED_FEEDBACK_CONTROLLER_SHA256:
         raise ValueError("accepted neural grounded feedback runtime drifted")
+
+
+def assert_neural_target_field_controller() -> None:
+    from ..creature_stage_neural_target_field_v1.audit import validate_audit
+    if file_sha256(NEURAL_TARGET_FIELD_CONTROLLER) != NEURAL_TARGET_FIELD_CONTROLLER_SHA256:
+        raise ValueError("accepted neural target field runtime drifted")
+    report = NEURAL_TARGET_FIELD_AUDIT / "audit_report.json"
+    if file_sha256(report) != NEURAL_TARGET_FIELD_AUDIT_SHA256:
+        raise ValueError("accepted neural target field audit drifted")
+    validate_audit(NEURAL_TARGET_FIELD_AUDIT, checkpoint=NEURAL_TARGET_FIELD_CONTROLLER)

@@ -15,13 +15,14 @@ from ..creature_stage_developmental.development import develop
 from ..creature_stage_developmental.genomes import review_genomes
 from ..creature_stage_developmental.contract import FAMILIES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
-from ..creature_stage_neural_grounded_feedback_v2.physics import simulate_feedback_cycle
-from ..creature_stage_neural_grounded_feedback_v2.runtime import NeuralGroundedFeedbackRuntime
+from ..creature_stage_neural_target_field_v1.physics import simulate_target_field_cycle
+from ..creature_stage_neural_target_field_v1.runtime import NeuralTargetFieldRuntime
 from .arena import ManipulationStep, NeuralManipulationArena
 from .contract import (
     CONTROLLER_SHA256, LIMB_POSE_CONTROLLER, LIMB_POSE_CONTROLLER_SHA256,
     GROUNDED_FEEDBACK_CONTROLLER, GROUNDED_FEEDBACK_CONTROLLER_SHA256,
-    assert_grounded_feedback_controller,
+    NEURAL_TARGET_FIELD_AUDIT_SHA256, NEURAL_TARGET_FIELD_CONTROLLER,
+    NEURAL_TARGET_FIELD_CONTROLLER_SHA256, assert_neural_target_field_controller,
 )
 
 
@@ -182,9 +183,9 @@ def _feed_clip() -> list[Image.Image]:
 def _grounded_grasp_clip() -> list[Image.Image]:
     """Prove that feeding augments rather than replaces grounded locomotion."""
     arena, target_id = _ground_arena(0, 5.5)
-    assert_grounded_feedback_controller()
-    grounded_runtime = NeuralGroundedFeedbackRuntime.from_checkpoint(GROUNDED_FEEDBACK_CONTROLLER, device="cpu")
-    cycle = simulate_feedback_cycle(arena.organism, grounded_runtime)
+    assert_neural_target_field_controller()
+    grounded_runtime = NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER, device="cpu")
+    cycle = simulate_target_field_cycle(arena.organism, grounded_runtime)
     frames: list[Image.Image] = []
     finish_x = float(cycle.frames[-1].body_world_x)
     appendage = arena.grasper_indices()[0]
@@ -192,7 +193,7 @@ def _grounded_grasp_clip() -> list[Image.Image]:
     for frame in cycle.frames:
         arena.articulation.nodes[:, :2] = frame.nodes_local
         arena.body.position[:] = (float(frame.body_world_x) - finish_x, 0.0)
-        frames.append(_frame(arena, target_id, "NEURAL GAIT + NEURAL GRASP", "live muscle/contact policy through exact grounded skeleton", dummy))
+        frames.append(_frame(arena, target_id, "NEURAL TARGET GAIT + NEURAL GRASP", "learned periodic targets + live muscles/contacts", dummy))
     arena.body.position[:] = 0.0
     count = len(arena.organism.genome.components)
     arena.articulation.component_offsets[:] = (
@@ -204,7 +205,7 @@ def _grounded_grasp_clip() -> list[Image.Image]:
     for tick in range(420):
         step = arena.step_family_acquisition(target_id, delta=.05)
         if tick % 2 == 0:
-            frames.append(_frame(arena, target_id, "NEURAL GAIT + NEURAL GRASP", "continuous neural controllers // one physical organism", step))
+            frames.append(_frame(arena, target_id, "NEURAL TARGET GAIT + NEURAL GRASP", "continuous neural controllers // one physical organism", step))
         if arena.feeding.consumed_mass >= .34:
             break
     return frames + frames[-10:]
@@ -378,14 +379,14 @@ def build_showcase(destination: Path) -> dict[str, object]:
     destination.mkdir(parents=True, exist_ok=True)
     family_audit: dict[str, object] = {}
     clips = {
-        "articulated_inertial_feeding_v11.gif": _feed_clip(),
-        "articulated_grounded_feeding_v11.gif": _grounded_grasp_clip(),
-        "articulated_ballistic_throw_v11.gif": _throw_clip(),
-        "articulated_impact_modes_v11.gif": _impact_modes_clip(),
-        "articulated_feeder_ablation_v11.gif": _feeder_ablation_clip(),
-        "articulated_severed_grasper_v11.gif": _severed_grasper_clip(),
-        "articulated_damaged_grasper_v11.gif": _damaged_grasper_clip(),
-        "articulated_five_family_feeding_v11.gif": _five_family_clip(family_audit),
+        "articulated_inertial_feeding_v12.gif": _feed_clip(),
+        "articulated_grounded_feeding_v12.gif": _grounded_grasp_clip(),
+        "articulated_ballistic_throw_v12.gif": _throw_clip(),
+        "articulated_impact_modes_v12.gif": _impact_modes_clip(),
+        "articulated_feeder_ablation_v12.gif": _feeder_ablation_clip(),
+        "articulated_severed_grasper_v12.gif": _severed_grasper_clip(),
+        "articulated_damaged_grasper_v12.gif": _damaged_grasper_clip(),
+        "articulated_five_family_feeding_v12.gif": _five_family_clip(family_audit),
     }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
@@ -394,7 +395,7 @@ def build_showcase(destination: Path) -> dict[str, object]:
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
     limb_report = json.loads((LIMB_POSE_CONTROLLER.parent / "report.json").read_text(encoding="utf-8"))
     report = {
-        "format": "nullvector-neural-manipulation-showcase/11.0.0",
+        "format": "nullvector-neural-manipulation-showcase/12.0.0",
         "controllers": {
             "high_level_grasper_sha256": CONTROLLER_SHA256,
             "neural_limb_pose_sha256": LIMB_POSE_CONTROLLER_SHA256,
@@ -402,6 +403,8 @@ def build_showcase(destination: Path) -> dict[str, object]:
             "neural_limb_pose_gates": limb_report["gates"],
             "neural_grounded_feedback_sha256": GROUNDED_FEEDBACK_CONTROLLER_SHA256,
             "neural_grounded_feedback_metrics": json.loads((GROUNDED_FEEDBACK_CONTROLLER.parent / "report.json").read_text(encoding="utf-8"))["metrics"],
+            "neural_target_field_sha256": NEURAL_TARGET_FIELD_CONTROLLER_SHA256,
+            "neural_target_field_audit_sha256": NEURAL_TARGET_FIELD_AUDIT_SHA256,
         },
         "artifacts": artifacts,
         "five_family_intake_audit": family_audit,
