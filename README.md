@@ -115,6 +115,14 @@ slower ecology and society decisions stay on their own cadence. The organism VAE
 cell appearance once, then physics moves those neural-authored cells without
 rerasterizing an entire body per pose. Peak reserved VRAM is about 770 MiB.
 
+The current width-96 neural topology prior has a decoded six-biome audit rather
+than a token-only score. After 2,000 updates, 83.3% of raw maps connect their
+required route and 33.3% survive an agent-radius erosion; mean deterministic
+repair is 7.1%. Biome structure is distinct, but hazards remain underlearned, so
+this checkpoint is evidence—not the promoted world generator.
+
+![Decoded neural topology prior: source, raw sample, repaired map, and edit overlay](examples/showcase/neural_topology_prior_v2_2000step.png)
+
 The next recurrent student carries both visual and 128-feature organism state
 through contiguous rollouts. On the untouched world it beats its unchanged
 parents by 2.36–2.79% at every 4–32 step horizon, while beating initial-frame

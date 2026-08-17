@@ -1,0 +1,75 @@
+{
+  "aggregate": {
+    "mean_repair_fraction": 0.070800781,
+    "mean_unique_tokens": 7.666666666666667,
+    "raw_radius_one_required_reachable_rate": 0.3333333333333333,
+    "raw_required_reachable_rate": 0.8333333333333334
+  },
+  "cases": [
+    {
+      "preview": "anomaly.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.4365234375,
+      "raw_radius_one_required_reachable": false,
+      "raw_required_reachable": true,
+      "repair_fraction": 0.188476562,
+      "theme": "anomaly",
+      "unique_tokens": 10
+    },
+    {
+      "preview": "archipelago.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.265625,
+      "raw_radius_one_required_reachable": false,
+      "raw_required_reachable": false,
+      "repair_fraction": 0.129882812,
+      "theme": "archipelago",
+      "unique_tokens": 7
+    },
+    {
+      "preview": "arena.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.7529296875,
+      "raw_radius_one_required_reachable": false,
+      "raw_required_reachable": true,
+      "repair_fraction": 0.026367188,
+      "theme": "arena",
+      "unique_tokens": 5
+    },
+    {
+      "preview": "caves.png",
+      "raw_hazard_fraction": 0.0009765625,
+      "raw_openness": 0.84375,
+      "raw_radius_one_required_reachable": true,
+      "raw_required_reachable": true,
+      "repair_fraction": 0.008789062,
+      "theme": "caves",
+      "unique_tokens": 9
+    },
+    {
+      "preview": "garden.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.849609375,
+      "raw_radius_one_required_reachable": true,
+      "raw_required_reachable": true,
+      "repair_fraction": 0.020507812,
+      "theme": "garden",
+      "unique_tokens": 6
+    },
+    {
+      "preview": "rooms.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.37890625,
+      "raw_radius_one_required_reachable": false,
+      "raw_required_reachable": true,
+      "repair_fraction": 0.05078125,
+      "theme": "rooms",
+      "unique_tokens": 9
+    }
+  ],
+  "checkpoint_sha256": "091f5882e3a4efe60a345e459e66b6676d1bb0acf53a4a5ff9ac0cdb8a64ba6e",
+  "contact_sheet_sha256": "6af7a87b70de51a3aa3be67c6451761134577cb9bf97670ede1df0bd365a0ec7",
+  "format": "nullvector-map-topology-prior-v2-decoded-evaluation/1.0.0",
+  "report_sha256": "3f4ba7addcc0e33a1bfa5bd4f63e42490990586f719e4d6691b5ce1a713b761e",
+  "step": 2000
+}
