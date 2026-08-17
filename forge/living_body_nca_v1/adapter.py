@@ -44,8 +44,11 @@ def _canvas_coordinates(points: np.ndarray) -> np.ndarray:
 
 
 def _boundary(points: np.ndarray) -> np.ndarray:
-    occupied = {tuple(row) for row in points.tolist()}
-    return np.asarray([any((int(x + dx), int(y + dy)) not in occupied for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))) for x, y in points], np.float32)
+    occupied = np.zeros((CANVAS, CANVAS), np.bool_)
+    y, x = points[:, 1].astype(np.intp), points[:, 0].astype(np.intp)
+    occupied[y, x] = True
+    interior = occupied[y - 1, x] & occupied[y + 1, x] & occupied[y, x - 1] & occupied[y, x + 1]
+    return (~interior).astype(np.float32)
 
 
 def _system_weights(body) -> np.ndarray:
@@ -63,9 +66,32 @@ def _system_weights(body) -> np.ndarray:
     return weights
 
 
-def rasterize_body(body, previous_state: np.ndarray | None = None) -> BodyRaster:
+def _dynamic_raster(body, static: np.ndarray, state: np.ndarray, bonds: np.ndarray, canvas_xy: np.ndarray) -> BodyRaster:
+    y, x = canvas_xy[:, 1].astype(np.intp), canvas_xy[:, 0].astype(np.intp)
+    state[0, y, x] = body.health
+    state[1, y, x] = body.fluid / np.maximum(body.fluid_capacity, 1e-6)
+    state[3, y, x] = body.energy
+    state[6, y, x] = body.scar
+    state[7, y, x] = np.clip(1 - body.health, 0, 1)
+    state[11, y, x] = body.alive_mask
+    live_grid = np.zeros((CANVAS, CANVAS), np.float32)
+    live_grid[y, x] = body.alive_mask
+    for channel, (dx, dy) in enumerate(DIRECTION_XY):
+        bonds[channel] *= live_grid * np.roll(live_grid, shift=(-dy, -dx), axis=(0, 1))
+    if not (np.isfinite(static).all() and np.isfinite(state).all() and np.isfinite(bonds).all()):
+        raise FloatingPointError("living body NCA raster became non-finite")
+    return BodyRaster(static, np.clip(state, 0, 1), bonds, canvas_xy, body.organism.identity_sha256)
+
+
+def rasterize_body(body, previous_state: np.ndarray | BodyRaster | None = None) -> BodyRaster:
     organism = body.organism
     count = organism.cell_count
+    if isinstance(previous_state, BodyRaster) and previous_state.organism_sha256 == organism.identity_sha256:
+        static = previous_state.static
+        state = previous_state.state.copy()
+        canvas_xy = previous_state.canvas_xy
+        bonds = (static[77 : 77 + BOND_CHANNELS] > 0).astype(np.float32)
+        return _dynamic_raster(body, static, state, bonds, canvas_xy)
     canvas_xy = _canvas_coordinates(organism.cell_xy)
     y, x = canvas_xy[:, 1].astype(np.intp), canvas_xy[:, 0].astype(np.intp)
     static = np.zeros((STATIC_CHANNELS, CANVAS, CANVAS), np.float32)
@@ -111,16 +137,7 @@ def rasterize_body(body, previous_state: np.ndarray | None = None) -> BodyRaster
     static[75, y, x] = degree / 8; static[76, y, x] = np.where(degree > 0, .75, 0)
     if previous_state is None:
         state[2, y, x] = .35 + .45 * system_weights[2]; state[4, y, x] = .88; state[8, y, x] = np.clip(.08 + .92 * system_weights[3], 0, 1)
-    state[0, y, x] = body.health; state[1, y, x] = body.fluid / np.maximum(body.fluid_capacity, 1e-6); state[3, y, x] = body.energy
-    state[6, y, x] = body.scar; state[7, y, x] = np.clip(1 - body.health, 0, 1); state[11, y, x] = body.alive_mask
-    # Dead endpoints cannot conduct even though immutable anatomy retains the edge.
-    live = body.alive_mask
-    for channel, (dx, dy) in enumerate(DIRECTION_XY):
-        neighbor_alive = np.zeros((CANVAS, CANVAS), np.float32); neighbor_alive[y, x] = live
-        bonds[channel] *= neighbor_alive * np.roll(neighbor_alive, shift=(-dy, -dx), axis=(0, 1))
-    if not (np.isfinite(static).all() and np.isfinite(state).all() and np.isfinite(bonds).all()):
-        raise FloatingPointError("living body NCA raster became non-finite")
-    return BodyRaster(static, np.clip(state, 0, 1), bonds, canvas_xy, organism.identity_sha256)
+    return _dynamic_raster(body, static, state, bonds, canvas_xy)
 
 
 class LivingBodyNCARuntime:
@@ -147,7 +164,7 @@ class LivingBodyNCARuntime:
     def step_many(self, items: Iterable[tuple[Hashable, object]]) -> dict[Hashable, object]:
         rows=[]
         for key,body in items:
-            previous=self.states.get(key);row=rasterize_body(body,None if previous is None or previous.organism_sha256!=body.organism.identity_sha256 else previous.state);rows.append((key,body,row))
+            previous=self.states.get(key);row=rasterize_body(body,previous);rows.append((key,body,row))
         if not rows:return {}
         static=torch.from_numpy(np.stack([row.static for _,_,row in rows])).to(self.device);state=torch.from_numpy(np.stack([row.state for _,_,row in rows])).to(self.device);bonds=torch.from_numpy(np.stack([row.live_bonds for _,_,row in rows])).to(self.device)
         predicted=self.model(static,state,bonds).float().cpu().numpy();result={}

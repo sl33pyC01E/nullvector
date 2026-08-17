@@ -9,10 +9,9 @@ import numpy as np
 
 from ..creature_stage_neural_grasper_v1.constraint import GraspBody, GraspConstraint, solve_grasp
 from ..creature_stage_neural_grasper_v1.contract import MAX_APPENDAGES
-from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, IntakeResult, absorb_food, metabolize_reserve
+from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, FeederStatus, IntakeResult, _digestive_mask, _feeder_mask
 from ..creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
 from ..creature_stage_manipulation_v1.articulation import ArticulatedBody
-from ..creature_stage_neural_grasper_v1.feeding import feeder_status
 from .contract import CONTROLLER, FORMAT, assert_runtime
 
 
@@ -84,9 +83,60 @@ class NatureNeuralFeedingSystem:
         self.controller = NeuralGrasperRuntime.from_checkpoint(CONTROLLER, device=device)
         self.clumps: dict[int, WorldClump] = {}
         self.entities: dict[int, EntityFeeding] = {}
+        self.feeder_topology: dict[str, tuple[str, np.ndarray, np.ndarray, tuple[tuple[int, ...], ...]]] = {}
         self.next_clump_id = 1
         self.absorbed_mass = 0.0
         self.throws = self.grasps = 0
+
+    def _feeder_status(self, body) -> FeederStatus:
+        identity = str(body.organism.identity_sha256)
+        cached = self.feeder_topology.get(identity)
+        if cached is None:
+            kind, feeder = _feeder_mask(body)
+            digestive = _digestive_mask(body)
+            neighbors: list[list[int]] = [[] for _ in range(body.organism.cell_count)]
+            for left_raw, right_raw in body.adjacency:
+                left, right = int(left_raw), int(right_raw)
+                neighbors[left].append(right);neighbors[right].append(left)
+            feeder.setflags(write=False);digestive.setflags(write=False)
+            cached = kind, feeder, digestive, tuple(tuple(row) for row in neighbors)
+            self.feeder_topology[identity] = cached
+        kind, feeder, digestive, neighbors = cached
+        alive = body.alive_mask
+        starts = np.flatnonzero(feeder & alive)
+        route = False
+        if starts.size and np.any(digestive & alive):
+            seen = np.zeros(body.organism.cell_count, np.bool_);seen[starts] = True;stack = starts.tolist()
+            route = bool(np.any(digestive[starts]))
+            while stack and not route:
+                current = stack.pop()
+                for neighbor in neighbors[current]:
+                    if alive[neighbor] and not seen[neighbor]:
+                        if digestive[neighbor]:route = True;break
+                        seen[neighbor] = True;stack.append(neighbor)
+        feeder_health = float(body.health[feeder].mean()) if feeder.any() else 0.0
+        digestive_health = float(body.health[digestive].mean()) if digestive.any() else 0.0
+        capacity = min(feeder_health, digestive_health, body.systems()["digestion"]) if route else 0.0
+        return FeederStatus(kind, feeder, digestive, int(np.count_nonzero(feeder & alive)), int(np.count_nonzero(digestive & alive)), route, float(np.clip(capacity, 0, 1)))
+
+    def _metabolize(self, body, feeding: FeedingState, *, delta: float, activity: float) -> float:
+        status = self._feeder_status(body)
+        feeding.fullness_seconds = max(0.0, feeding.fullness_seconds - delta)
+        requested = delta * (.0015 + .0035 * activity)
+        released = min(feeding.reserve, requested * (.20 + .80 * status.capacity)) if status.route_intact else 0.0
+        feeding.reserve -= released;body.energy = min(4.0, body.energy + released)
+        return float(released)
+
+    def _absorb(self, body, feeding: FeedingState, clump: FoodClump, *, delta: float, contact_field: float, intake_rate: float) -> IntakeResult:
+        status = self._feeder_status(body)
+        feeder_points = body.organism.cell_xy[status.feeder_mask & body.alive_mask].astype(np.float64)
+        distance = float(np.min(np.linalg.norm(feeder_points - clump.position, axis=1))) if feeder_points.size else math.inf
+        contacted = distance <= contact_field + clump.radius
+        nutrition = float(clump.nutrition_by_family[body.family]);capacity = max(0.0, feeding.reserve_capacity - feeding.reserve)
+        allowed = contacted and status.route_intact and not body.dead and nutrition > 0 and clump.mass > 0 and capacity > 0
+        absorbed = min(clump.mass, intake_rate * delta * (.30 + .70 * status.capacity), capacity / max(clump.nutrient_density * nutrition, 1e-8)) if allowed else 0.0
+        value = absorbed * clump.nutrient_density * nutrition;clump.mass = max(0.0, clump.mass - absorbed);feeding.reserve = min(feeding.reserve_capacity, feeding.reserve + value);feeding.fullness_seconds = min(feeding.fullness_capacity_seconds, feeding.fullness_seconds + value * 42.0);feeding.consumed_mass += absorbed
+        return IntakeResult(contacted, status.route_intact, float(absorbed), float(value), float(feeding.reserve), float(feeding.fullness_seconds))
 
     def add_clump(self, position, *, material: str, mass: float = 1.0, velocity=(0.0, 0.0), cohesion: float = .7, source: str = "environment", impact_mode: str | None = None) -> int:
         if material not in MATERIAL_PROFILES:
@@ -283,7 +333,7 @@ class NatureNeuralFeedingSystem:
 
     def step_entity(self, world, entity, delta: float) -> dict[str, float | bool | int]:
         state = self._entity(entity)
-        released = metabolize_reserve(entity.body, state.feeding, delta=delta, activity=min(1.0, float(np.linalg.norm(entity.velocity))))
+        released = self._metabolize(entity.body, state.feeding, delta=delta, activity=min(1.0, float(np.linalg.norm(entity.velocity))))
         entity.energy = min(1.2, entity.energy + released * 12.0)
         entity.reserve = state.feeding.reserve / state.feeding.reserve_capacity
         if state.constraint.attached and state.target_id in self.clumps:
@@ -332,7 +382,7 @@ class NatureNeuralFeedingSystem:
         if state.constraint.attached and state.grasp_appendage is not None:
             appendage = state.grasp_appendage
         if state.constraint.attached:
-            status = feeder_status(entity.body)
+            status = self._feeder_status(entity.body)
             feeder_cells = entity.body.organism.cell_xy[status.feeder_mask & entity.body.alive_mask].astype(np.float64)
             feasible_feeders = [point for point in feeder_cells if state.articulation.feasible(appendage, point, contact_radius=1.8)]
             desired = min(feasible_feeders, key=lambda point: float(np.linalg.norm(point - state.articulation.endpoint(appendage)))) if feasible_feeders else np.asarray(command.reach, np.float64) * 24
@@ -377,7 +427,7 @@ class NatureNeuralFeedingSystem:
         elif was_attached and not state.constraint.attached:
             state.grasp_appendage = None
         local_food = FoodClump(target.position, target.velocity, clump.food.mass, clump.food.radius * CELLS_PER_WORLD, clump.food.nutrient_density, clump.food.nutrition_by_family, clump.food.material)
-        intake = absorb_food(entity.body, state.feeding, local_food, body_position=np.zeros(2), delta=delta, contact_field=1.8, intake_rate=.55) if state.constraint.attached else IntakeResult(False, False, 0.0, 0.0, state.feeding.reserve, state.feeding.fullness_seconds)
+        intake = self._absorb(entity.body, state.feeding, local_food, delta=delta, contact_field=1.8, intake_rate=.55) if state.constraint.attached else IntakeResult(False, False, 0.0, 0.0, state.feeding.reserve, state.feeding.fullness_seconds)
         clump.food.mass = local_food.mass
         self.absorbed_mass += intake.absorbed_mass
         if intake.absorbed_mass > 0:
