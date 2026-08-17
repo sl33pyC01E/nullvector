@@ -128,15 +128,18 @@ def train(output: Path = DEFAULT_OUTPUT, *, plan: TrainingPlan = TrainingPlan())
                     delta, change_logits = model.gated_action(cn, pn, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], actor, visibility, memory)
                     magnitude = ((target - current) / ls).abs().mean(1, keepdim=True)
                     target_delta = (target-current)/ls
-                    # Teach trust, not mere activity: open only where the proposed
-                    # transition is locally better than preserving the current cell.
+                    # Closed-form least-squares blend between persistence (0) and
+                    # the proposed neural velocity (1), independently per cell.
                     with torch.no_grad():
-                        proposed_error = (delta.float()-target_delta.float()).abs().mean(1,keepdim=True)
-                        persistence_error = target_delta.float().abs().mean(1,keepdim=True)
-                        change_target = (proposed_error + .002 < persistence_error).float()
+                        proposal = delta.float()
+                        truth = target_delta.float()
+                        change_target = torch.clamp(
+                            (proposal * truth).sum(1, keepdim=True) /
+                            (proposal.square().sum(1, keepdim=True) + 1e-6), 0, 1,
+                        )
                     gated_delta = torch.sigmoid(change_logits) * delta
                     transition_loss = (F.smooth_l1_loss(gated_delta, target_delta, reduction="none") * (1 + 5 * torch.clamp(magnitude/.35, 0, 2))).mean()
-                    change_loss = F.binary_cross_entropy_with_logits(change_logits, change_target)
+                    change_loss = F.smooth_l1_loss(torch.sigmoid(change_logits), change_target)
                     latent_loss = transition_loss + .12 * change_loss
                     actor_result = model.actor(an, pan, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], visibility, memory)
                     changed = (tan - an).abs() > .025

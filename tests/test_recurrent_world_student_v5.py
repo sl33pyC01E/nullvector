@@ -43,5 +43,6 @@ def test_learned_change_gate_starts_near_persistence() -> None:
 
 def test_change_gate_learns_when_prediction_beats_persistence() -> None:
     source=inspect.getsource(training.train)
-    assert "proposed_error + .002 < persistence_error" in source
-    assert "change_target = (proposed_error" in source
+    assert "proposal * truth" in source
+    assert "proposal.square()" in source
+    assert "torch.clamp(" in source
