@@ -72,6 +72,11 @@ def build_target_augmentation(*,variants_per_chassis:int=3)->TargetAugmentationC
     for base_index,base in enumerate(review_genomes()):
         family=int(np.argmax(np.asarray(base.family_mix,np.float32)));accepted=0
         for ordinal in range(24+base_index*3,96):
+            # Multiples of three scale the complete reviewed chassis without
+            # injecting another curriculum graft. Several reviewed sentinels
+            # already contain a donor family, so grafting them again would no
+            # longer describe a normalized genome simplex.
+            if ordinal%3: continue
             candidate=_scaled_genome(base,family,ordinal)
             if len(candidate.appendages)>MAX_APPENDAGES: continue
             organisms.append(develop(candidate));accepted+=1
