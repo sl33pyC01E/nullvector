@@ -44,7 +44,7 @@ class PerceptionRecurrentWorldStudent(nn.Module):
             nn.Conv2d(32, 1, 1),
         )
         nn.init.zeros_(self.change_gate[-1].weight)
-        nn.init.constant_(self.change_gate[-1].bias, -3.0)
+        nn.init.constant_(self.change_gate[-1].bias, -6.0)
 
     @property
     def parameter_count(self):

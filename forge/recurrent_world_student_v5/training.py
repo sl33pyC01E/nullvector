@@ -139,8 +139,9 @@ def train(output: Path = DEFAULT_OUTPUT, *, plan: TrainingPlan = TrainingPlan())
                         )
                     gated_delta = torch.sigmoid(change_logits) * delta
                     transition_loss = (F.smooth_l1_loss(gated_delta, target_delta, reduction="none") * (1 + 5 * torch.clamp(magnitude/.35, 0, 2))).mean()
+                    proposal_loss = (F.smooth_l1_loss(delta, target_delta, reduction="none") * (1 + 5 * torch.clamp(magnitude/.35, 0, 2))).mean()
                     change_loss = F.smooth_l1_loss(torch.sigmoid(change_logits), change_target)
-                    latent_loss = transition_loss + .12 * change_loss
+                    latent_loss = transition_loss + .25 * proposal_loss + .12 * change_loss
                     actor_result = model.actor(an, pan, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], visibility, memory)
                     changed = (tan - an).abs() > .025
                     actor_loss = (F.smooth_l1_loss(actor_result.state, tan, reduction="none") * (1 + 6 * changed)).mean()

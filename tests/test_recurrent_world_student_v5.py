@@ -38,7 +38,7 @@ def test_learned_change_gate_starts_near_persistence() -> None:
     current=torch.randn(1,48,32,32); previous=torch.randn_like(current); action=torch.zeros(1,dtype=torch.long); control=torch.zeros(1,4); state=torch.zeros(1,64); actor=torch.zeros(1,128); visibility=torch.ones(1,1,32,32); memory=torch.ones_like(visibility)
     with torch.inference_mode():
         _,logits=model.gated_action(current,previous,action,control,state,actor,visibility,memory)
-    torch.testing.assert_close(logits,torch.full_like(logits,-3.0))
+    torch.testing.assert_close(logits,torch.full_like(logits,-6.0))
 
 
 def test_change_gate_learns_when_prediction_beats_persistence() -> None:
