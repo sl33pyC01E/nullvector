@@ -11,7 +11,7 @@ CORPUS=PROJECT_ROOT/"outputs/world_action_natural_v10/corpus_v1_6world";CODEC=PR
 SOURCE_FILES=("forge/recurrent_world_student_v7/__init__.py","forge/recurrent_world_student_v7/__main__.py","forge/recurrent_world_student_v7/contract.py","forge/recurrent_world_student_v7/training.py","forge/recurrent_world_student_v7/evaluation.py","forge/recurrent_world_student_v5/model.py","forge/recurrent_world_student_v6/training.py","forge/recurrent_world_student_v6/calibration.py")
 @dataclass(frozen=True,slots=True)
 class TrainingPlan:
-    total_updates:int=600;segment_updates:int=100;rollout_steps:int=4;batch_size:int=16;pixel_batch_size:int=8;learning_rate:float=5e-6;ema_decay:float=.999;actor_weight:float=.35;proposal_weight:float=.25;gate_weight:float=.12;parent_anchor_weight:float=.5;pixel_weight:float=.7;edge_weight:float=.15;seed:int=0x4445434F44455637
+    total_updates:int=800;segment_updates:int=200;rollout_steps:int=4;batch_size:int=64;pixel_batch_size:int=2;pixel_every:int=32;learning_rate:float=5e-6;ema_decay:float=.999;actor_weight:float=.35;proposal_weight:float=.25;gate_weight:float=.12;parent_anchor_weight:float=.5;latent_edge_weight:float=.18;latent_moment_weight:float=.08;pixel_weight:float=.7;edge_weight:float=.15;seed:int=0x4445434F44455637
     def to_dict(self):return asdict(self)
 def canonical(value):return (json.dumps(value,sort_keys=True,separators=(",",":"),allow_nan=False)+"\n").encode()
 def file_sha256(path:Path):

@@ -14,6 +14,11 @@ def test_v7_backpropagates_decoder_pixel_and_edge_losses():
     assert "pixel_weight" in source and "edge_weight" in source
     assert "anchor.gated_action" in source
     assert "parent_anchor_weight" in source
+    assert "visual_update=update%plan.pixel_every==0" in source
+    assert contract.TrainingPlan().pixel_batch_size==2
+    assert contract.TrainingPlan().pixel_every==32
+    assert contract.TrainingPlan().batch_size==64
+    assert "latent_edge_weight" in source and "latent_moment_weight" in source
 def test_v7_selection_and_test_include_pixel_space_gates():
     source=inspect.getsource(evaluation.evaluate)
     assert "min(rows" in source and "sequences[5]" in source
