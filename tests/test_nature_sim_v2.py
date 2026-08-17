@@ -112,7 +112,7 @@ def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
 def test_native_nature_demo_and_launcher_are_present() -> None:
     root=Path(__file__).resolve().parents[1]
     source=(root/"forge/nature_sim_v2/demo.py").read_text("utf-8")
-    for capability in ("NatureNeuralRuntime","RecurrentWorldPipeline","_step_neural_physiology","cell_styles","body_frame_cache","count=min(4,population)","fixed_step=1/12","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
+    for capability in ("NatureNeuralRuntime","RecurrentWorldPipeline","_step_neural_physiology","cell_styles","body_frame_cache","count=min(4,population)","world_step=1/12","pose_step=1/24","clock.tick(30)","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
 

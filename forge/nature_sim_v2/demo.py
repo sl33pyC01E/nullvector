@@ -81,7 +81,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_vision_cone=True;self.show_atlas=showcase;self.show_ecosystem_links=True;self.show_settlements=True;self.show_adventure_hud=True;self.show_shadows=True;self.show_health_bars=True;self.show_entity_labels=True;self.show_selection_box=True;self.show_evolution_offers=True;self.show_mechanism_telemetry=False;self.show_status_hud=True;self.student_view=False;self.overlay_restore=None;self.show_toggle_panel=False;self.toggle_hitboxes=[];self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_source_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.sprite_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-cell-style");self.sprite_future:Future|None=None;self.sprite_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_visibility=np.ones((1,32,32),np.float16);self.teacher_memory=np.ones((1,32,32),np.float16);self.perception_memory={};self.capture_clean_once=False;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="CONTINUOUS CELL VAE + CAUSAL PHYSIOLOGY + RECURRENT ACTION DIT + NEURAL ECOLOGY";self.cell_style_cache={};self.body_frame_cache={};self.sensory_overlay_cache=None;self.sensory_overlay_cache_key=None;self.cell_panel_cache=None;self.cell_panel_cache_key=None;self.neural_sprite_unsupported=set();self.field_cache=None;self.field_cache_key=None;self.material_cache=None;self.material_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics();self.pose_previous={entity_id:item.body.organism.cell_xy.astype(np.float32).copy() for entity_id,item in self.world.organisms.items()};self.pose_current={entity_id:value.copy() for entity_id,value in self.pose_previous.items()};self.physiology=self.neural.physiology;self.cell_vae=self.neural.organism;self.physiology_unsupported=set();self.physiology_cursor=0;self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_vision_cone=True;self.show_atlas=showcase;self.show_ecosystem_links=True;self.show_settlements=True;self.show_adventure_hud=True;self.show_shadows=True;self.show_health_bars=True;self.show_entity_labels=True;self.show_selection_box=True;self.show_evolution_offers=True;self.show_mechanism_telemetry=False;self.show_status_hud=True;self.student_view=False;self.overlay_restore=None;self.show_toggle_panel=False;self.toggle_hitboxes=[];self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_source_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.sprite_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-cell-style");self.sprite_future:Future|None=None;self.sprite_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_visibility=np.ones((1,32,32),np.float16);self.teacher_memory=np.ones((1,32,32),np.float16);self.perception_memory={};self.capture_clean_once=False;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="CONTINUOUS CELL VAE + CAUSAL PHYSIOLOGY + RECURRENT ACTION DIT + NEURAL ECOLOGY";self.cell_style_cache={};self.body_frame_cache={};self.sensory_overlay_cache=None;self.sensory_overlay_cache_key=None;self.cell_panel_cache=None;self.cell_panel_cache_key=None;self.neural_sprite_unsupported=set();self.field_cache=None;self.field_cache_key=None;self.material_cache=None;self.material_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.pose_render_alpha=1.0;self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics();self.pose_previous={entity_id:item.body.organism.cell_xy.astype(np.float32).copy() for entity_id,item in self.world.organisms.items()};self.pose_current={entity_id:value.copy() for entity_id,value in self.pose_previous.items()};self.physiology=self.neural.physiology;self.cell_vae=self.neural.organism;self.physiology_unsupported=set();self.physiology_cursor=0;self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new_feeding=NatureNeuralFeedingSystem(seed=seed^0x46454544,device=str(self.feeding.controller.device));loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,feeding_system=new_feeding,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -104,8 +104,8 @@ class NatureDemo:
             # A small batched round-robin keeps causal physiology responsive
             # without stalling presentation on a full-population inference.
             # Four bodies cost substantially less than four single-body calls
-            # on the release NCA and give a 15-body world about 3.2 Hz state
-            # updates at the 12 Hz causal cadence.
+            # on the release NCA and give a 15-body world about 3.2 Hz deep
+            # physiology updates at the 12 Hz causal-world cadence.
             population=len(active);count=min(4,population);start=self.physiology_cursor%population;active=[active[(start+offset)%population] for offset in range(count)];self.physiology_cursor=(start+count)%population
             try:self.physiology.step_many(active)
             except ValueError as exc:
@@ -390,13 +390,14 @@ class NatureDemo:
         keys=pg.key.get_pressed();self.manual=np.asarray((float(keys[pg.K_d])-float(keys[pg.K_a]),float(keys[pg.K_s])-float(keys[pg.K_w])))
         return True
 
-    def update(self,delta):
+    def update(self,delta,*,step_pose:bool=True):
         if self.paused or self.show_planner:return
         self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()}
         entity=self.world.organisms.get(self.selected)
         if entity is not None and np.linalg.norm(self.manual)>0:
             direction=self.manual/np.linalg.norm(self.manual);entity.velocity+=direction*delta*4.2*(1+self.adventure.bonus("locomotion"));entity.intent="player";self.adventure.abrade("core",delta*.00008)
-        previous_position=None if entity is None else entity.position.copy();previous_entity=entity;self.world.step(min(.2,delta*2.2),publish=False);self._step_neural_physiology();self._step_visible_poses(delta)
+        previous_position=None if entity is None else entity.position.copy();previous_entity=entity;self.world.step(min(.2,delta*2.2),publish=False);self._step_neural_physiology()
+        if step_pose:self._step_visible_poses(delta)
         entity=self.world.organisms.get(self.selected)
         if previous_entity is not None and (entity is None or not entity.alive):
             successor,message=choose_successor(self.world,previous_entity)
@@ -431,7 +432,7 @@ class NatureDemo:
         current=self.pose_current.get(entity.entity_id)
         if current is None or current.shape!=(entity.body.organism.cell_count,2):return entity.body.organism.cell_xy.astype(np.float32)
         previous=self.pose_previous.get(entity.entity_id,current)
-        return previous+(current-previous)*float(np.clip(self.render_alpha,0,1))
+        return previous+(current-previous)*float(np.clip(self.pose_render_alpha,0,1))
 
     def _field_background(self):
         pg=self.pg;key=(self.region.x,self.region.y,self.region.depth,round(self.zoom,3),self.world.tick_index//8)
@@ -779,11 +780,14 @@ class NatureDemo:
             if self.neural_future is not None:self.neural_future.result();self._poll_neural_job();self.draw()
             if self.sprite_future is not None:self.sprite_future.result();self._prepare_sprites();self.draw()
             capture.parent.mkdir(parents=True,exist_ok=True);self.pg.image.save(self.screen,str(capture));self.neural_executor.shutdown(wait=True,cancel_futures=True);self.sprite_executor.shutdown(wait=True,cancel_futures=True);return
-        running=True;accumulator=0.0;fixed_step=1/12
+        running=True;world_accumulator=0.0;pose_accumulator=0.0;world_step=1/12;pose_step=1/24
         while running:
-            delta=min(.05,self.clock.tick(60)/1000);running=self.events();accumulator=min(.1,accumulator+delta)
-            while accumulator>=fixed_step:self.update(fixed_step);accumulator-=fixed_step
-            self.render_alpha=accumulator/fixed_step
+            delta=min(.05,self.clock.tick(30)/1000);running=self.events();world_accumulator=min(.12,world_accumulator+delta);pose_accumulator=min(.08,pose_accumulator+delta)
+            while world_accumulator>=world_step:self.update(world_step,step_pose=False);world_accumulator-=world_step
+            if not self.paused and not self.show_planner:
+                while pose_accumulator>=pose_step:self._step_visible_poses(pose_step);pose_accumulator-=pose_step
+            else:pose_accumulator=0.0
+            self.render_alpha=world_accumulator/world_step;self.pose_render_alpha=pose_accumulator/pose_step
             self.draw()
         if self.trajectory.active and self.trajectory.frame_count:self.trajectory.finish()
         self.neural_executor.shutdown(wait=True,cancel_futures=True);self.sprite_executor.shutdown(wait=True,cancel_futures=True)

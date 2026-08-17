@@ -107,12 +107,11 @@ MAE 7.24%, and edge error 1.72%. The packaged 57.0M-parameter recurrent + VAE
 pipeline runs at 76.7 decoded 256x256 frames/s on the development GPU, with
 432 MiB peak reserved VRAM and 228 MB of checkpoint artifacts.
 
-The live 16-organism nature stage now runs at 67.2 rendered frames/s in the
-default-HUD headless benchmark. Its 12 Hz causal world is interpolated at 60 Hz;
-causal physiology advances four organisms per tick (about 3 Hz each at the
-default population) through a batched neural update rather than a sluggish
-one-body pass;
-grounded cell poses present at 24 Hz. The organism VAE decodes identity-stable
+The live nature stage targets 30 rendered frames/s. Its grounded organism and
+appendage presentation advances at 24 Hz while the causal world advances at 12
+Hz and interpolates through presentation. Causal physiology advances four organisms per
+world tick (about 3 Hz each at the default population) through a batched neural update;
+slower ecology and society decisions stay on their own cadence. The organism VAE decodes identity-stable
 cell appearance once, then physics moves those neural-authored cells without
 rerasterizing an entire body per pose. Peak reserved VRAM is about 770 MiB.
 
