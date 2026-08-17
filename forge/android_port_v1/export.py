@@ -14,16 +14,18 @@ from torch import Tensor, nn
 
 from ..mobile_frame_decoder_v1.contract import CHECKPOINT_FORMAT as MOBILE_DECODER_FORMAT, MobileDecoderConfig
 from ..mobile_frame_decoder_v1.model import MobileFrameDecoder
+from ..mobile_action_core_v1.contract import CHECKPOINT_FORMAT as MOBILE_ACTION_FORMAT
 from ..monolithic_world_model_v1.contract import CHECKPOINT_FORMAT, DirectContextConfig
 from ..monolithic_world_model_v1.model import FusedStructuredActionModel
+from ..recurrent_world_student_v5.model import PerceptionRecurrentWorldStudent
 from ..safety import require_disk_floor
 from ..world_latent_dit.contract import ModelConfig as RecurrentConfig
-from .contract import DEFAULT_OUTPUT, FORMAT, MOBILE_DECODER, MOBILE_DECODER_SHA256, MONOLITHIC, MONOLITHIC_SHA256, TARGET, canonical, file_sha256, source_sha256
+from .contract import DEFAULT_OUTPUT, FORMAT, MOBILE_ACTION, MOBILE_ACTION_SHA256, MOBILE_DECODER, MOBILE_DECODER_SHA256, MONOLITHIC, MONOLITHIC_SHA256, TARGET, canonical, file_sha256, source_sha256
 
 
 class ActionGraph(nn.Module):
-    def __init__(self, model: FusedStructuredActionModel) -> None:
-        super().__init__(); self.model = model.recurrent
+    def __init__(self, model: PerceptionRecurrentWorldStudent) -> None:
+        super().__init__(); self.model = model
 
     def forward(self, current: Tensor, previous: Tensor, action: Tensor, control: Tensor,
                 context: Tensor, actor: Tensor, previous_actor: Tensor,
@@ -59,12 +61,15 @@ def _benchmark(path: Path, feeds: dict[str, np.ndarray], *, warmup: int, steps: 
 def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     output = Path(output).resolve()
     if output.exists(): raise FileExistsError(output)
-    if file_sha256(MONOLITHIC) != MONOLITHIC_SHA256 or file_sha256(MOBILE_DECODER) != MOBILE_DECODER_SHA256: raise ValueError("Android neural parent drifted.")
+    if file_sha256(MONOLITHIC) != MONOLITHIC_SHA256 or file_sha256(MOBILE_DECODER) != MOBILE_DECODER_SHA256 or file_sha256(MOBILE_ACTION) != MOBILE_ACTION_SHA256: raise ValueError("Android neural parent drifted.")
     require_disk_floor(output.parent, floor_gb=100, planned_bytes=1 << 30); output.mkdir(parents=True)
     payload = torch.load(MONOLITHIC, map_location="cpu", weights_only=True)
     if payload.get("format") != CHECKPOINT_FORMAT or payload.get("status") != "monolithic_foundation_ready": raise ValueError("Monolithic Android parent is not promoted.")
     model = FusedStructuredActionModel(DirectContextConfig(**payload["model_config"]), RecurrentConfig(**payload["recurrent_config"]))
     model.load_state_dict(payload["state"], strict=True); model.eval()
+    action_payload = torch.load(MOBILE_ACTION, map_location="cpu", weights_only=True)
+    if action_payload.get("format") != MOBILE_ACTION_FORMAT or action_payload.get("status") != "mobile_action_ready": raise ValueError("Mobile action core is not promoted.")
+    action_model = PerceptionRecurrentWorldStudent(RecurrentConfig(**action_payload["model_config"])); action_model.load_state_dict(action_payload["state"], strict=True); action_model.eval()
     decoder_payload = torch.load(MOBILE_DECODER, map_location="cpu", weights_only=True)
     if decoder_payload.get("format") != MOBILE_DECODER_FORMAT or decoder_payload.get("status") != "mobile_decoder_ready": raise ValueError("Mobile decoder is not promoted.")
     decoder = MobileFrameDecoder(MobileDecoderConfig(**decoder_payload["model_config"])); decoder.load_state_dict(decoder_payload["state"], strict=True); decoder.eval()
@@ -78,7 +83,7 @@ def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
 
     fp32 = {"context": output / "world_context_fp32.onnx", "action": output / "action_core_fp32.onnx", "decoder": output / "frame_vae_fp32.onnx"}
     _export(model.context, (terrain, city, continuous, condition), (["terrain", "city", "continuous", "condition"], ["context"]), fp32["context"])
-    _export(ActionGraph(model), (current, previous, action, control, context, actor, previous_actor, visibility, memory), (["current", "previous", "action", "control", "context", "actor", "previous_actor", "visibility", "memory"], ["delta", "gate_logits", "next_actor", "actor_gate"]), fp32["action"])
+    _export(ActionGraph(action_model), (current, previous, action, control, context, actor, previous_actor, visibility, memory), (["current", "previous", "action", "control", "context", "actor", "previous_actor", "visibility", "memory"], ["delta", "gate_logits", "next_actor", "actor_gate"]), fp32["action"])
     _export(DecoderGraph(decoder), (current,), (["latent"], ["rgb"]), fp32["decoder"])
     feeds = {
         "context": {"terrain": terrain.numpy(), "city": city.numpy(), "continuous": continuous.numpy(), "condition": condition.numpy()},
@@ -89,7 +94,7 @@ def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     for name, path in fp32.items():
         onnx.checker.check_model(onnx.load(path)); records[name] = {"path": path.name, "bytes": path.stat().st_size, "sha256": file_sha256(path), "desktop_cpu_reference": _benchmark(path, feeds[name], warmup=2, steps=5)}
     total = sum(row["bytes"] for row in records.values()); gates = {"all_models_valid_onnx": True, "fp32_bundle_under_256_mib": total < 256 * 1024**2, "action_model_plus_vae_shape": True, "android_toolchain_targeted": True}
-    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "mobile_decoder_sha256": MOBILE_DECODER_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
+    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "mobile_action_sha256": MOBILE_ACTION_SHA256, "mobile_decoder_sha256": MOBILE_DECODER_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
     manifest["manifest_sha256"] = hashlib.sha256(canonical(manifest)).hexdigest(); (output / "manifest.json").write_bytes(canonical(manifest)); return manifest
 
 

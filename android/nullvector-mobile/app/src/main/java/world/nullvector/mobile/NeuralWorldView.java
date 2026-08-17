@@ -26,7 +26,9 @@ public final class NeuralWorldView extends View {
     private volatile float[] context = new float[64];
     private volatile double milliseconds = 0;
     private volatile double decoderMilliseconds = 0;
+    private volatile double actionMilliseconds = 0;
     private volatile Bitmap neuralFrame;
+    private volatile boolean running = true;
 
     public NeuralWorldView(Context owner) {
         super(owner); paint.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -78,12 +80,38 @@ public final class NeuralWorldView extends View {
                 for (OnnxTensor tensor : inputs.values()) tensor.close();
                 status = provider + " · structured world encoder live";
             }
-            try (OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options)) {
-                Map<String, OnnxTensor> input = new HashMap<>(); input.put("latent", OnnxTensor.createTensor(environment, FloatBuffer.wrap(latentAsset()), new long[]{1, 48, 32, 32}));
-                for (int warmup = 0; warmup < 3; warmup++) try (OrtSession.Result ignored = decoder.run(input)) { }
-                long began = System.nanoTime();
-                try (OrtSession.Result result = decoder.run(input)) { neuralFrame = bitmap((float[][][][])result.get(0).getValue()); }
-                decoderMilliseconds = (System.nanoTime() - began) / 1_000_000.0; input.get("latent").close(); status += " · mobile VAE live";
+            try (OrtSession actionSession = environment.createSession(assetFile("action_core_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options)) {
+                float[] current = latentAsset(), previous = current.clone(), actor = new float[128], previousActor = new float[128];
+                float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
+                java.util.Arrays.fill(visibility, 1f); int tick = 0;
+                status += " · compact action core + mobile VAE live";
+                while (running) {
+                    long frameBegan = System.nanoTime(); control[0] = (float)Math.sin(tick * .07); control[1] = (float)Math.cos(tick * .07);
+                    Map<String, OnnxTensor> actionInputs = new HashMap<>();
+                    actionInputs.put("current", OnnxTensor.createTensor(environment, FloatBuffer.wrap(current), new long[]{1, 48, 32, 32}));
+                    actionInputs.put("previous", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previous), new long[]{1, 48, 32, 32}));
+                    actionInputs.put("action", OnnxTensor.createTensor(environment, LongBuffer.wrap(new long[]{tick % 22}), new long[]{1}));
+                    actionInputs.put("control", OnnxTensor.createTensor(environment, FloatBuffer.wrap(control), new long[]{1, 4}));
+                    actionInputs.put("context", OnnxTensor.createTensor(environment, FloatBuffer.wrap(context), new long[]{1, 64}));
+                    actionInputs.put("actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(actor), new long[]{1, 128}));
+                    actionInputs.put("previous_actor", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previousActor), new long[]{1, 128}));
+                    actionInputs.put("visibility", OnnxTensor.createTensor(environment, FloatBuffer.wrap(visibility), new long[]{1, 1, 32, 32}));
+                    actionInputs.put("memory", OnnxTensor.createTensor(environment, FloatBuffer.wrap(memory), new long[]{1, 1, 32, 32}));
+                    float[] next = current.clone();
+                    long actionBegan = System.nanoTime();
+                    try (OrtSession.Result result = actionSession.run(actionInputs)) {
+                        float[][][][] delta = (float[][][][])result.get(0).getValue(); float[][][][] gate = (float[][][][])result.get(1).getValue();
+                        previous = current; for (int c = 0, i = 0; c < 48; c++) for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++, i++) next[i] += (float)(1.0 / (1.0 + Math.exp(-(gate[0][gate[0].length == 1 ? 0 : c][y][x] + 1.5)))) * delta[0][c][y][x];
+                        previousActor = actor; actor = ((float[][])result.get(2).getValue())[0].clone();
+                    }
+                    actionMilliseconds = (System.nanoTime() - actionBegan) / 1_000_000.0; current = next;
+                    for (OnnxTensor tensor : actionInputs.values()) tensor.close();
+                    Map<String, OnnxTensor> decoderInput = new HashMap<>(); decoderInput.put("latent", OnnxTensor.createTensor(environment, FloatBuffer.wrap(current), new long[]{1, 48, 32, 32}));
+                    long decoderBegan = System.nanoTime(); try (OrtSession.Result result = decoder.run(decoderInput)) { neuralFrame = bitmap((float[][][][])result.get(0).getValue()); }
+                    decoderMilliseconds = (System.nanoTime() - decoderBegan) / 1_000_000.0; decoderInput.get("latent").close(); postInvalidateOnAnimation(); tick++;
+                    long remaining = 33_333_333L - (System.nanoTime() - frameBegan); if (remaining > 0) Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
+                }
             }
         } catch (Throwable failure) { status = "Model load failed: " + failure.getClass().getSimpleName(); }
         postInvalidate();
@@ -107,7 +135,9 @@ public final class NeuralWorldView extends View {
             paint.setFilterBitmap(false);
         }
         paint.setTextSize(28); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawText("NULLVECTOR // GALAXY S25 ULTRA", 42, 54, paint);
-        paint.setTextSize(20); paint.setColor(Color.rgb(170, 195, 202)); canvas.drawText(status, 42, 88, paint); canvas.drawText(String.format("context %.2f ms · raster %.2f ms · target 30 FPS", milliseconds, decoderMilliseconds), 42, 118, paint);
-        paint.setTextSize(16); canvas.drawText("Android foundation: live structured context + distilled neural raster · action core staged for device profiling", 42, height - 42, paint);
+        paint.setTextSize(20); paint.setColor(Color.rgb(170, 195, 202)); canvas.drawText(status, 42, 88, paint); canvas.drawText(String.format("context %.2f ms · action %.2f ms · raster %.2f ms · target 30 FPS", milliseconds, actionMilliseconds, decoderMilliseconds), 42, 118, paint);
+        paint.setTextSize(16); canvas.drawText("Android foundation: recurrent context → action → VAE, live on-device", 42, height - 42, paint);
     }
+
+    @Override protected void onDetachedFromWindow() { running = false; super.onDetachedFromWindow(); }
 }
