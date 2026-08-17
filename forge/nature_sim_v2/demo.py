@@ -68,9 +68,12 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.neural=PlayableNeuralRuntime.from_release(device=device);self.recurrent_world=None;self.action_frame=None
-        try:self.recurrent_world=RecurrentWorldRuntime.from_release(device=device);self.world_predictor="V3 RECURRENT +4"
-        except (FileNotFoundError,ValueError):self.action_frame=NeuralActionFrameRuntime.from_release(device=device);self.world_predictor="BUILD3 FALLBACK +1"
+        from ..recurrent_world_pipeline_v1 import RecurrentWorldPipeline
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.neural=PlayableNeuralRuntime.from_release(device=device);self.recurrent_pipeline=None;self.recurrent_world=None;self.action_frame=None
+        try:self.recurrent_pipeline=RecurrentWorldPipeline.load(device=device);self.world_predictor="V6 RECURRENT + V3 VAE // 76 FPS"
+        except (FileNotFoundError,ValueError):
+            try:self.recurrent_world=RecurrentWorldRuntime.from_release(device=device);self.world_predictor="V3 RECURRENT +4 FALLBACK"
+            except (FileNotFoundError,ValueError):self.action_frame=NeuralActionFrameRuntime.from_release(device=device);self.world_predictor="BUILD3 FALLBACK +1"
         self.runtime=self.neural.locomotion;self.behavior=self.neural.behavior;self.colony_runtime=self.neural.colony;self.society_runtime=self.neural.society;self.timeline_runtime=self.neural.timeline;self.counterfactual_runtime=self.neural.counterfactual;self.composite=self.neural.composite;assert_neural_target_field_controller();self.target_field_runtime=NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.feeding=NatureNeuralFeedingSystem(seed=region_seed^0x46454544,device=device);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior,feeding_system=self.feeding);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
         self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
@@ -153,8 +156,16 @@ class NatureDemo:
             self.neural_stream.synchronize()
         return np.clip(decoded*255,0,255).astype(np.uint8)
 
-    def _compute_neural_dream(self,frame,previous_frame,action,control,state,actor_state):
+    def _compute_neural_dream(self,frame,previous_frame,action,control,state,actor_state,visibility,memory):
         def run():
+            if self.recurrent_pipeline is not None:
+                pipeline=self.recurrent_pipeline;device=pipeline.device
+                current_tensor=torch.from_numpy(frame).permute(2,0,1)[None].float().div_(255).to(device);previous_tensor=torch.from_numpy(previous_frame).permute(2,0,1)[None].float().div_(255).to(device)
+                previous_latent=pipeline.decoder.encode(previous_tensor)[0];current_latent=pipeline.decoder.encode(current_tensor)[0];actor=np.asarray(actor_state).reshape(1,128);pipeline.initialize(previous_latent,current_latent,actor,actor)
+                action_index=np.asarray((TEACHER_ACTIONS.index(action),));control=np.asarray(control).reshape(1,4);state=np.asarray(state).reshape(1,64);visibility=np.asarray(visibility).reshape(1,1,32,32);memory=np.asarray(memory).reshape(1,1,32,32)
+                decoded=None
+                for offset in range(4):decoded=pipeline.step(action_index,control,state,visibility,memory,decode=offset==3)
+                return decoded[0]
             if self.recurrent_world is not None:
                 forecast=self.recurrent_world.forecast(frame,np.asarray(actor_state).reshape(128),previous_frame=previous_frame,actions=np.asarray((TEACHER_ACTIONS.index(action),)),controls=np.asarray(control).reshape(4),states=np.asarray(state).reshape(64),horizon=4);return forecast.final_frame
             current=self.action_frame.codec.encode(frame);previous=self.action_frame.codec.encode(previous_frame);future,_=self.action_frame.step(frame[None],current,previous,action=np.asarray((TEACHER_ACTIONS.index(action),)),control=control,state=state,actor_state=actor_state);return np.clip(future[0].permute(1,2,0).numpy()*255,0,255).astype(np.uint8)
@@ -182,7 +193,7 @@ class NatureDemo:
         kind="dream" if dream_due and (not raster_due or self.neural_last_kind=="raster") else "raster" if raster_due else None
         if kind=="raster":self.neural_future=self.neural_executor.submit(self._compute_neural_raster,frame.copy())
         elif kind=="dream":
-            action=self.action_latch if self.action_latch in TEACHER_ACTIONS else "none";control=self._neural_control()[None].copy();state=extract_world_features(self.world,self.society)[None].copy();actor=extract_actor_features(self.world,self.selected)[None].copy();previous=frame if self.dream_source_frame is None else self.dream_source_frame;self.dream_source_frame=frame.copy();self.neural_future=self.neural_executor.submit(self._compute_neural_dream,frame.copy(),previous.copy(),action,control,state,actor)
+            action=self.action_latch if self.action_latch in TEACHER_ACTIONS else "none";control=self._neural_control()[None].copy();state=extract_world_features(self.world,self.society)[None].copy();actor=extract_actor_features(self.world,self.selected)[None].copy();previous=frame if self.dream_source_frame is None else self.dream_source_frame;self.dream_source_frame=frame.copy();visibility=self.teacher_visibility.copy();memory=self.teacher_memory.copy();self.neural_future=self.neural_executor.submit(self._compute_neural_dream,frame.copy(),previous.copy(),action,control,state,actor,visibility,memory)
         if kind is not None:self.neural_job_kind=kind;self.neural_last_kind=kind
 
     def _apply_neural_raster(self):
