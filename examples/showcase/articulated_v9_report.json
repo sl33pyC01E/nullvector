@@ -1,0 +1,68 @@
+{
+  "artifacts": {
+    "articulated_ballistic_throw_v9.gif": {
+      "bytes": 951992,
+      "frames": 164,
+      "sha256": "5001cc2f7c0f3542556ec8248623302108001317cbc80c4c8c8dde777d7cec3c"
+    },
+    "articulated_damaged_grasper_v9.gif": {
+      "bytes": 704951,
+      "frames": 122,
+      "sha256": "66a1b41869262508f3916180dfb7c7921ec0d6a73ffe6b93973f48bd5f6c34b7"
+    },
+    "articulated_feeder_ablation_v9.gif": {
+      "bytes": 465582,
+      "frames": 84,
+      "sha256": "a4b96f03a773ca9f49a38ea22b1523af9ff8197c85b41a521d8fbd8eb5913639"
+    },
+    "articulated_five_family_feeding_v9.gif": {
+      "bytes": 57609,
+      "frames": 31,
+      "sha256": "2d228b4d99b943107fbdb1f8d56a0b8054669211bc021e985cf0017d49c596a2"
+    },
+    "articulated_grounded_feeding_v9.gif": {
+      "bytes": 754360,
+      "frames": 116,
+      "sha256": "b3933b3548a3333ecb9214581970ca4f584f06132d967315a1a2e3c329c177b2"
+    },
+    "articulated_impact_modes_v9.gif": {
+      "bytes": 50857,
+      "frames": 96,
+      "sha256": "21e9b49b9211a3351cad40df713f43f53aa1593d3ba139324ff8c08b3ca0f367"
+    },
+    "articulated_inertial_feeding_v9.gif": {
+      "bytes": 185070,
+      "frames": 35,
+      "sha256": "c4f4cbd3efc877867b715a6120e43e76b9e9cd1dc9fe697b822b99677879db91"
+    },
+    "articulated_severed_grasper_v9.gif": {
+      "bytes": 608667,
+      "frames": 94,
+      "sha256": "17b2490b414582b1bbb01dc4258e8969ac6628005f9b71e202e1d4ad708302d3"
+    }
+  },
+  "controllers": {
+    "high_level_grasper_sha256": "cd550ae1d75140555b4f51d4d27271da7012f9dfc3c4b99f85eca5b21e8b3e50",
+    "neural_limb_pose_gates": {
+      "all_passed": true,
+      "bone_lengths_exact": true,
+      "closed_loop_trajectory_accuracy": true,
+      "confidence_calibrated": true,
+      "grounded_motion_floor": true,
+      "inverse_pose_accuracy": true
+    },
+    "neural_limb_pose_metrics": {
+      "confidence_mean": 0.996015191078186,
+      "maximum_bone_length_error_px": 1.430511474609375e-06,
+      "maximum_endpoint_acceleration_px": 1.2575101893090785,
+      "maximum_endpoint_velocity_px": 1.3085729539446462,
+      "pose_mae_px": 0.01978781633079052,
+      "pose_p95_px": 0.07881033420562744,
+      "pose_p99_px": 0.1223163828253746,
+      "rollout_cases": 31.0,
+      "rollout_node_mae_px": 0.09890132666025973
+    },
+    "neural_limb_pose_sha256": "ffeddc23501700d5d98b62b5b0ca6b7352ff75705e14fe17050d4ffc9d01ad78"
+  },
+  "format": "nullvector-neural-manipulation-showcase/9.0.0"
+}

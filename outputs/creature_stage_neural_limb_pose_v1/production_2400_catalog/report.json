@@ -1,0 +1,256 @@
+{
+  "candidate_metrics": {
+    "ema": {
+      "confidence_mean": 0.996015191078186,
+      "maximum_bone_length_error_px": 1.430511474609375e-06,
+      "maximum_endpoint_acceleration_px": 1.2575101893090785,
+      "maximum_endpoint_velocity_px": 1.3085729539446462,
+      "pose_mae_px": 0.01978781633079052,
+      "pose_p95_px": 0.07881033420562744,
+      "pose_p99_px": 0.1223163828253746,
+      "rollout_cases": 31.0,
+      "rollout_node_mae_px": 0.09890132666025973
+    },
+    "raw": {
+      "confidence_mean": 0.9966897368431091,
+      "maximum_bone_length_error_px": 1.430511474609375e-06,
+      "maximum_endpoint_acceleration_px": 0.9442386586989507,
+      "maximum_endpoint_velocity_px": 1.2756988033200791,
+      "pose_mae_px": 0.02407868579030037,
+      "pose_p95_px": 0.09342624247074127,
+      "pose_p99_px": 0.14176924526691437,
+      "rollout_cases": 31.0,
+      "rollout_node_mae_px": 0.087168368859445
+    }
+  },
+  "checkpoint": {
+    "bytes": 9404494,
+    "model_state_sha256": "dc65a5942df2f24be7613d98f4c59e3ab4de31b9e97c293682879c65a10416af",
+    "path": "runtime.pt",
+    "sha256": "ffeddc23501700d5d98b62b5b0ca6b7352ff75705e14fe17050d4ffc9d01ad78"
+  },
+  "format": "nullvector-neural-limb-pose-production/1.0.0",
+  "gates": {
+    "all_passed": true,
+    "bone_lengths_exact": true,
+    "closed_loop_trajectory_accuracy": true,
+    "confidence_calibrated": true,
+    "grounded_motion_floor": true,
+    "inverse_pose_accuracy": true
+  },
+  "history": [
+    {
+      "edge": 0.06996118,
+      "gradient": 1.18172228,
+      "loss": 0.14994137,
+      "position": 0.04623454,
+      "update": 1
+    },
+    {
+      "edge": 0.0500797,
+      "gradient": 0.12775953,
+      "loss": 0.10237235,
+      "position": 0.03240097,
+      "update": 100
+    },
+    {
+      "edge": 0.02437155,
+      "gradient": 0.71257579,
+      "loss": 0.04483082,
+      "position": 0.01326568,
+      "update": 200
+    },
+    {
+      "edge": 0.01966646,
+      "gradient": 0.95117098,
+      "loss": 0.03430167,
+      "position": 0.00976699,
+      "update": 300
+    },
+    {
+      "edge": 0.01131037,
+      "gradient": 0.31916258,
+      "loss": 0.01716555,
+      "position": 0.00433542,
+      "update": 400
+    },
+    {
+      "edge": 0.00594333,
+      "gradient": 0.21523011,
+      "loss": 0.00931062,
+      "position": 0.00242244,
+      "update": 500
+    },
+    {
+      "edge": 0.00320333,
+      "gradient": 0.3428385,
+      "loss": 0.00505075,
+      "position": 0.00132139,
+      "update": 600
+    },
+    {
+      "edge": 0.00206167,
+      "gradient": 0.18881209,
+      "loss": 0.00315979,
+      "position": 0.00080483,
+      "update": 700
+    },
+    {
+      "edge": 0.00183697,
+      "gradient": 0.22395468,
+      "loss": 0.00283053,
+      "position": 0.0007246,
+      "update": 800
+    },
+    {
+      "edge": 0.00125425,
+      "gradient": 0.13340984,
+      "loss": 0.00182823,
+      "position": 0.00044226,
+      "update": 900
+    },
+    {
+      "edge": 0.00112161,
+      "gradient": 0.14628389,
+      "loss": 0.00168415,
+      "position": 0.00042015,
+      "update": 1000
+    },
+    {
+      "edge": 0.00098874,
+      "gradient": 0.06854653,
+      "loss": 0.0014457,
+      "position": 0.00035099,
+      "update": 1100
+    },
+    {
+      "edge": 0.00097837,
+      "gradient": 0.12103863,
+      "loss": 0.0014467,
+      "position": 0.00035554,
+      "update": 1200
+    },
+    {
+      "edge": 0.00079959,
+      "gradient": 0.10843661,
+      "loss": 0.00120434,
+      "position": 0.00030145,
+      "update": 1300
+    },
+    {
+      "edge": 0.00086746,
+      "gradient": 0.1244821,
+      "loss": 0.00134433,
+      "position": 0.00034623,
+      "update": 1400
+    },
+    {
+      "edge": 0.00086422,
+      "gradient": 0.15167564,
+      "loss": 0.00133699,
+      "position": 0.00034392,
+      "update": 1500
+    },
+    {
+      "edge": 0.00060718,
+      "gradient": 0.04643273,
+      "loss": 0.00086902,
+      "position": 0.0002063,
+      "update": 1600
+    },
+    {
+      "edge": 0.00065734,
+      "gradient": 0.08940554,
+      "loss": 0.00096363,
+      "position": 0.00023487,
+      "update": 1700
+    },
+    {
+      "edge": 0.00091382,
+      "gradient": 0.15681438,
+      "loss": 0.00139483,
+      "position": 0.00035439,
+      "update": 1800
+    },
+    {
+      "edge": 0.00064665,
+      "gradient": 0.11659236,
+      "loss": 0.00098978,
+      "position": 0.00025203,
+      "update": 1900
+    },
+    {
+      "edge": 0.00065274,
+      "gradient": 0.103466,
+      "loss": 0.001002,
+      "position": 0.00025591,
+      "update": 2000
+    },
+    {
+      "edge": 0.00049065,
+      "gradient": 0.06170849,
+      "loss": 0.00071968,
+      "position": 0.00017558,
+      "update": 2100
+    },
+    {
+      "edge": 0.00049951,
+      "gradient": 0.08293936,
+      "loss": 0.00075433,
+      "position": 0.00018957,
+      "update": 2200
+    },
+    {
+      "edge": 0.00044415,
+      "gradient": 0.07650781,
+      "loss": 0.00066498,
+      "position": 0.00016571,
+      "update": 2300
+    },
+    {
+      "edge": 0.00041154,
+      "gradient": 0.06374279,
+      "loss": 0.00058481,
+      "position": 0.00013784,
+      "update": 2400
+    }
+  ],
+  "metrics": {
+    "confidence_mean": 0.996015191078186,
+    "maximum_bone_length_error_px": 1.430511474609375e-06,
+    "maximum_endpoint_acceleration_px": 1.2575101893090785,
+    "maximum_endpoint_velocity_px": 1.3085729539446462,
+    "pose_mae_px": 0.01978781633079052,
+    "pose_p95_px": 0.07881033420562744,
+    "pose_p99_px": 0.1223163828253746,
+    "rollout_cases": 31.0,
+    "rollout_node_mae_px": 0.09890132666025973
+  },
+  "model_config": {
+    "depth": 5,
+    "dropout": 0.02,
+    "heads": 6,
+    "width": 192
+  },
+  "parameters": 2343747,
+  "runtime": {
+    "device": "cuda",
+    "peak_allocated_bytes": 234670080,
+    "seconds": 42.986573400005,
+    "updates_per_second": 55.83138664408457
+  },
+  "selected_weights": "ema",
+  "source_sha256": "595bd804a6580d219c9c1705922d101260c7a306ed9157d6b8f52ddbab6a190f",
+  "status": "passed",
+  "train_corpus_sha256": "299102c2ecfeed3b3946a0a7c22a7a0b7fc793562d098f274dcafd7452c30f81",
+  "training_config": {
+    "batch_size": 512,
+    "cases_per_appendage": 640,
+    "ema_decay": 0.997,
+    "learning_rate": 0.0003,
+    "seed": 5497009767392957253,
+    "updates": 2400,
+    "weight_decay": 1e-05
+  },
+  "validation_corpus_sha256": "abaf07fdca924e9ee0dd86c06bdfa756f68f600183528c5fe8b2fcb2b6f37222"
+}

@@ -28,14 +28,17 @@ too large for an ordinary GitHub repository.
 
 | Grounded locomotion + grasp | 2.5D ballistic throw | True arm severing |
 |---|---|---|
-| ![The approved grounded gait transitions into articulated grasping and feeding](examples/showcase/articulated_grounded_feeding_v8.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v8.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v8.gif) |
+| ![The grounded gait transitions into neural articulated grasping and feeding](examples/showcase/articulated_grounded_feeding_v9.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v9.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v9.gif) |
 
 The approach, plant, reach, grasp, and feeding phases use one full skeleton,
 one projected-bone solver, the same grounded contacts, and the same cellular
-skin. The arm is a chassis-rooted cellular tube with fixed segment lengths in
-the same physical class as the legs. A critically damped reach governor,
-distributed curved muscle forces, recurrent joint velocity, and projected
-bone lengths make it an inertial limb rather than a pose-swapped animation.
+skin. A 2.34M-parameter neural inverse-muscle field now predicts continuous
+joint curvature from the live chain, target, family, appendage type, load, and
+damage-dependent actuation. It runs inside exact root, hand, bone-length, and
+contact constraints. The arm is a chassis-rooted cellular tube with fixed
+segment lengths in the same physical class as the legs. A critically damped
+reach governor and recurrent joint velocity make it an inertial limb rather
+than a pose-swapped animation.
 No visible tether or telekinetic transfer is used. Held matter is constrained
 directly to the hand, so it cannot trail behind a faster arm.
 Attached limbs also carry their chassis root and retain a continuous spring-
@@ -49,11 +52,11 @@ and bounce/roll/thud landing responses.
 
 | Damaged grasper | Feeder ablation |
 |---|---|
-| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v8.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v8.gif) |
+| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v9.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v9.gif) |
 
-![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v8.gif)
+![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v9.gif)
 
-![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v8.gif)
+![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v9.gif)
 
 Ground matter is acquired through five distinct physical strategies rather
 than a universal manipulator: humanoids kneel and grasp, animals lower their

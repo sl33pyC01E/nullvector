@@ -9,9 +9,10 @@ from ..creature_stage_developmental.development import DevelopedOrganism
 from ..creature_stage_neural_grasper_v1.constraint import GraspBody, GraspConstraint, solve_grasp
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, IntakeResult, absorb_food, feeder_status
 from ..creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
+from ..creature_stage_neural_limb_pose_v1.runtime import NeuralLimbPoseDriver
 from ..living_body_substrate import LivingBody
 from .articulation import ArticulatedBody
-from .contract import CONTROLLER, assert_controller
+from .contract import CONTROLLER, LIMB_POSE_CONTROLLER, assert_controller, assert_limb_pose_controller
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +48,7 @@ class NeuralManipulationArena:
     recoil, contact ingestion, and drag.
     """
 
-    def __init__(self, organism: DevelopedOrganism, *, device: str = "cpu") -> None:
+    def __init__(self, organism: DevelopedOrganism, *, device: str = "cpu", neural_limb_pose: bool = True) -> None:
         assert_controller()
         self.organism = organism
         self.living = LivingBody(organism)
@@ -56,6 +57,9 @@ class NeuralManipulationArena:
         mass = max(1.0, organism.cell_count * .08)
         self.body = GraspBody(np.zeros(2, dtype=np.float64), np.zeros(2, dtype=np.float64), mass)
         self.articulation = ArticulatedBody.from_organism(organism)
+        if neural_limb_pose:
+            assert_limb_pose_controller()
+            self.articulation.pose_driver = NeuralLimbPoseDriver.from_checkpoint(LIMB_POSE_CONTROLLER, device=device)
         if int(np.argmax(organism.genome.family_mix)) == 0:
             self.articulation.require_peer_limbs({"arm"}, {"leg"})
         if not 1 <= len(self.articulation.chain_ids) <= 8:

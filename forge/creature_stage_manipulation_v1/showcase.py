@@ -17,6 +17,9 @@ from ..creature_stage_developmental.contract import FAMILIES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, feeder_status
 from ..creature_stage_grounded_locomotion.physics import simulate_grounded_cycle
 from .arena import ManipulationStep, NeuralManipulationArena
+from .contract import (
+    CONTROLLER_SHA256, LIMB_POSE_CONTROLLER, LIMB_POSE_CONTROLLER_SHA256,
+)
 
 
 WIDTH, HEIGHT, SCALE = 384, 288, 4.0
@@ -176,7 +179,7 @@ def _grounded_grasp_clip() -> list[Image.Image]:
     for frame in cycle.frames:
         arena.articulation.nodes[:, :2] = frame.nodes_local
         arena.body.position[:] = (float(frame.body_world_x) - finish_x, 0.0)
-        frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "same skeleton PBD, contacts, muscles, and cellular skin", dummy))
+        frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "grounded locomotion authority; neural arm field engages at reach", dummy))
     arena.body.position[:] = 0.0
     count = len(arena.organism.genome.components)
     arena.articulation.component_offsets[:] = (
@@ -188,7 +191,7 @@ def _grounded_grasp_clip() -> list[Image.Image]:
     for tick in range(420):
         step = arena.step_family_acquisition(target_id, delta=.05)
         if tick % 2 == 0:
-            frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "planted feet remain authoritative during reach and ingestion", step))
+            frames.append(_frame(arena, target_id, "GROUNDED APPROACH + NEURAL GRASP", "neural joint curvature inside exact bone/contact projection", step))
         if arena.feeding.consumed_mass >= .34:
             break
     return frames + frames[-10:]
@@ -348,21 +351,31 @@ def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
     clips = {
-        "articulated_inertial_feeding_v8.gif": _feed_clip(),
-        "articulated_grounded_feeding_v8.gif": _grounded_grasp_clip(),
-        "articulated_ballistic_throw_v8.gif": _throw_clip(),
-        "articulated_impact_modes_v8.gif": _impact_modes_clip(),
-        "articulated_feeder_ablation_v8.gif": _feeder_ablation_clip(),
-        "articulated_severed_grasper_v8.gif": _severed_grasper_clip(),
-        "articulated_damaged_grasper_v8.gif": _damaged_grasper_clip(),
-        "articulated_five_family_feeding_v8.gif": _five_family_clip(),
+        "articulated_inertial_feeding_v9.gif": _feed_clip(),
+        "articulated_grounded_feeding_v9.gif": _grounded_grasp_clip(),
+        "articulated_ballistic_throw_v9.gif": _throw_clip(),
+        "articulated_impact_modes_v9.gif": _impact_modes_clip(),
+        "articulated_feeder_ablation_v9.gif": _feeder_ablation_clip(),
+        "articulated_severed_grasper_v9.gif": _severed_grasper_clip(),
+        "articulated_damaged_grasper_v9.gif": _damaged_grasper_clip(),
+        "articulated_five_family_feeding_v9.gif": _five_family_clip(),
     }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
         path = destination / name
         _encode(frames, path)
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
-    report = {"format": "nullvector-neural-manipulation-showcase/8.0.0", "artifacts": artifacts}
+    limb_report = json.loads((LIMB_POSE_CONTROLLER.parent / "report.json").read_text(encoding="utf-8"))
+    report = {
+        "format": "nullvector-neural-manipulation-showcase/9.0.0",
+        "controllers": {
+            "high_level_grasper_sha256": CONTROLLER_SHA256,
+            "neural_limb_pose_sha256": LIMB_POSE_CONTROLLER_SHA256,
+            "neural_limb_pose_metrics": limb_report["metrics"],
+            "neural_limb_pose_gates": limb_report["gates"],
+        },
+        "artifacts": artifacts,
+    }
     (destination / "showcase_report.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return report
 

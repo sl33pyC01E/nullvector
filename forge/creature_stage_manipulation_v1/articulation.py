@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 
@@ -18,6 +19,60 @@ class LimbGeometry:
     segments: int
     length: float
     cell_count: int
+
+
+class MusclePoseDriver(Protocol):
+    """Optional learned inverse-muscle driver executed inside the PBD solver."""
+
+    def predict_pose(
+        self,
+        organism: DevelopedOrganism,
+        appendage: int,
+        positions: np.ndarray,
+        velocities: np.ndarray,
+        root: np.ndarray,
+        target: np.ndarray,
+        lengths: np.ndarray,
+        *,
+        response: float,
+        actuation: float,
+        load: float,
+        bend_sign: float,
+    ) -> np.ndarray: ...
+
+
+def curved_muscle_pose(
+    root: np.ndarray,
+    target: np.ndarray,
+    lengths: np.ndarray,
+    bend_sign: float,
+) -> np.ndarray:
+    """Deterministic inverse-muscle authority used to teach the neural driver."""
+
+    root = np.asarray(root, np.float32)
+    target = np.asarray(target, np.float32)
+    lengths = np.asarray(lengths, np.float32)
+    if root.shape != (2,) or target.shape != (2,) or lengths.ndim != 1 or not len(lengths):
+        raise ValueError("curved muscle pose shape drifted")
+    if not np.isfinite(root).all() or not np.isfinite(target).all() or not np.isfinite(lengths).all() or np.any(lengths <= 0):
+        raise ValueError("curved muscle pose values drifted")
+    reach = float(lengths.sum())
+    chord = target - root
+    chord_length = float(np.linalg.norm(chord))
+    if chord_length > reach and chord_length > 1e-6:
+        chord *= reach / chord_length
+        target = root + chord
+        chord_length = reach
+    cumulative = np.concatenate((np.zeros(1, np.float32), np.cumsum(lengths)))
+    fractions = cumulative / max(reach, 1e-6)
+    direction = chord / max(chord_length, 1e-6)
+    normal = np.asarray((-direction[1], direction[0]), np.float32)
+    bend = min(max(reach - chord_length, 0.0) * .62, reach * .24)
+    pose = root[None] + fractions[:, None] * chord[None]
+    pose += normal[None] * (float(bend_sign) * bend * np.sin(np.pi * fractions))[:, None]
+    pose[0] = root
+    pose[-1] = target
+    return pose.astype(np.float32)
 
 
 @dataclass(slots=True)
@@ -38,6 +93,7 @@ class ArticulatedBody:
     skin_edges: np.ndarray
     skin_edge_lengths: np.ndarray
     elapsed: float = 0.0
+    pose_driver: MusclePoseDriver | None = None
 
     @classmethod
     def from_organism(cls, organism: DevelopedOrganism) -> "ArticulatedBody":
@@ -134,22 +190,24 @@ class ArticulatedBody:
         # projection; graspers now use the same pattern instead of dragging a
         # passive rigid chain from its final pixel.  Slack becomes elbow bend,
         # while a fully extended reach naturally straightens.
-        cumulative = np.concatenate((np.zeros(1, np.float32), np.cumsum(lengths)))
-        fractions = cumulative / max(reach, 1e-6)
-        chord = filtered_target - root
-        chord_length = float(np.linalg.norm(chord))
-        direction = chord / max(chord_length, 1e-6)
-        normal = np.asarray((-direction[1], direction[0]), np.float32)
         rest_chord = rest[-1] - rest[0]
         rest_normal = np.asarray((-rest_chord[1], rest_chord[0]), np.float32)
         bend_sign = float(np.sign(np.mean((rest[1:-1] - rest[0]) @ rest_normal))) if len(rest) > 2 else 0.0
         if bend_sign == 0.0:
             bend_sign = -1.0 if float(gene.root_offset[0]) < 0 else 1.0
-        bend = min(max(reach - chord_length, 0.0) * .62, reach * .24)
-        muscle_pose = root[None] + fractions[:, None] * chord[None]
-        muscle_pose += normal[None] * (bend_sign * bend * np.sin(np.pi * fractions))[:, None]
-        muscle_pose[0] = root
-        muscle_pose[-1] = filtered_target
+        if self.pose_driver is None:
+            muscle_pose = curved_muscle_pose(root, filtered_target, lengths, bend_sign)
+        else:
+            muscle_pose = np.asarray(self.pose_driver.predict_pose(
+                self.organism, appendage, positions, velocity, root, filtered_target, lengths,
+                response=gain, actuation=actuation, load=load, bend_sign=bend_sign,
+            ), np.float32)
+            if muscle_pose.shape != positions.shape or not np.isfinite(muscle_pose).all():
+                raise ValueError("neural muscle pose driver drifted")
+            # Neural joints are compliant, but root and hand authority remain
+            # exact physical boundary conditions.
+            muscle_pose[0] = root
+            muscle_pose[-1] = filtered_target
         previous = positions.copy()
         substeps = 4
         step = delta / substeps

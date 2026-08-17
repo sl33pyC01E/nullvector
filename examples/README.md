@@ -45,16 +45,18 @@ and `outputs/creature_stage_developmental/review_v7/`.
 
 ### Articulated neural manipulation
 
-![Grounded locomotion transitions into articulated grasping and physical feeding](showcase/articulated_grounded_feeding_v8.gif)
+![Grounded locomotion transitions into neural articulated grasping and physical feeding](showcase/articulated_grounded_feeding_v9.gif)
 
 This is the quality-floor integration proof: the approved grounded gait first
 approaches the clump, then the same full skeleton, planted contacts, projected
 bones, muscles, and cellular skin perform the reach and mouth-contact feed.
-The grasper controller chooses appendage, intent, reach, force, and brace; the
-joint execution is still the deterministic PBD causal scaffold used to create
-training authority. It is not yet an end-to-end neural joint trajectory.
+The high-level neural controller chooses appendage, intent, reach, force, and
+brace. A second 2.34M-parameter neural field predicts continuous inverse-muscle
+joint curvature inside the deterministic PBD safety envelope. The physical
+projector still owns exact roots, hands, bone lengths, and ground contacts; it
+is not yet an unconstrained end-to-end neural trajectory.
 
-![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v8.gif)
+![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v9.gif)
 
 The accepted neural controller selects the appendage, reach, force, and brace.
 A segment-local skin keeps the cellular arm as thick as the legs. Recurrent
@@ -67,35 +69,35 @@ root seam. Chassis posture carries attached chains, while grounded feet and
 wheels are re-solved against the floor; explicit severing alone removes those
 cross-seam constraints.
 
-![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v8.gif)
+![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v9.gif)
 
 The released clump retains its impulse, gains independent elevation, casts a
 feet-plane shadow, falls under gravity, and transfers recoil to the body.
 Horizontal air drag is low enough for a long, legible throw arc.
 
-![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v8.gif)
+![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v9.gif)
 
 Phase/charge matter rebounds, rounded mineral matter keeps rolling, and soft
 biomass absorbs impact and thuds. These use the same neural throw command with
 different physical material responses.
 
-![Severed articulated arm drops its payload, twitches briefly, and settles](showcase/articulated_severed_grasper_v8.gif)
+![Severed articulated arm drops its payload, twitches briefly, and settles](showcase/articulated_severed_grasper_v9.gif)
 
 The arm is fully disconnected at its root bridge. Its cells and bone chain fall
 under gravity, retain only a brief decaying residual twitch, and then become
 inert. The released payload follows its own material physics.
 
-![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v8.gif)
+![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v9.gif)
 
 Severe muscle/neural damage leaves a weak residual motion but insufficient
 capacity to attach or transport the clump.
 
-![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v8.gif)
+![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v9.gif)
 
 Damage to the feeder cells prevents reserve gain even after physical contact.
-Source: `outputs/creature_stage_manipulation_v1/showcase_v8_final/`.
+Source: `outputs/creature_stage_manipulation_v1/showcase_v9_neural_limb/`.
 
-![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v8.gif)
+![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v9.gif)
 
 One synchronized replay exposes distinct ground-acquisition strategies:
 humanoid kneel-and-grasp, animal ground bite, plant root siphon, anomaly phase
