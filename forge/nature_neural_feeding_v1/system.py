@@ -10,7 +10,7 @@ import numpy as np
 from ..creature_stage_neural_grasper_v1.constraint import GraspBody, GraspConstraint, solve_grasp
 from ..creature_stage_neural_grasper_v1.contract import MAX_APPENDAGES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, FeederStatus, IntakeResult, _digestive_mask, _feeder_mask
-from ..creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
+from ..creature_stage_neural_grasper_v1.runtime import GraspCommand, NeuralGrasperRuntime
 from ..creature_stage_manipulation_v1.articulation import ArticulatedBody
 from .contract import CONTROLLER, FORMAT, assert_runtime
 
@@ -87,12 +87,36 @@ class NatureNeuralFeedingSystem:
         self.next_clump_id = 1
         self.absorbed_mass = 0.0
         self.throws = self.grasps = 0
+        self.controller_fallbacks = 0
+
+    @staticmethod
+    def _fallback_feeder(body) -> tuple[str, np.ndarray]:
+        """Bounded bridge for valid anatomies outside the frozen controller corpus.
+
+        The macro teacher records these cases for the next grasper training set;
+        they must not terminate ecology rollouts in the meantime.
+        """
+        points = body.organism.cell_xy
+        alive = body.alive_mask
+        if not alive.any():
+            return "unavailable", np.zeros(body.organism.cell_count, np.bool_)
+        if body.family == 2:
+            cutoff = float(np.quantile(points[alive, 1], .78))
+            mask = alive & (points[:, 1] >= cutoff)
+            return "root_feeder", mask
+        center = np.median(points[alive], axis=0)
+        distance = np.linalg.norm(points - center, axis=1)
+        mask = alive & (distance <= float(np.quantile(distance[alive], .25)))
+        return "fallback_aperture", mask
 
     def _feeder_status(self, body) -> FeederStatus:
         identity = str(body.organism.identity_sha256)
         cached = self.feeder_topology.get(identity)
         if cached is None:
-            kind, feeder = _feeder_mask(body)
+            try:
+                kind, feeder = _feeder_mask(body)
+            except ValueError:
+                kind, feeder = self._fallback_feeder(body)
             digestive = _digestive_mask(body)
             neighbors: list[list[int]] = [[] for _ in range(body.organism.cell_count)]
             for left_raw, right_raw in body.adjacency:
@@ -370,11 +394,15 @@ class NatureNeuralFeedingSystem:
         distance_cells = float(np.linalg.norm(local_target))
         direction = local_target / max(distance_cells, 1e-8)
         controller_organism, appendage_lookup = _controller_view(entity.body.organism)
-        command = self.controller.plan(
-            controller_organism, target_type="material", goal="consume", direction=direction,
-            distance=min(1.25, distance_cells / 24), mass=min(1.0, clump.food.mass / 4),
-            cohesion=min(1.0, clump.cohesion), mobility=1.0, attached=state.constraint.attached,
-        )
+        try:
+            command = self.controller.plan(
+                controller_organism, target_type="material", goal="consume", direction=direction,
+                distance=min(1.25, distance_cells / 24), mass=min(1.0, clump.food.mass / 4),
+                cohesion=min(1.0, clump.cohesion), mobility=1.0, attached=state.constraint.attached,
+            )
+        except ValueError:
+            self.controller_fallbacks += 1
+            command = GraspCommand(0, True, tuple(map(float, direction * min(1.0, distance_cells / 24))), .45, "material", .55, False, (0.0, 0.0))
         command = replace(command, appendage=appendage_lookup[min(command.appendage, len(appendage_lookup) - 1)])
         appendage = min(command.appendage, len(state.articulation.chain_ids) - 1)
         if entity.family == 2:

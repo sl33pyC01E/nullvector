@@ -86,12 +86,23 @@ def _dynamic_raster(body, static: np.ndarray, state: np.ndarray, bonds: np.ndarr
 def rasterize_body(body, previous_state: np.ndarray | BodyRaster | None = None) -> BodyRaster:
     organism = body.organism
     count = organism.cell_count
-    if isinstance(previous_state, BodyRaster) and previous_state.organism_sha256 == organism.identity_sha256:
+    # Coordinators can retain a raster across a hot module reload. In that
+    # case class identity changes even though the exact typed payload remains.
+    structured = isinstance(previous_state, BodyRaster) or (
+        previous_state is not None and type(previous_state).__name__ == "BodyRaster"
+        and all(hasattr(previous_state, name) for name in ("static", "state", "live_bonds", "canvas_xy", "organism_sha256"))
+    )
+    if structured and previous_state.organism_sha256 == organism.identity_sha256:
         static = previous_state.static
         state = previous_state.state.copy()
         canvas_xy = previous_state.canvas_xy
         bonds = (static[77 : 77 + BOND_CHANNELS] > 0).astype(np.float32)
         return _dynamic_raster(body, static, state, bonds, canvas_xy)
+    if structured:
+        # Entity identifiers may be reused after metamorphosis, reproduction,
+        # or region transfer. A raster for another anatomy is not a dynamic
+        # tensor and must be discarded rather than coerced through NumPy.
+        previous_state = None
     canvas_xy = _canvas_coordinates(organism.cell_xy)
     y, x = canvas_xy[:, 1].astype(np.intp), canvas_xy[:, 0].astype(np.intp)
     static = np.zeros((STATIC_CHANNELS, CANVAS, CANVAS), np.float32)

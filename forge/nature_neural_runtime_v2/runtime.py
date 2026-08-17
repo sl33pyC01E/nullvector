@@ -8,6 +8,7 @@ from ..creature_stage_neural_locomotion_25d.runtime import NeuralLocomotionRunti
 from ..living_body_nca_v1 import LivingBodyNCARuntime
 from ..nature_colony_nn import NeuralColonyRuntime
 from ..nature_counterfactual_nn import NeuralCounterfactualRuntime
+from ..nature_macro_nn import NeuralMacroPatchRuntime
 from ..nature_society_nn import NeuralSocietyRuntime
 from ..nature_timeline_nn import NeuralTimelineRuntime
 from ..organism_cell_vae_runtime_v1 import ContinuousCellVAERuntime
@@ -29,6 +30,7 @@ class NatureNeuralRuntime:
     society: NeuralSocietyRuntime
     timeline: NeuralTimelineRuntime
     counterfactual: NeuralCounterfactualRuntime
+    macro: NeuralMacroPatchRuntime
     organism: ContinuousCellVAERuntime
     physiology: LivingBodyNCARuntime
     component_count: int
@@ -47,7 +49,8 @@ class NatureNeuralRuntime:
             society=NeuralSocietyRuntime.from_checkpoint(PROJECT_ROOT / artifact("society"), device=target),
             timeline=NeuralTimelineRuntime.from_checkpoint(PROJECT_ROOT / artifact("timeline"), device=target),
             counterfactual=NeuralCounterfactualRuntime.from_checkpoint(PROJECT_ROOT / artifact("counterfactual"), device=target),
+            macro=NeuralMacroPatchRuntime.from_checkpoint(PROJECT_ROOT / artifact("macro_patch"), device=target),
             organism=ContinuousCellVAERuntime.from_release(device=target),
             physiology=LivingBodyNCARuntime.from_output(device=target),
-            component_count=8,
+            component_count=9,
         )
