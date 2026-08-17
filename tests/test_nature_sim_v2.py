@@ -7,6 +7,8 @@ from pathlib import Path
 from forge.creature_stage_developmental import develop
 from forge.nature_sim_v2 import AdventureState,NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
 from forge.nature_sim_v2.demo import OVERLAY_TOGGLES,STUDENT_VIEW_HIDDEN,NatureDemo
+from forge.nature_sim_v2.breeding import BreedingSystem
+from forge.nature_sim_v2.senses import sensory_field,visible_targets
 from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
@@ -144,6 +146,42 @@ def test_teacher_frame_is_captured_before_diagnostic_overlays() -> None:
     assert "if self.dream_frame is None or self.student_view:return" in inspect.getsource(NatureDemo._apply_neural_dream)
     assert "self.capture_clean_once" in inspect.getsource(NatureDemo.capture_clean_target)
     assert "self._blit_toroidal(self.field_cache)" in inspect.getsource(NatureDemo._field_background)
+    assert source.index("self._draw_perception_fog(selected_entity,perception_field)") < capture
+    assert "visible_targets(self.world,selected_entity,perception_field)" in source
+    assert "self.show_vision_cone" not in inspect.getsource(NatureDemo._draw_perception_fog)
+
+
+def test_reproduction_drive_values_viable_offspring_and_ecological_capacity() -> None:
+    world=NatureWorld(seed=610,size=32,max_population=24);genome=founder_genomes(variants_per_family=1)[1]
+    ids=[world.add_organism(genome,(12+index*.4,12),energy=1.0) for index in range(3)]
+    left,healthy,wounded=(world.organisms[index] for index in ids)
+    for entity in (left,healthy,wounded):entity.age=80;entity.reserve=.8;entity.reproduction_cooldown=0;entity.update_stage()
+    wounded.body.impact((0,0),8,.85)
+    breeding=BreedingSystem()
+    assert breeding.offspring_potential(left,healthy)>breeding.offspring_potential(left,wounded)
+    open_drive=breeding.reproduction_drive(left,[healthy],local_capacity=1.0)
+    crowded_drive=breeding.reproduction_drive(left,[healthy],local_capacity=.2)
+    assert 0<crowded_drive<open_drive<=1
+
+
+def test_perception_only_filters_render_observation_not_world_state() -> None:
+    observed=NatureWorld(seed=611,size=32,max_population=30);control=NatureWorld(seed=611,size=32,max_population=30)
+    for world in (observed,control):world.seed_founders(variants_per_family=1)
+    for _ in range(24):
+        for entity in observed.organisms.values():
+            if entity.alive:visible_targets(observed,entity,sensory_field(entity))
+        observed.step(.1,publish=False);control.step(.1,publish=False)
+        assert observed.snapshot().semantic_sha256==control.snapshot().semantic_sha256
+
+
+def test_controlled_perception_has_self_authority_and_omnidirectional_bubble() -> None:
+    world=NatureWorld(seed=612,size=32,max_population=20);genome=founder_genomes(variants_per_family=1)[1]
+    actor_id=world.add_organism(genome,(16,16),energy=.8);near_id=world.add_organism(genome,(14,16),energy=.8);far_id=world.add_organism(genome,(10,16),energy=.8)
+    actor=world.organisms[actor_id];actor.heading=0.0;field=sensory_field(actor);visible=visible_targets(world,actor,field)
+    assert near_id in visible and far_id not in visible
+    draw_source=inspect.getsource(NatureDemo.draw)
+    assert "{self.selected,*visible_targets" in draw_source
+    assert "field.proximity_range*self.zoom" in inspect.getsource(NatureDemo._draw_perception_fog)
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:

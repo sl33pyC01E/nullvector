@@ -18,9 +18,12 @@ SOURCE_FILES = (
     "forge/action_teacher_natural_v4/recorder.py",
     "forge/action_teacher_v1/curriculum_v3.py",
     "forge/nature_sim_v2/demo.py",
+    "forge/nature_sim_v2/world.py",
+    "forge/nature_sim_v2/senses.py",
+    "forge/nature_sim_v2/breeding.py",
     "forge/nature_neural_feeding_v1/system.py",
 )
-ARRAY_NAMES = ("frame", "state", "actor_state", "actor_field", "control", "action", "selected", "timeline_event", "timeline", "counterfactual", "tick", "episode_step")
+ARRAY_NAMES = ("frame", "state", "actor_state", "actor_field", "visibility", "control", "action", "selected", "timeline_event", "timeline", "counterfactual", "tick", "episode_step")
 
 
 def canonical(value):

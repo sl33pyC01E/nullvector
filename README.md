@@ -144,12 +144,18 @@ The Python nature-stage demo uses `F1` for a click-driven overlay panel. It
 only controls presentation and information: vision and sensed-target markers,
 anatomy and organs, integrity bars, labels, ecology links, settlements, sites,
 atlas, shadows, selection, evolution offers, mechanism telemetry, and the
-status HUD. `F2` switches to a clean student view containing only the world,
-entities, structures, materials, shadows, and physical effects, then restores
-the previous overlay configuration when pressed again. `L` toggles the vision
-field directly; `Shift+L` toggles sensed-target markers. Teacher trajectories
-are captured before any diagnostic overlay is composited. These controls never
-pause or disable simulation, physics, AI, metabolism, damage, or ecology.
+status HUD. `F2` switches to the controlled organism's clean perception view:
+perfect awareness of its own cells, a small proximity bubble, and its live
+aimed cone or radial sense. Unseen organisms remain simulated but unrendered.
+`L` toggles the cone visualization; `Shift+L` toggles sensed-target markers.
+Neither key disables sensing. Teacher trajectories record the visibility field
+before diagnostic overlays are composited. These controls never pause or
+disable simulation, physics, AI, metabolism, damage, or ecology.
+
+Thrown matter is physical and family-relative. Inert mineral or debris carries
+kinetic damage; matter the target can use instead repairs a bounded contact
+patch and transfers a small amount of energy. A single clump cannot repeatedly
+damage the same organism during one throw.
 
 ## Forge and tests
 

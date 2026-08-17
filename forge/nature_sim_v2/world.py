@@ -134,11 +134,13 @@ class NatureWorld:
                 entity.intent="hunt"
                 return self._delta(entity.position,min(prey,key=lambda o:np.linalg.norm(self._delta(entity.position,o.position))).position)
             return direction
-        if entity.stage=="mature" and entity.reproduction_cooldown<=0 and entity.energy>.72:
+        if entity.stage=="mature" and entity.reproduction_cooldown<=0 and entity.energy>.62:
             mates=[o for o in nearby if o.family==family and o.stage=="mature" and o.reproduction_cooldown<=0 and o.energy>.62]
-            if mates:
+            local_capacity=max(.15,1-len(nearby)/max(8.0,12+entity.genome.trait("colony_affinity")*12))
+            if mates and self.breeding.reproduction_drive(entity,mates,local_capacity=local_capacity)>.28:
                 entity.intent="mate"
-                return self._delta(entity.position,mates[0].position)
+                mate=self.breeding.choose(entity,mates)
+                return self._delta(entity.position,mate.position)
         if entity.colony_id in self.colonies:
             center=self.colonies[entity.colony_id].center
             if np.linalg.norm(self._delta(entity.position,center))>5:

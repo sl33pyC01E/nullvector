@@ -53,3 +53,9 @@ Menus, viewport, and HUD may remain conventional. The simulated world and render
 ## Acceptance gates
 
 A nature build is not accepted merely because it runs. Long-horizon tests require exact replay, finite state, no spawn-time organ cascade, bounded population, nonzero births and deaths, resource conservation, multiple surviving lineages, morphology and behavior diversity, delayed reproduction, predation, healing, decomposition, colony formation/fission, and tier-transition conservation.
+
+## Selection and organism perception
+
+Selection is ecological rather than a scripted genome rewrite. Heritable anatomy and ecology vary in grounded locomotor efficiency, metabolic cost, perception range, fertility, parental investment, repair, diet, aggression, and other traits. Organisms must survive long enough and acquire enough matter to reproduce. Mate behavior weighs expected offspring viability and local carrying capacity, while the resulting child still has to develop, feed, avoid injury, and reproduce in the same world. The online evolution ledger reports which phenotype clades actually leave descendants; it does not assign traits directly.
+
+Controlled organism view is the union of perfect self-awareness, a small omnidirectional proximity bubble, and the organism's longer aimed cone or radial sense. Structures occlude distant sensing. Unseen organisms remain fully simulated and persistent but are omitted from that organism's rendered observation. No scene memory is fabricated: an entity becomes visible again when a live sensor reacquires it. The same 32x32 visibility field is recorded beside frames, controls, cellular anatomy, and world state so the final action/world model cannot treat fog as a cosmetic overlay.

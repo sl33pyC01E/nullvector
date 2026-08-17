@@ -113,6 +113,32 @@ def test_persistent_world_clumps_have_2p5d_material_impacts() -> None:
     assert system.throws == 3
 
 
+def test_thrown_inert_mineral_damages_once_and_positive_matter_aids() -> None:
+    world, system, entity = _single(0, 109)
+    mineral_id = system.add_clump((14.6, 16.0), material="mineral", mass=1.2, source="throw-test")
+    system.throw_clump(mineral_id, (8.0, 0.0), height=0.0, vertical_velocity=0.0)
+    health_before = float(entity.body.health.mean())
+    system._integrate_clump(system.clumps[mineral_id], world, .1)
+    health_after_impact = float(entity.body.health.mean())
+    assert health_after_impact < health_before
+    impacts = [event for event in world.events if event["type"] == "material_impact"]
+    assert len(impacts) == 1 and impacts[0]["material"] == "mineral"
+    for _ in range(8):
+        system._integrate_clump(system.clumps[mineral_id], world, .05)
+    assert len([event for event in world.events if event["type"] == "material_impact"]) == 1
+
+    entity.body.impact((0.0, 0.0), 5.0, .25)
+    wounded = float(entity.body.health.mean())
+    biomass_id = system.add_clump((14.6, 16.0), material="biomass", mass=1.2, source="aid-test")
+    system.throw_clump(biomass_id, (8.0, 0.0), height=0.0, vertical_velocity=0.0)
+    energy_before = entity.energy
+    system._integrate_clump(system.clumps[biomass_id], world, .1)
+    assert float(entity.body.health.mean()) > wounded
+    assert entity.energy > energy_before
+    aid = [event for event in world.events if event["type"] == "material_aid"]
+    assert len(aid) == 1 and aid[0]["material"] == "biomass"
+
+
 def test_neural_feeding_world_replay_is_exact() -> None:
     hashes = []
     for _ in range(2):

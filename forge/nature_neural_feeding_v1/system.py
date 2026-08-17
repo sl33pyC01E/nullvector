@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import hashlib
 import json
 import math
@@ -57,6 +57,7 @@ class WorldClump:
     angular_velocity: float = 0.0
     impact_mode: str = "thud"
     impacts: int = 0
+    hit_entities: set[int] = field(default_factory=set)
 
 
 @dataclass(slots=True)
@@ -113,7 +114,55 @@ class NatureNeuralFeedingSystem:
         clump.height = float(height)
         clump.vertical_velocity = float(vertical_velocity)
         clump.angular_velocity = float(velocity[0]) / max(clump.food.radius, .1) * .15
+        clump.hit_entities.clear()
         self.throws += 1
+
+    @staticmethod
+    def _body_radius(entity) -> float:
+        # A world-space envelope for the cellular chassis.  It is deliberately
+        # broad enough that a fast clump cannot tunnel between individual cells.
+        return float(np.clip(.34 + math.sqrt(entity.body.organism.cell_count) * .045, .62, 1.42))
+
+    def _impact_entity(self, clump: WorldClump, world) -> None:
+        speed = float(np.linalg.norm(clump.food.velocity))
+        if speed < .55 or clump.height > 1.8:
+            return
+        for entity in sorted(world.organisms.values(), key=lambda item: item.entity_id):
+            if not entity.alive or entity.entity_id in clump.hit_entities:
+                continue
+            delta = world._delta(entity.position, clump.food.position)
+            if float(np.linalg.norm(delta)) > self._body_radius(entity) + clump.food.radius:
+                continue
+            clump.hit_entities.add(entity.entity_id)
+            nutrition = self._nutrition(entity, clump)
+            local = delta * CELLS_PER_WORLD
+            if nutrition >= .35:
+                # Beneficial matter transfers usable substrate and repairs a
+                # bounded contact patch; it never doubles as kinetic damage.
+                amount = float(np.clip((.025 + .055 * clump.food.mass) * nutrition, .015, .16))
+                healed = entity.body.heal(tuple(local), 2.2 + clump.food.radius * 2.0, amount)
+                gain = float(np.clip(clump.food.mass * nutrition * .045, .006, .11))
+                entity.energy = min(1.2, entity.energy + gain)
+                entity.reserve = min(1.0, entity.reserve + gain * .65)
+                event_type = "material_aid"
+                payload = {"healed_cells": int(healed), "energy_gain": round(gain, 6)}
+            else:
+                kinetic = .5 * max(.05, clump.food.mass) * speed * speed
+                damage = float(np.clip(.018 + kinetic * .018 * (1.05 - nutrition), .025, .42))
+                damaged = entity.body.impact(tuple(local), 1.8 + clump.food.radius * 2.4, damage)
+                event_type = "material_impact"
+                payload = {"damaged_cells": int(damaged), "damage": round(damage, 6), "kinetic": round(kinetic, 6)}
+            world.events.append({
+                "tick": world.tick_index, "type": event_type, "entity": entity.entity_id,
+                "clump": clump.clump_id, "material": clump.food.material,
+                "speed": round(speed, 6), **payload,
+            })
+            # Momentum transfers into the much larger cellular body.  A clump
+            # may rebound/roll later, but cannot saw the same body every tick.
+            entity.velocity += clump.food.velocity * min(.12, clump.food.mass * .035)
+            clump.food.velocity *= .34 if event_type == "material_impact" else .22
+            clump.vertical_velocity *= .45
+            break
 
     def _integrate_clump(self, clump: WorldClump, world, delta: float) -> None:
         clump.food.position = (clump.food.position + clump.food.velocity * delta) % world.size
@@ -143,6 +192,7 @@ class NatureNeuralFeedingSystem:
                 clump.angular_velocity += (no_slip - clump.angular_velocity) * min(1.0, delta * 8.0)
             else:
                 clump.angular_velocity *= math.exp(-delta * (1.2 if clump.impact_mode == "bounce" else 5.0))
+        self._impact_entity(clump, world)
 
     def seed_from_fields(self, world, *, per_material: int = 8) -> None:
         if self.clumps:
@@ -347,7 +397,7 @@ class NatureNeuralFeedingSystem:
     def semantic_sha256(self) -> str:
         payload = {
             "format": FORMAT, "next": self.next_clump_id, "absorbed": round(self.absorbed_mass, 8),
-            "clumps": [(item.clump_id, item.food.material, tuple(np.round(item.food.position, 8)), tuple(np.round(item.food.velocity, 8)), round(item.food.mass, 8), item.source, round(item.height, 8), round(item.vertical_velocity, 8), round(item.angle, 8), round(item.angular_velocity, 8), item.impact_mode, item.impacts) for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
+            "clumps": [(item.clump_id, item.food.material, tuple(np.round(item.food.position, 8)), tuple(np.round(item.food.velocity, 8)), round(item.food.mass, 8), item.source, round(item.height, 8), round(item.vertical_velocity, 8), round(item.angle, 8), round(item.angular_velocity, 8), item.impact_mode, item.impacts, tuple(sorted(item.hit_entities))) for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
             "entities": [(key, round(value.feeding.reserve, 8), round(value.feeding.fullness_seconds, 8), value.target_id, value.constraint.attached, value.grasp_appendage) for key, value in sorted(self.entities.items())],
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -364,6 +414,7 @@ class NatureNeuralFeedingSystem:
                 "cohesion": item.cohesion, "source": item.source, "height": item.height,
                 "vertical_velocity": item.vertical_velocity, "angle": item.angle,
                 "angular_velocity": item.angular_velocity, "impact_mode": item.impact_mode, "impacts": item.impacts,
+                "hit_entities": sorted(item.hit_entities),
             } for item in sorted(self.clumps.values(), key=lambda value: value.clump_id)],
             "entities": [{
                 "id": entity_id, "reserve": state.feeding.reserve, "capacity": state.feeding.reserve_capacity,
@@ -393,7 +444,13 @@ class NatureNeuralFeedingSystem:
         self.clumps.clear(); self.entities.clear()
         for raw in payload["clumps"]:
             food = FoodClump(np.asarray(raw["position"]), np.asarray(raw["velocity"]), float(raw["mass"]), float(raw["radius"]), float(raw["density"]), tuple(raw["nutrition"]), str(raw["material"]))
-            item = WorldClump(int(raw["id"]), food, float(raw["cohesion"]), str(raw["source"]), float(raw.get("height", 0)), float(raw.get("vertical_velocity", 0)), float(raw.get("angle", 0)), float(raw.get("angular_velocity", 0)), str(raw.get("impact_mode", {"phase": "bounce", "charge": "bounce", "mineral": "roll"}.get(str(raw["material"]), "thud"))), int(raw.get("impacts", 0))); self.clumps[item.clump_id] = item
+            item = WorldClump(
+                clump_id=int(raw["id"]), food=food, cohesion=float(raw["cohesion"]), source=str(raw["source"]),
+                height=float(raw.get("height", 0)), vertical_velocity=float(raw.get("vertical_velocity", 0)),
+                angle=float(raw.get("angle", 0)), angular_velocity=float(raw.get("angular_velocity", 0)),
+                impact_mode=str(raw.get("impact_mode", {"phase": "bounce", "charge": "bounce", "mineral": "roll"}.get(str(raw["material"]), "thud"))),
+                impacts=int(raw.get("impacts", 0)), hit_entities={int(value) for value in raw.get("hit_entities", ())},
+            ); self.clumps[item.clump_id] = item
         for raw in payload["entities"]:
             if world is None or int(raw["id"]) not in world.organisms:
                 raise ValueError("neural feeding restore requires matching world anatomy")
