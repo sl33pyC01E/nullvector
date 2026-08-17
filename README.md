@@ -135,8 +135,12 @@ Controls:
 The Python nature-stage demo uses `F1` for a click-driven overlay panel. It
 only controls presentation and information: vision and sensed-target markers,
 anatomy and organs, integrity bars, labels, ecology links, settlements, sites,
-atlas, shadows, selection, evolution offers, and the status HUD. `L` toggles
-the vision field directly; `Shift+L` toggles sensed-target markers.
+atlas, shadows, selection, evolution offers, mechanism telemetry, and the
+status HUD. `F2` switches to a clean student view containing only the world,
+entities, structures, materials, shadows, and physical effects, then restores
+the previous overlay configuration when pressed again. `L` toggles the vision
+field directly; `Shift+L` toggles sensed-target markers. Teacher trajectories
+are captured before any diagnostic overlay is composited.
 
 ## Forge and tests
 

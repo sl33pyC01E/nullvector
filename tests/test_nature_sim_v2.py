@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import inspect
 import numpy as np
 from pathlib import Path
 
 from forge.creature_stage_developmental import develop
 from forge.nature_sim_v2 import AdventureState,NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
-from forge.nature_sim_v2.demo import OVERLAY_TOGGLES
+from forge.nature_sim_v2.demo import OVERLAY_TOGGLES,STUDENT_VIEW_HIDDEN,NatureDemo
 from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
@@ -120,6 +121,26 @@ def test_overlay_controls_only_change_presentation_and_information() -> None:
     assert {"show_vision_cone","show_senses","show_health_bars","show_cells","show_organs"}<=set(attributes)
     forbidden={"paused","neural_raster","show_dream","tool","action_latch"}
     assert forbidden.isdisjoint(attributes)
+
+
+def test_clean_student_view_hides_information_and_restores_exact_state() -> None:
+    demo=NatureDemo.__new__(NatureDemo)
+    for index,attribute in enumerate(STUDENT_VIEW_HIDDEN):setattr(demo,attribute,index%2==0)
+    demo.show_shadows=True;demo.student_view=False;demo.overlay_restore=None;demo.show_toggle_panel=True;demo.message=""
+    expected={attribute:getattr(demo,attribute) for attribute in STUDENT_VIEW_HIDDEN}
+    demo._set_student_view(True)
+    assert demo.student_view and demo.show_shadows and not demo.show_toggle_panel
+    assert not any(getattr(demo,attribute) for attribute in STUDENT_VIEW_HIDDEN)
+    demo._set_student_view(False)
+    assert not demo.student_view and demo.overlay_restore is None
+    assert {attribute:getattr(demo,attribute) for attribute in STUDENT_VIEW_HIDDEN}==expected
+
+
+def test_teacher_frame_is_captured_before_diagnostic_overlays() -> None:
+    source=inspect.getsource(NatureDemo.draw)
+    capture=source.index("self.teacher_frame=self._capture_world_frame()")
+    for draw_call in ("self._draw_ecosystem_links()","self._draw_settlements()","self._draw_adventure()","self._draw_sensory_field(selected_entity)"):
+        assert capture<source.index(draw_call)
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:
