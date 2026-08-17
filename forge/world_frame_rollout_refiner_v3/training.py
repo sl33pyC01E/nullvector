@@ -57,7 +57,7 @@ def _metrics(model, base, target, device, batch=8):
     base_edge = float(F.l1_loss(bdx, tdx) + F.l1_loss(bdy, tdy))
     refined_edge = float(F.l1_loss(rdx, tdx) + F.l1_loss(rdy, tdy))
     mse = float(F.mse_loss(refined, target_tensor))
-    return {"base_mae": base_mae, "refined_mae": refined_mae, "mae_improvement": 1 - refined_mae / base_mae, "base_edge_mae": base_edge, "refined_edge_mae": refined_edge, "edge_improvement": 1 - refined_edge / base_edge, "refined_psnr_db": -10 * math.log10(max(mse, 1e-12))}
+    return {"base_mae": base_mae, "refined_mae": refined_mae, "mae_improvement": None if base_mae == 0 else 1 - refined_mae / base_mae, "base_edge_mae": base_edge, "refined_edge_mae": refined_edge, "edge_improvement": None if base_edge == 0 else 1 - refined_edge / base_edge, "refined_psnr_db": -10 * math.log10(max(mse, 1e-12))}
 
 
 def train(output: Path = DEFAULT_OUTPUT, *, cache: Path = DEFAULT_CACHE, plan: TrainingPlan = TrainingPlan()):

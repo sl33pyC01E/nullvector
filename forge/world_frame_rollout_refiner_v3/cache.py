@@ -16,7 +16,7 @@ from ..world_frame_rollout_decoder_v2.contract import NATURAL_CORPUS
 from ..world_frame_rollout_decoder_v2.corpus import load_corpus
 from ..world_frame_vae.contract import ModelConfig
 from ..world_frame_vae.model import WorldFrameVAE
-from .contract import CACHE_FORMAT, DECODER, DECODER_SHA256, DEFAULT_CACHE, ROLLOUT_CORPUS, ROLLOUT_CORPUS_SHA256, canonical, file_sha256, source_sha256
+from .contract import CACHE_FORMAT, DECODER, DECODER_SHA256, DEFAULT_CACHE, ROLLOUT_CORPUS, ROLLOUT_CORPUS_SHA256, cache_source_sha256, canonical, file_sha256
 
 
 def build_cache(output: Path = DEFAULT_CACHE):
@@ -51,7 +51,7 @@ def build_cache(output: Path = DEFAULT_CACHE):
                 artifact = shards / f"world-{world}.npz"
                 np.savez_compressed(artifact, base=base, target=target)
                 records.append({"world": world, "rows": len(base), "path": artifact.relative_to(staging).as_posix(), "bytes": artifact.stat().st_size, "sha256": file_sha256(artifact)})
-        payload = {"format": CACHE_FORMAT, "source_sha256": source_sha256(), "decoder_sha256": DECODER_SHA256, "rollout_corpus_sha256": ROLLOUT_CORPUS_SHA256, "natural_corpus_sha256": natural["manifest_sha256"], "worlds": 6, "rows": sum(record["rows"] for record in records), "records": records}
+        payload = {"format": CACHE_FORMAT, "source_sha256": cache_source_sha256(), "decoder_sha256": DECODER_SHA256, "rollout_corpus_sha256": ROLLOUT_CORPUS_SHA256, "natural_corpus_sha256": natural["manifest_sha256"], "worlds": 6, "rows": sum(record["rows"] for record in records), "records": records}
         payload["manifest_sha256"] = hashlib.sha256(canonical(payload)).hexdigest()
         (staging / "manifest.json").write_bytes(canonical(payload))
         os.replace(staging, output)
@@ -66,7 +66,7 @@ def validate_cache(root: Path = DEFAULT_CACHE):
     raw = (root / "manifest.json").read_bytes()
     payload = json.loads(raw)
     unsigned = {key: value for key, value in payload.items() if key != "manifest_sha256"}
-    if raw != canonical(payload) or payload.get("format") != CACHE_FORMAT or payload.get("source_sha256") != source_sha256() or payload.get("decoder_sha256") != DECODER_SHA256 or payload.get("rollout_corpus_sha256") != ROLLOUT_CORPUS_SHA256 or payload.get("manifest_sha256") != hashlib.sha256(canonical(unsigned)).hexdigest():
+    if raw != canonical(payload) or payload.get("format") != CACHE_FORMAT or payload.get("source_sha256") != cache_source_sha256() or payload.get("decoder_sha256") != DECODER_SHA256 or payload.get("rollout_corpus_sha256") != ROLLOUT_CORPUS_SHA256 or payload.get("manifest_sha256") != hashlib.sha256(canonical(unsigned)).hexdigest():
         raise ValueError("rollout refiner cache manifest drifted")
     total = 0
     for world, record in enumerate(payload.get("records", ())):

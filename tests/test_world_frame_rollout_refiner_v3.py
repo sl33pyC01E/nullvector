@@ -15,6 +15,7 @@ def test_cache_is_atomic_and_hash_validated():
     assert "np.savez_compressed" in source
     assert "os.replace(staging, output)" in source
     assert "decoder.decode" in source
+    assert contract.cache_source_sha256() != contract.source_sha256()
 
 
 def test_refiner_is_local_residual_and_gated_for_identity():

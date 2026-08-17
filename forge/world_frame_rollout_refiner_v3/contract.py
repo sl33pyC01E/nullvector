@@ -27,6 +27,11 @@ SOURCE_FILES = (
     "forge/world_frame_rollout_refiner_v3/training.py",
     "forge/world_frame_vae_refiner/model.py",
 )
+CACHE_SOURCE_FILES = (
+    "forge/world_frame_rollout_refiner_v3/contract.py",
+    "forge/world_frame_rollout_refiner_v3/cache.py",
+    "forge/world_frame_vae/model.py",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,5 +71,12 @@ def state_sha256(state):
 def source_sha256():
     digest = hashlib.sha256(b"nullvector-world-frame-rollout-refiner-v3\0")
     for relative in SOURCE_FILES:
+        digest.update(relative.encode() + b"\0" + (PROJECT_ROOT / relative).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def cache_source_sha256():
+    digest = hashlib.sha256(b"nullvector-world-frame-rollout-refiner-v3-cache\0")
+    for relative in CACHE_SOURCE_FILES:
         digest.update(relative.encode() + b"\0" + (PROJECT_ROOT / relative).read_bytes() + b"\0")
     return digest.hexdigest()
