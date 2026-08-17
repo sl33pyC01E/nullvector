@@ -72,6 +72,10 @@ More results are in the [output gallery](examples/README.md).
 |---|---|
 | ![Six neural world regions](examples/showcase/neural_world_synthesis_v1.png) | ![Neural topology repair audit](examples/showcase/neural_world_topology_repair_v1.png) |
 
+| Neural city layout |
+|---|
+| ![Family- and biome-conditioned neural cities](examples/showcase/neural_city_layout_v1.png) |
+
 The current world-synthesis path composes a decoder-coupled neural topology
 prior with the accepted neural decal/prop selector. It produces all six biome
 regions in 6.9 seconds with about 110 MiB peak reserved VRAM. Raw maps connect
@@ -93,7 +97,7 @@ they are still the safer or better authority.
 | Limb pose and grasping | Neural inverse-muscle and grasp controllers inside an articulated solver |
 | Local cell dynamics | Promoted causal cellular NCA with organ-ablation and rollout gates |
 | Maps | Procedural topology authority with neural topology and decoration models under evaluation |
-| Ecology and societies | Neural behavior, colony, society, timeline, and counterfactual specialists inside the causal scaffold |
+| Ecology and societies | Neural behavior, colony, society, timeline, counterfactual, and spatial city-layout specialists inside the causal scaffold |
 | World frames | Recurrent Action-DiT + adapted continuous VAE change compositor; live in the Python nature stage, not yet the native Godot authority |
 
 Composite Build 2 loads 67.7M parameters across the

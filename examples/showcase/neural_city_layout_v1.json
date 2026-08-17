@@ -1,0 +1,20 @@
+{
+  "format": "nullvector-neural-city-layout-showcase-v1/1.0.0",
+  "status": "experimental_ready",
+  "checkpoint_sha256": "7b508f92b846abd0809a5b0051abf8b8e854c841f540badf9d3e1254211b541e",
+  "inference_checkpoint": "examples/models/neural_city_layout_v1_ema.pt",
+  "inference_checkpoint_sha256": "7c19f1911a4d395a2ef1126cdc3727b1fa5ca7108ce034e7157ac8817fd4a05b",
+  "inference_checkpoint_bytes": 22729930,
+  "parameters": 5671944,
+  "training_steps": 3000,
+  "training_seconds": 111.2103500000012,
+  "training_peak_reserved_bytes": 5098176512,
+  "heldout_masked_accuracy": 0.993854820728302,
+  "heldout_foreground_accuracy": 0.983045220375061,
+  "all_mask_sample_count": 10,
+  "unique_raw_layouts": 10,
+  "families": 5,
+  "mean_compile_edit_fraction": 0.0125732421875,
+  "maximum_compile_edit_fraction": 0.026611328125,
+  "contact_sheet_sha256": "796e4d3fbf2131088e7bd3a4c98492d27cf8b917d593758ff694a1c3f1c18eea"
+}
