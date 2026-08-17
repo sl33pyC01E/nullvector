@@ -112,7 +112,7 @@ def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
 def test_native_nature_demo_and_launcher_are_present() -> None:
     root=Path(__file__).resolve().parents[1]
     source=(root/"forge/nature_sim_v2/demo.py").read_text("utf-8")
-    for capability in ("PlayableNeuralRuntime","RecurrentWorldRuntime","_step_neural_physiology","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
+    for capability in ("PlayableNeuralRuntime","RecurrentWorldRuntime","RecurrentWorldPipeline","_step_neural_physiology","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
 
@@ -149,6 +149,16 @@ def test_teacher_frame_is_captured_before_diagnostic_overlays() -> None:
     assert source.index("self._draw_perception_fog(selected_entity,perception_field)") < capture
     assert "visible_targets(self.world,selected_entity,perception_field)" in source
     assert "self.show_vision_cone" not in inspect.getsource(NatureDemo._draw_perception_fog)
+
+
+def test_promoted_world_pipeline_receives_clean_perception_fields() -> None:
+    compute=inspect.getsource(NatureDemo._compute_neural_dream)
+    schedule=inspect.getsource(NatureDemo._schedule_neural_presentation)
+    assert "pipeline.decoder.encode" in compute
+    assert "pipeline.step" in compute
+    assert "visibility_batch" in compute and "memory_batch" in compute
+    assert "self.teacher_visibility.copy()" in schedule
+    assert "self.teacher_memory.copy()" in schedule
 
 
 def test_reproduction_drive_values_viable_offspring_and_ecological_capacity() -> None:

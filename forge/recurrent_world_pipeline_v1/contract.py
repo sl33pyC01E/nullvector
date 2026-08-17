@@ -15,8 +15,6 @@ NATURAL_CORPUS = PROJECT_ROOT / "outputs/world_action_natural_v10/corpus_v1_6wor
 NATURAL_CORPUS_SHA256 = "e96b10f80db3e824fdb768dc9e52ac8ff5e7f228cf3b87ba89d1df8d3047662f"
 DEFAULT_RELEASE = PROJECT_ROOT / "outputs/recurrent_world_pipeline_v1/release.json"
 SOURCE_FILES = (
-    "forge/recurrent_world_pipeline_v1/__init__.py",
-    "forge/recurrent_world_pipeline_v1/__main__.py",
     "forge/recurrent_world_pipeline_v1/contract.py",
     "forge/recurrent_world_pipeline_v1/runtime.py",
     "forge/recurrent_world_pipeline_v1/release.py",

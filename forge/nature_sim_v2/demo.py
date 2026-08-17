@@ -162,9 +162,9 @@ class NatureDemo:
                 pipeline=self.recurrent_pipeline;device=pipeline.device
                 current_tensor=torch.from_numpy(frame).permute(2,0,1)[None].float().div_(255).to(device);previous_tensor=torch.from_numpy(previous_frame).permute(2,0,1)[None].float().div_(255).to(device)
                 previous_latent=pipeline.decoder.encode(previous_tensor)[0];current_latent=pipeline.decoder.encode(current_tensor)[0];actor=np.asarray(actor_state).reshape(1,128);pipeline.initialize(previous_latent,current_latent,actor,actor)
-                action_index=np.asarray((TEACHER_ACTIONS.index(action),));control=np.asarray(control).reshape(1,4);state=np.asarray(state).reshape(1,64);visibility=np.asarray(visibility).reshape(1,1,32,32);memory=np.asarray(memory).reshape(1,1,32,32)
+                action_index=np.asarray((TEACHER_ACTIONS.index(action),));control_batch=np.asarray(control).reshape(1,4);state_batch=np.asarray(state).reshape(1,64);visibility_batch=np.asarray(visibility).reshape(1,1,32,32);memory_batch=np.asarray(memory).reshape(1,1,32,32)
                 decoded=None
-                for offset in range(4):decoded=pipeline.step(action_index,control,state,visibility,memory,decode=offset==3)
+                for offset in range(4):decoded=pipeline.step(action_index,control_batch,state_batch,visibility_batch,memory_batch,decode=offset==3)
                 return decoded[0]
             if self.recurrent_world is not None:
                 forecast=self.recurrent_world.forecast(frame,np.asarray(actor_state).reshape(128),previous_frame=previous_frame,actions=np.asarray((TEACHER_ACTIONS.index(action),)),controls=np.asarray(control).reshape(4),states=np.asarray(state).reshape(64),horizon=4);return forecast.final_frame
