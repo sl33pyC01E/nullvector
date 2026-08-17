@@ -1,5 +1,7 @@
 plugins { id("com.android.application") }
 
+val emulatorAbi = providers.gradleProperty("emulatorAbi").orNull == "true"
+
 android {
     namespace = "world.nullvector.mobile"
     compileSdk = 36
@@ -7,9 +9,9 @@ android {
         applicationId = "world.nullvector.mobile"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0-preview"
-        ndk { abiFilters += "arm64-v8a" }
+        versionCode = 4
+        versionName = "0.3.1-preview"
+        ndk { abiFilters += if (emulatorAbi) "x86_64" else "arm64-v8a" }
     }
     flavorDimensions += "runtime"
     productFlavors {

@@ -8,10 +8,11 @@ import android.view.WindowInsetsController;
 public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        if (getWindow().getInsetsController() != null) {
-            getWindow().getInsetsController().hide(WindowInsets.Type.systemBars());
-            getWindow().getInsetsController().setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        }
         setContentView(new NeuralWorldView(this));
+        WindowInsetsController controller = getWindow().getInsetsController();
+        if (controller != null) {
+            controller.hide(WindowInsets.Type.systemBars());
+            controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
     }
 }

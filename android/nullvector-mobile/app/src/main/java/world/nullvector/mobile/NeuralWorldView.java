@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.Paint;
 import android.view.View;
 import android.view.MotionEvent;
+import android.util.Log;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class NeuralWorldView extends View {
+    private static final String TAG = "NullvectorRuntime";
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private volatile String status = "Loading neural world context…";
     private volatile float[] context = new float[64];
@@ -40,11 +42,22 @@ public final class NeuralWorldView extends View {
     }
 
     private File assetFile(String name) throws Exception {
-        File target = new File(getContext().getFilesDir(), name);
-        if (!target.isFile()) try (InputStream input = getContext().getAssets().open(name); FileOutputStream output = new FileOutputStream(target)) {
-            input.transferTo(output);
+        File root = new File(getContext().getFilesDir(), "models-v" + BuildConfig.VERSION_CODE + (BuildConfig.SPLIT_ACTION ? "-int8" : "-fp32"));
+        if (!root.isDirectory() && !root.mkdirs()) throw new IllegalStateException("model cache directory");
+        File target = new File(root, name);
+        if (!target.isFile()) {
+            File temporary = new File(root, name + ".partial");
+            if (temporary.exists() && !temporary.delete()) throw new IllegalStateException("stale model partial");
+            try (InputStream input = getContext().getAssets().open(name); FileOutputStream output = new FileOutputStream(temporary)) {
+                input.transferTo(output); output.getFD().sync();
+            }
+            if (temporary.length() == 0 || !temporary.renameTo(target)) throw new IllegalStateException("model publish " + name);
         }
         return target;
+    }
+
+    private void stage(String value) {
+        status = value; Log.i(TAG, value); postInvalidate();
     }
 
     private float[] latentAsset() throws Exception {
@@ -72,9 +85,15 @@ public final class NeuralWorldView extends View {
     }
 
     private void runModels() {
-        try (OrtEnvironment environment = OrtEnvironment.getEnvironment(); OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
-            String provider = "ORT CPU";
-            try { options.addNnapi(); provider = "NNAPI"; } catch (Throwable ignored) { }
+        try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+            OrtEnvironment environment = OrtEnvironment.getEnvironment();
+            // The first preview enabled NNAPI generically. On current Samsung
+            // firmware that can take the whole process down inside the vendor
+            // driver before Java receives an exception. Keep this recovery
+            // build on ORT CPU until a model-by-model QNN partition is tested.
+            options.setIntraOpNumThreads(2); options.setInterOpNumThreads(1);
+            String provider = "ORT CPU SAFE";
+            stage("Extracting neural world context…");
             try (OrtSession session = environment.createSession(assetFile("world_context_fp32.onnx").getAbsolutePath(), options)) {
                 long[] categorical = new long[32 * 32]; float[] continuous = new float[7 * 32 * 32]; float[] condition = new float[15]; condition[0] = condition[6] = 1f;
                 for (int i = 0; i < continuous.length; i++) continuous[i] = .25f + .25f * (float)Math.sin(i * .019);
@@ -88,9 +107,10 @@ public final class NeuralWorldView extends View {
                 try (OrtSession.Result result = session.run(inputs)) { context = ((float[][])result.get(0).getValue())[0]; }
                 milliseconds = (System.nanoTime() - began) / 1_000_000.0;
                 for (OnnxTensor tensor : inputs.values()) tensor.close();
-                status = provider + " · structured world encoder live";
+                stage(provider + " · structured world encoder live");
             }
             String actionModel = BuildConfig.SPLIT_ACTION ? "action_delta_int8_qdq.onnx" : "action_core_fp32.onnx";
+            stage(provider + " · loading " + (BuildConfig.SPLIT_ACTION ? "INT8" : "FP32") + " action runtime…");
             try (OrtSession actionSession = environment.createSession(assetFile(actionModel).getAbsolutePath(), options);
                  OrtSession actorSession = BuildConfig.SPLIT_ACTION ? environment.createSession(assetFile("actor_state_fp32.onnx").getAbsolutePath(), options) : null;
                  OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options)) {
@@ -99,9 +119,9 @@ public final class NeuralWorldView extends View {
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
                 float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
                 java.util.Arrays.fill(visibility, 1f); int tick = 0;
-                status += BuildConfig.SPLIT_ACTION
+                stage(provider + (BuildConfig.SPLIT_ACTION
                     ? " · INT8 action + FP32 physiology + mobile VAE live"
-                    : " · FP32 action + physiology + mobile VAE live";
+                    : " · FP32 action + physiology + mobile VAE live"));
                 while (running) {
                     long frameBegan = System.nanoTime(); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = 0f;
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
@@ -144,7 +164,10 @@ public final class NeuralWorldView extends View {
                     long remaining = 33_333_333L - (System.nanoTime() - frameBegan); if (remaining > 0) Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
                 }
             }
-        } catch (Throwable failure) { status = "Model load failed: " + failure.getClass().getSimpleName(); }
+        } catch (Throwable failure) {
+            Log.e(TAG, "Neural runtime failed", failure);
+            status = "SAFE FAILURE · " + failure.getClass().getSimpleName() + " · " + String.valueOf(failure.getMessage());
+        }
         postInvalidate();
     }
 
