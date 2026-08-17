@@ -8,7 +8,7 @@ from ..config import PROJECT_ROOT
 
 
 FORMAT: Final[str] = "nullvector-living-body-causal-nca-bridge-v1"
-DEFAULT_AUTHORITY: Final[Path] = PROJECT_ROOT / "outputs/cellular_nca/nca_causal_v2_rngfix"
+DEFAULT_AUTHORITY: Final[Path] = PROJECT_ROOT / "outputs/cellular_nca/nca_causal_v3_selected"
 CANVAS: Final[int] = 48
 SOURCE_FILES: Final[tuple[str, ...]] = (
     "forge/living_body_nca_v1/__init__.py",

@@ -10,6 +10,8 @@ import torch
 from ..cellular_nca.contract import BOND_CHANNELS, DIRECTION_XY, DYNAMIC_CHANNELS, STATIC_CHANNELS
 from ..cellular_nca_causal.evaluation import validate_output
 from ..cellular_nca_causal.training import load_final_checkpoint
+from ..cellular_nca_selection_v1 import load_runtime as load_selected_runtime
+from ..cellular_nca_selection_v1 import validate as validate_selected_runtime
 from ..creature_stage_developmental.contract import TISSUES, TRAITS
 from ..living_body_substrate.contract import ORGAN_SYSTEM
 from .contract import CANVAS, DEFAULT_AUTHORITY
@@ -128,9 +130,16 @@ class LivingBodyNCARuntime:
 
     @classmethod
     def from_output(cls, output: Path = DEFAULT_AUTHORITY, *, device: str = "cuda", blend: float = .55):
-        output=Path(output).resolve();validation=validate_output(output,rerun_evaluation=False,device_name="cpu")
-        if not validation["passed"] or validation["status"]!="ready": raise ValueError("causal NCA authority is not ready")
-        model,_,_=load_final_checkpoint(output);target=torch.device(device if device!="cuda" or torch.cuda.is_available() else "cpu");return cls(model.to(target),target,blend=blend)
+        output=Path(output).resolve()
+        if (output / "selection_manifest.json").is_file():
+            validation=validate_selected_runtime(output)
+            if not validation["passed"]: raise ValueError("selected causal NCA authority is not ready")
+            model,_,_=load_selected_runtime(output)
+        else:
+            validation=validate_output(output,rerun_evaluation=False,device_name="cpu")
+            if not validation["passed"] or validation["status"]!="ready": raise ValueError("causal NCA authority is not ready")
+            model,_,_=load_final_checkpoint(output)
+        target=torch.device(device if device!="cuda" or torch.cuda.is_available() else "cpu");return cls(model.to(target),target,blend=blend)
 
     def forget(self,key:Hashable)->None:self.states.pop(key,None)
 

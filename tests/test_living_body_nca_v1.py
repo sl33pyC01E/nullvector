@@ -9,6 +9,7 @@ from forge.creature_stage_developmental.genomes import review_genomes
 from forge.cellular_nca.contract import DIRECTION_XY
 from forge.living_body_nca_v1 import LivingBodyNCARuntime, rasterize_body
 from forge.living_body_nca_v1.evaluation import _audit_once, _damage_system
+from forge.living_body_nca_v1.contract import DEFAULT_AUTHORITY
 from forge.living_body_substrate import LivingBody
 
 
@@ -73,3 +74,7 @@ def test_targeted_damage_is_local_and_dummy_audit_replays() -> None:
 def test_real_runtime_fails_closed_until_authority_is_ready(tmp_path) -> None:
     with pytest.raises((FileNotFoundError, ValueError)):
         LivingBodyNCARuntime.from_output(tmp_path / "missing", device="cpu")
+
+
+def test_selected_authority_is_the_default() -> None:
+    assert DEFAULT_AUTHORITY.name == "nca_causal_v3_selected"
