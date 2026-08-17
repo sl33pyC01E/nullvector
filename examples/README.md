@@ -1,155 +1,113 @@
-# NULLVECTOR output gallery
+# Output gallery
 
-These files are copied byte-for-byte from validated or explicitly labeled
-research outputs so GitHub can display actual results without cloning the full
-output archive. They span the deterministic scaffold and neural replacements.
-They are not hand-drawn mockups.
+Selected outputs from the current NULLVECTOR pipeline. These are generated
+results, not concept art. Some show accepted runtime systems; others are
+clearly labeled research prototypes.
 
-## Creature construction and motion
+## Physical creatures
 
-### Neural cellular locomotion
+### Grounded locomotion and feeding
 
-![Five-family neural cellular locomotion](showcase/neural_cellular_locomotion.gif)
+![Grounded locomotion and feeding](showcase/articulated_grounded_feeding_v11.gif)
 
-The learned cellular motion loop compared with its motion authority across all
-five families. Each visible point is a tissue cell. Source:
-`outputs/creature_stage_neural_motion_loop/showcase_update1000/`.
+The grounded neural controller approaches a material clump, then an articulated
+arm carries it into live feeder cells. Feet remain planted and the held object
+stays constrained to the hand.
 
-![Neural cellular motion comparison](showcase/neural_cellular_locomotion.png)
+### Five acquisition strategies
 
-### Anatomical VAE raster and motion
+![Five-family feeding](showcase/articulated_five_family_feeding_v11.gif)
 
-![Anatomical VAE motion](showcase/anatomical_vae_motion.gif)
+Humanoids kneel and grasp. Animals bite from the ground. Plants siphon through
+roots. Anomalies use a phase field. Machines collect with a suspension-mounted
+tool.
 
-The continuous anatomical graph VAE reconstructing held-out motion. The paired
-sheet below shows target and neural reconstruction across families and phases.
-Source: `outputs/organism_raster_vae_v5_anatomical/evaluation_0600_hierarchical/`.
+### Throwing and material response
 
-![Anatomical VAE held-out motion](showcase/anatomical_vae_motion.png)
+![Ballistic throw](showcase/articulated_ballistic_throw_v11.gif)
 
-### Grounded neural controller and procedural teacher
+Thrown matter has horizontal momentum, elevation, a ground-plane shadow,
+gravity, recoil, and landing behavior.
+
+![Impact modes](showcase/articulated_impact_modes_v11.gif)
+
+Different materials bounce, roll, or thud.
+
+### Damage and severing
+
+![Severed grasper](showcase/articulated_severed_grasper_v11.gif)
+
+The complete arm detaches at the shoulder, drops its payload, twitches briefly,
+and settles. The intact shoulder returns to rest.
+
+![Damaged grasper](showcase/articulated_damaged_grasper_v11.gif)
+
+Severe neural and muscle damage leaves residual motion but prevents useful
+grasping.
+
+![Feeder ablation](showcase/articulated_feeder_ablation_v11.gif)
+
+Destroying feeder cells prevents absorption even when material reaches the
+body.
+
+## Neural motion and rendering
+
+### Cellular locomotion
+
+![Neural cellular locomotion](showcase/neural_cellular_locomotion.gif)
+
+A learned cellular motion loop across the five organism families. Each point
+is a body cell.
+
+### Grounded controller
 
 ![Neural grounded controller](showcase/neural_grounded_controller.gif)
 
-![Developmental locomotion](showcase/developmental_locomotion.gif)
+The accepted grounded controller predicts causal muscle and contact feedback
+inside physical constraints.
 
-The first animation is a learned grounded controller. The second is the
-procedural developmental authority used for human-in-the-loop morphology and
-locomotion review. Sources:
-`outputs/creature_stage_neural_grounded_controller/evaluation_0800_final_verified/`
-and `outputs/creature_stage_developmental/review_v7/`.
+### Anatomical VAE
 
-![Developmental morphology](showcase/developmental_morphology.png)
+![Anatomical VAE motion](showcase/anatomical_vae_motion.gif)
 
-## Cellular life and damage
+A continuous anatomical graph VAE reconstructing held-out creature motion.
 
-### Articulated neural manipulation
+![Anatomical VAE comparison](showcase/anatomical_vae_motion.png)
 
-![Causal neural grounded locomotion transitions into neural articulated grasping and physical feeding](showcase/articulated_grounded_feeding_v11.gif)
+Target and reconstruction frames across families and motion phases.
 
-This is the quality-floor integration proof: the approved grounded gait first
-approaches the clump, then the same full skeleton, planted contacts, projected
-bones, muscles, and cellular skin perform the reach and mouth-contact feed.
-The high-level neural controller chooses appendage, intent, reach, force, and
-brace. A second 2.34M-parameter neural field predicts continuous inverse-muscle
-joint curvature inside the deterministic PBD safety envelope. The physical
-projector still owns exact roots, hands, bone lengths, and ground contacts; it
-is not yet an unconstrained end-to-end neural trajectory.
+## Cells, inheritance, and trauma
 
-![Cell-thick inertial arm carrying food to mouth cells](showcase/articulated_inertial_feeding_v11.gif)
+| Breeding and symmetry | Cellular trauma | Neural cellular dynamics |
+|---|---|---|
+| ![Breeding and symmetry](showcase/cellular_breeding_symmetry.png) | ![Cellular trauma](showcase/cellular_trauma.png) | ![Cellular NCA](showcase/cellular_nca_rollout.png) |
 
-The accepted neural controller selects the appendage, reach, force, and brace.
-A segment-local skin keeps the cellular arm as thick as the legs. Recurrent
-joint velocity, a critically damped reach governor, distributed curved muscle
-forces, and iterative length constraints curl the held clump back to actual
-mouth cells without pose snapping. The grasp is a positional hand constraint,
-so carried material cannot lag or float behind the arm.
-The raster skin has its own bounded cell-neighbour springs over every intact
-root seam. Chassis posture carries attached chains, while grounded feet and
-wheels are re-solved against the floor; explicit severing alone removes those
-cross-seam constraints.
+These cover inherited chassis variation, organs and fluids, damage, healing,
+scarring, debris, and learned local cell-state updates.
 
-![Articulated throw with elevation, shadow, follow-through and recoil](showcase/articulated_ballistic_throw_v11.gif)
+## World systems
 
-The released clump retains its impulse, gains independent elevation, casts a
-feet-plane shadow, falls under gravity, and transfers recoil to the body.
-Horizontal air drag is low enough for a long, legible throw arc.
+| Living world | Map themes | Neural topology |
+|---|---|---|
+| ![Living world](showcase/living_world.png) | ![Map themes](showcase/map_themes.png) | ![Neural map topology](showcase/neural_map_topology.png) |
 
-![Bounce, roll, and thud material responses](showcase/articulated_impact_modes_v11.gif)
+The playable scaffold includes ecology, resources, organisms, construction,
+and settlements. Maps begin as validated semantic topology before art is
+rendered. Neural topology remains under evaluation and does not bypass the
+safety repair stage.
 
-Phase/charge matter rebounds, rounded mineral matter keeps rolling, and soft
-biomass absorbs impact and thuds. These use the same neural throw command with
-different physical material responses.
+## World-model research
 
-![Severed articulated arm drops its payload while the healthy peer shoulder returns to rest](showcase/articulated_severed_grasper_v11.gif)
+| World VAE | Sparse Action-DiT |
+|---|---|
+| ![World VAE](showcase/world_vae_reconstruction.png) | ![Sparse Action-DiT](showcase/sparse_action_dit.png) |
 
-The arm is fully disconnected at its root bridge. Its cells and bone chain fall
-under gravity, retain only a brief decaying residual twitch, and then become
-inert. The released payload follows its own material physics.
+The world VAE reconstructs held-out frames. The sparse Action-DiT prototype
+learned localized action edits but did not pass the stricter latent acceptance
+gate, so it is evidence rather than runtime authority.
 
-![Severely damaged arm twitches but cannot carry](showcase/articulated_damaged_grasper_v11.gif)
+## Storage
 
-Severe muscle/neural damage leaves a weak residual motion but insufficient
-capacity to attach or transport the clump.
-
-![Destroyed feeder blocks absorption](showcase/articulated_feeder_ablation_v11.gif)
-
-Damage to the feeder cells prevents reserve gain even after physical contact.
-Source: `outputs/creature_stage_manipulation_v1/showcase_v11_family_intake/`. The approach phase uses the 3.50M-parameter causal grounded feedback network; reach uses the 2.34M-parameter neural inverse-muscle controller. All five family feeders now retain visible material during intake and the report proves at least 0.20 mass consumed per family.
-
-![Five-family morphology-specific acquisition](showcase/articulated_five_family_feeding_v11.gif)
-
-One synchronized replay exposes distinct ground-acquisition strategies:
-humanoid kneel-and-grasp, animal ground bite, plant root siphon, anomaly phase
-tractor, and machine suspension/tool collection. Their cells, joints, feeder
-apertures, and compatible nutrients remain distinct.
-
-![Cellular breeding and soft symmetry](showcase/cellular_breeding_symmetry.png)
-
-Breeding, soft-organic symmetry, additive chassis growth, organ/fluid fields,
-and descendant variation. Source: `outputs/cellular_breeding_symmetry_v1/`.
-
-![Cellular trauma](showcase/cellular_trauma.png)
-
-Damage, severing, fluid loss, scar/heal state, and cellular debris evidence.
-Source: `outputs/cellular_trauma_v4/`.
-
-![Cellular NCA rollout](showcase/cellular_nca_rollout.png)
-
-Learned local cellular dynamics rollout. Source: `outputs/cellular_nca/nca_v1/`.
-
-## World, maps, and neural frame models
-
-![Living world scaffold](showcase/living_world.png)
-
-The playable 2.5D ecology scaffold with organisms, systems, resources,
-settlements, interactions, and action tools. Source: `outputs/nature_sim_v2/`.
-
-![Map themes](showcase/map_themes.png)
-
-Six semantic/topology-bound pixel map themes. Source: `outputs/map_art/`.
-
-![Neural map topology](showcase/neural_map_topology.png)
-
-Neural topology proposal plus deterministic safety repair evidence. Source:
-`outputs/map_topology_neural_prior_generation/seeded_test_v1/`.
-
-![World VAE reconstruction](showcase/world_vae_reconstruction.png)
-
-Held-out continuous world-frame VAE reconstruction. Source:
-`outputs/world_frame_vae/production_v2_high_fidelity/`.
-
-![Sparse Action-DiT](showcase/sparse_action_dit.png)
-
-Sparse action-conditioned latent editor evaluation. It localized edits and
-improved decoded RGB over refined persistence, but did not pass the stricter
-latent gate; it is retained as honest evidence rather than promoted as a final
-runtime. Source: `outputs/world_action_sparse_v5/production_v5_sparse/`.
-
-## Scope
-
-The gallery is deliberately compact (under 10 MiB). The complete output tree
-contains checkpoints, full corpora, replay manifests, intermediate failures,
-contact sheets, videos, and 16,000+ files. Generated corpora and checkpoints
-remain outside normal Git history so clones stay practical and GitHub's object
-limits are respected.
+This gallery stays small enough to browse on GitHub. Full corpora, checkpoints,
+replay banks, failure cases, and evaluation reports remain under the local
+`outputs/` tree and are not included in normal Git history.
