@@ -15,6 +15,7 @@ from torch import Tensor, nn
 from ..mobile_frame_decoder_v1.contract import CHECKPOINT_FORMAT as MOBILE_DECODER_FORMAT, MobileDecoderConfig
 from ..mobile_frame_decoder_v1.model import MobileFrameDecoder
 from ..mobile_action_core_v1.contract import CHECKPOINT_FORMAT as MOBILE_ACTION_FORMAT
+from ..mobile_action_core_v1.data import load_sequences
 from ..monolithic_world_model_v1.contract import CHECKPOINT_FORMAT, DirectContextConfig
 from ..monolithic_world_model_v1.model import FusedStructuredActionModel
 from ..recurrent_world_student_v5.model import PerceptionRecurrentWorldStudent
@@ -93,8 +94,12 @@ def export_mobile_bundle(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     records = {}
     for name, path in fp32.items():
         onnx.checker.check_model(onnx.load(path)); records[name] = {"path": path.name, "bytes": path.stat().st_size, "sha256": file_sha256(path), "desktop_cpu_reference": _benchmark(path, feeds[name], warmup=2, steps=5)}
-    total = sum(row["bytes"] for row in records.values()); gates = {"all_models_valid_onnx": True, "fp32_bundle_under_256_mib": total < 256 * 1024**2, "action_model_plus_vae_shape": True, "android_toolchain_targeted": True}
-    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "mobile_action_sha256": MOBILE_ACTION_SHA256, "mobile_decoder_sha256": MOBILE_DECODER_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
+    normalization_path = output / "latent_normalization.f32"
+    normalization = np.concatenate([np.asarray(action_payload["normalization"]["latent_mean"], dtype="<f4"), np.asarray(action_payload["normalization"]["latent_std"], dtype="<f4")]); normalization.tofile(normalization_path)
+    sample_path = output / "sample_latent.f32"; np.asarray(load_sequences()[0]["latent"][-64], dtype="<f4").tofile(sample_path)
+    runtime_assets = {"latent_normalization": {"path": normalization_path.name, "bytes": normalization_path.stat().st_size, "sha256": file_sha256(normalization_path), "layout": "48 latent means followed by 48 latent standard deviations"}, "sample_latent": {"path": sample_path.name, "bytes": sample_path.stat().st_size, "sha256": file_sha256(sample_path), "layout": "1x48x32x32 raw VAE latent"}}
+    total = sum(row["bytes"] for row in records.values()) + sum(row["bytes"] for row in runtime_assets.values()); gates = {"all_models_valid_onnx": True, "fp32_bundle_under_256_mib": total < 256 * 1024**2, "action_model_plus_vae_shape": True, "explicit_latent_boundary": len(normalization) == 96, "android_toolchain_targeted": True}
+    manifest = {"format": FORMAT, "status": "android_export_ready" if all(gates.values()) else "android_export_failed", "source_sha256": source_sha256(), "monolithic_sha256": MONOLITHIC_SHA256, "mobile_action_sha256": MOBILE_ACTION_SHA256, "mobile_decoder_sha256": MOBILE_DECODER_SHA256, "target": TARGET, "exported_precision": "fp32", "planned_device_precisions": ["fp16", "int8"], "models": records, "runtime_assets": runtime_assets, "total_model_bytes": total, "total_model_mib": total / 1024**2, "cadence": {"context": 15, "action": 30, "decoder": 30}, "latent_boundary": {"action_state": "normalized", "vae_input": "raw", "conversion": "raw = normalized * latent_std + latent_mean"}, "gates": gates, "limitations": ["Desktop CPU timings are export sanity checks, not Galaxy S25 Ultra performance claims.", "QNN/NNAPI operator partitioning must be profiled on the physical phone before promotion.", "Mixed-input FP16 graph conversion is not promoted yet; the first correct bundle is FP32 and calibrated QNN FP16/INT8 follows device parity testing."]}
     manifest["manifest_sha256"] = hashlib.sha256(canonical(manifest)).hexdigest(); (output / "manifest.json").write_bytes(canonical(manifest)); return manifest
 
 
