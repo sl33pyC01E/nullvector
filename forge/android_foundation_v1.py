@@ -43,6 +43,123 @@ SOURCE_FILES = (
     "forge/organism_cell_vae_v1/model.py",
 )
 
+NCA_STATIC_CHANNELS = 85
+NCA_DYNAMIC_CHANNELS = 12
+NCA_BOND_CHANNELS = 8
+NCA_CANVAS = 48
+NCA_DIRECTIONS = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+
+
+def _nca_tissue_channel(tissue: int) -> int:
+    # Developmental tissue vocabulary -> cellular-NCA tissue vocabulary.
+    return (1, 3, 2, 2, 10, 4, 6, 6, 7, 5, 9, 14, 12, 3, 11)[tissue]
+
+
+def _system_role(system: int, organ: str, kind: str, tissue: int, appendage: int) -> int:
+    organ = organ.lower()
+    if system == 0:  # circulation
+        if organ in {"heart", "vascular", "coolant_pump", "bulb"}: return 1
+        if tissue == 6: return 2
+        if kind in {"soma", "circulator"}: return 3
+    elif system == 1:  # respiration / gas or heat exchange
+        if organ in {"lung", "coolant_pump", "photoreceptor", "singularity"}: return 1
+        if tissue in {6, 7}: return 2
+        if kind in {"respirator", "sensor_crown", "soma"}: return 3
+    elif system == 2:  # digestion / energy conversion
+        if organ in {"gut", "jaw", "transmuter", "battery", "bulb"}: return 1
+        if tissue in {8, 10}: return 2
+        if kind in {"mouth", "gut", "pelvis", "storage"}: return 3
+    elif system == 3:  # neural control
+        if organ in {"brain", "phase_brain", "processor", "meristem", "singularity"}: return 1
+        if tissue == 5: return 2
+        if kind in {"head", "neural_cluster", "sensor_crown"}: return 3
+    elif system == 4:  # sensory
+        if organ in {"eye", "optic", "photoreceptor", "singularity"}: return 1
+        if tissue in {5, 9}: return 2
+        if kind == "sensor_crown": return 3
+    elif system == 5:  # locomotion
+        if appendage >= 0 and tissue in {1, 2, 3, 11, 13}: return 3
+        if tissue in {2, 3}: return 2
+        if kind in {"pelvis", "soma"}: return 1
+    elif system == 6:  # reproduction / growth
+        if organ in {"gut", "bulb", "meristem", "battery", "phase_brain"}: return 1
+        if tissue in {8, 10, 11}: return 2
+        if kind in {"pelvis", "storage", "soma"}: return 3
+    else:  # immune / repair
+        if organ in {"heart", "bulb", "phase_brain", "processor"}: return 1
+        if tissue in {0, 4, 6, 12, 13}: return 2
+        if kind in {"soma", "armor", "generator"}: return 3
+    return 0
+
+
+def _physiology_fields(genome, organism) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    static = np.zeros((NCA_STATIC_CHANNELS, NCA_CANVAS, NCA_CANVAS), np.float32)
+    state = np.zeros((NCA_DYNAMIC_CHANNELS, NCA_CANVAS, NCA_CANVAS), np.float32)
+    bonds = np.zeros((NCA_BOND_CHANNELS, NCA_CANVAS, NCA_CANVAS), np.float32)
+    pixels = np.rint(organism.cell_xy).astype(np.int16) + NCA_CANVAS // 2
+    if np.any(pixels < 0) or np.any(pixels >= NCA_CANVAS) or len(np.unique(pixels, axis=0)) != organism.cell_count:
+        raise ValueError("Android foundation NCA raster is not a one-cell-per-pixel anatomy")
+    component_index = np.argmax(organism.component_weights, axis=1)
+    family = int(np.argmax(genome.family_mix))
+    trait = {name: float(genome.traits[index]) for index, name in enumerate((
+        "size", "symmetry", "segmentation", "stiffness", "elasticity", "bone_density",
+        "muscle_density", "muscle_strength", "neural_density", "vascularity", "metabolism",
+        "regeneration", "grip", "sensory_range", "phase_coherence",
+    ))}
+    for index, ((x, y), tissue_raw, owner, component_raw) in enumerate(zip(
+        pixels, organism.tissue, organism.appendage_index, component_index, strict=True,
+    )):
+        tissue = int(tissue_raw); component = genome.components[int(component_raw)]
+        static[0, y, x] = 1
+        static[_nca_tissue_channel(tissue), y, x] = 1
+        flags = 0
+        if component.organ in {"eye", "optic", "photoreceptor", "singularity"}: flags |= 1
+        if component.kind == "mouth" or component.organ == "jaw": flags |= 2
+        if component.organ in {"heart", "vascular", "coolant_pump", "bulb"}: flags |= 4
+        if component.kind in {"pelvis", "storage"}: flags |= 8
+        if family == 2 and tissue in {9, 11}: flags |= 16
+        if component.kind in {"soma", "neural_cluster"}: flags |= 32
+        if tissue == 14: flags |= 64
+        if family == 3 or tissue == 12: flags |= 128
+        for bit in range(8): static[15 + bit, y, x] = float((flags >> bit) & 1)
+        static[23 + family, y, x] = 1
+        for system in range(8):
+            role = _system_role(system, component.organ, component.kind, tissue, int(owner))
+            if role:
+                static[28 + system * 3 + role - 1, y, x] = 1
+                base = (.62, .58, .62, .60, .56, .65, .48, .56)[system]
+                modifiers = (trait["vascularity"], trait["vascularity"], trait["metabolism"], trait["neural_density"], trait["sensory_range"], trait["muscle_strength"], trait["metabolism"], trait["regeneration"])
+                static[52 + system, y, x] = np.clip(base + .38 * modifiers[system], .1, 1)
+        heal_class = 1 + min(5, family + (1 if tissue in {1, 4, 13} else 0))
+        static[60 + heal_class - 1, y, x] = 1
+        static[66, y, x] = np.clip(.34 + .55 * trait["vascularity"], 0, 1)
+        static[67, y, x] = np.clip(.18 + .34 * (1 - trait["regeneration"]), 0, 1)
+        static[68, y, x] = np.clip(.18 + .76 * trait["regeneration"], 0, 1)
+        static[69:75, y, x] = (
+            .72 + .18 * trait["stiffness"], .55 + .35 * trait["vascularity"],
+            .55 + .25 * trait["metabolism"], .60 + .22 * trait["metabolism"],
+            .38 + .35 * trait["bone_density"], .35 + .55 * trait["stiffness"],
+        )
+        state[0, y, x] = 1
+        state[1, y, x] = .72 if family != 4 else .62
+        state[2, y, x] = .62
+        state[3, y, x] = .74
+        state[4, y, x] = .88
+        state[8, y, x] = np.clip(static[37:40, y, x].sum() * .7 + static[40:43, y, x].sum() * .18, .05, 1)
+        state[11, y, x] = 1
+    lookup = {tuple(map(int, pixel)): index for index, pixel in enumerate(pixels)}
+    for x, y in lookup:
+        degree = 0; conductance = 0.0
+        for direction_index, (dx, dy) in enumerate(NCA_DIRECTIONS):
+            if (x + dx, y + dy) in lookup:
+                strength = .82 if abs(dx) + abs(dy) == 1 else .64
+                bonds[direction_index, y, x] = 1
+                static[77 + direction_index, y, x] = strength
+                degree += 1; conductance += strength
+        static[75, y, x] = degree / 8
+        static[76, y, x] = conductance / max(degree, 1) / .8
+    return static, state, bonds, pixels
+
 
 def source_sha256() -> str:
     digest = hashlib.sha256(b"nullvector-android-foundation-runtime-v1\0")
@@ -62,7 +179,7 @@ class _GroundedExport(nn.Module):
         return result.muscle_activation, result.contact_logits, result.body_velocity
 
 
-def _organism_record(genome, organism, styles: np.ndarray) -> dict[str, object]:
+def _organism_record(genome, organism, styles: np.ndarray, pixels: np.ndarray) -> dict[str, object]:
     return {
         "family": FAMILIES[int(np.argmax(genome.family_mix))],
         "family_id": int(np.argmax(genome.family_mix)),
@@ -77,13 +194,15 @@ def _organism_record(genome, organism, styles: np.ndarray) -> dict[str, object]:
                 "tissue": int(tissue),
                 "appendage": int(owner),
                 "component": int(component),
+                "nca_xy": [int(pixel[0]), int(pixel[1])],
             }
-            for (x, y), tissue, owner, component, style in zip(
+            for (x, y), tissue, owner, component, style, pixel in zip(
                 organism.cell_xy,
                 organism.tissue,
                 organism.appendage_index,
                 np.argmax(organism.component_weights, axis=1),
                 styles,
+                pixels,
                 strict=True,
             )
         ],
@@ -115,9 +234,10 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
         for organism in organisms:
             features, mask = raster.organism_features(organism, organism.cell_xy, phase=0.0)
             neural_styles.append(raster.cell_styles(features, mask)[0, :organism.cell_count].numpy())
+        fields = [_physiology_fields(genome, organism) for genome, organism in zip(genomes, organisms, strict=True)]
         records = []
-        for genome, organism, styles in zip(genomes, organisms, neural_styles, strict=True):
-            record = _organism_record(genome, organism, styles)
+        for genome, organism, styles, (_, _, _, pixels) in zip(genomes, organisms, neural_styles, fields, strict=True):
+            record = _organism_record(genome, organism, styles, pixels)
             for cell, style in zip(record["cells"], styles, strict=True):
                 cell["neural_style"] = [round(float(value), 7) for value in style]
             records.append(record)
@@ -130,6 +250,10 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
         }
         anatomy_bytes = canonical_json_bytes(anatomy)
         (stage / "foundation_anatomy.json").write_bytes(anatomy_bytes)
+        for name, member in (
+            ("foundation_cell_static.f32", 0), ("foundation_cell_state.f32", 1), ("foundation_cell_bonds.f32", 2),
+        ):
+            np.stack([entry[member] for entry in fields]).astype("<f4").tofile(stage / name)
 
         batch = 2
         inputs = (
@@ -157,7 +281,12 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
         )
         artifacts = {
             name: {"path": path.name, "bytes": path.stat().st_size, "sha256": sha256_file(path)}
-            for name, path in (("anatomy", stage / "foundation_anatomy.json"), ("grounded_controller", onnx_path))
+            for name, path in (
+                ("anatomy", stage / "foundation_anatomy.json"), ("grounded_controller", onnx_path),
+                ("cell_static", stage / "foundation_cell_static.f32"),
+                ("cell_state", stage / "foundation_cell_state.f32"),
+                ("cell_bonds", stage / "foundation_cell_bonds.f32"),
+            )
         }
         manifest = {
             "format": FORMAT,
@@ -173,6 +302,8 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
                 "analog_ground_plane_motion": True,
                 "independent_elevation": True,
                 "vae_cell_style_authority": True,
+                "neural_cell_physiology": True,
+                "five_family_organ_fields": True,
             },
             "model": {"parameters": runtime.model.parameter_count, "max_appendages": MAX_APPENDAGES, "max_muscles": MAX_MUSCLES},
             "artifacts": artifacts,

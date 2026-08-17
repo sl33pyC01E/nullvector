@@ -272,17 +272,12 @@ public final class NeuralWorldView extends View {
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
                 float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
-                float[] cellStatic = floatAsset("cell_static.f32", 85 * 48 * 48);
-                float[] cellState = floatAsset("cell_state.f32", 12 * 48 * 48);
-                float[] cellBonds = floatAsset("cell_bonds.f32", 8 * 48 * 48);
                 float[] organismFeatures = floatAsset("organism_vae_features.f32", 576 * 52);
                 float[] organismMask = floatAsset("organism_vae_mask.f32", 576);
                 java.util.Arrays.fill(visibility, 1f); int tick = 0;
                 stage(provider + (BuildConfig.SPLIT_ACTION
                     ? " · INT8 action + cellular NCA + mobile VAE live"
                     : " · FP32 action + cellular NCA + mobile VAE live"));
-                try (OnnxTensor cellStaticTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellStatic), new long[]{1, 85, 48, 48});
-                     OnnxTensor cellBondTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellBonds), new long[]{1, 8, 48, 48})) {
                   while (running) {
                     long frameBegan = System.nanoTime();
                     if (foundation != null) {
@@ -344,18 +339,11 @@ public final class NeuralWorldView extends View {
                     if ((tick & 1) == 0) {
                         long cellularBegan = System.nanoTime();
                         float absorbed = pendingNutrition; pendingNutrition = 0f;
-                        if (absorbed > 0f) for (int p = 0, cells = 48 * 48; p < cells; p++) if (cellStatic[p] > .5f) { cellState[2 * cells + p] = Math.min(1f, cellState[2 * cells + p] + absorbed * .018f); cellState[3 * cells + p] = Math.min(1f, cellState[3 * cells + p] + absorbed * .009f); }
-                        try (OnnxTensor cellStateTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellState), new long[]{1, 12, 48, 48})) {
-                            Map<String, OnnxTensor> cellInputs = new HashMap<>(); cellInputs.put("static", cellStaticTensor); cellInputs.put("state", cellStateTensor); cellInputs.put("live_bonds", cellBondTensor);
-                            try (OrtSession.Result result = cellularSession.run(cellInputs)) {
-                                float[][][][] value = (float[][][][])result.get(0).getValue(); int cursor = 0;
-                                for (int c = 0; c < 12; c++) for (int y = 0; y < 48; y++) for (int x = 0; x < 48; x++) cellState[cursor++] = value[0][c][y][x];
-                            }
-                        }
+                        if(foundation!=null){if(absorbed>0)foundation.addNutritionToSelected(absorbed);int selectedIndex=foundation.selected;int[] updateIndices=(tick&7)==0?new int[]{selectedIndex,(selectedIndex+1+(tick/8)%4)%5}:new int[]{selectedIndex};for(int physiologyIndex:updateIndices){foundation.preparePhysiology(physiologyIndex);FoundationWorld.Creature body=foundation.creatures.get(physiologyIndex);Map<String,OnnxTensor> cellInputs=new HashMap<>();cellInputs.put("static",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellStatic),new long[]{1,85,48,48}));cellInputs.put("state",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellState),new long[]{1,12,48,48}));cellInputs.put("live_bonds",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellBonds),new long[]{1,8,48,48}));try(OrtSession.Result result=cellularSession.run(cellInputs)){float[][][][] value=(float[][][][])result.get(0).getValue();float[] nextPhysiology=new float[12*48*48];int cursor=0;for(int c=0;c<12;c++)for(int y=0;y<48;y++)for(int x=0;x<48;x++)nextPhysiology[cursor++]=value[0][c][y][x];foundation.applyPhysiology(physiologyIndex,nextPhysiology);}for(OnnxTensor tensor:cellInputs.values())tensor.close();}}
                         cellularMilliseconds = (System.nanoTime() - cellularBegan) / 1_000_000.0;
-                        cellularHealth = bodyMean(cellStatic, cellState, 0); cellularNeural = organMean(cellStatic, cellState, 8, 37); cellularFrame = cellularBitmap(cellStatic, cellState);
-                        if ((tick & 7) == 0) {
-                            bindPhysiologyToRaster(organismFeatures, cellStatic, cellState); long rasterBegan = System.nanoTime();
+                        if(foundation!=null){FoundationWorld.Creature body=foundation.selected();cellularHealth=body.health;cellularNeural=body.neural;cellularFrame=cellularBitmap(body.cellStatic,body.cellState);}
+                        if (foundation==null && (tick & 7) == 0) {
+                            long rasterBegan = System.nanoTime();
                             try (OnnxTensor featureTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(organismFeatures), new long[]{1, 576, 52});
                                  OnnxTensor maskTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(organismMask), new long[]{1, 576})) {
                                 Map<String, OnnxTensor> rasterInputs = new HashMap<>(); rasterInputs.put("features", featureTensor); rasterInputs.put("mask", maskTensor);
@@ -366,7 +354,6 @@ public final class NeuralWorldView extends View {
                     }
                     long remaining = 33_333_333L - (System.nanoTime() - frameBegan); if (remaining > 0) Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
                   }
-                }
             }
         } catch (Throwable failure) {
             Log.e(TAG, "Neural runtime failed", failure);
@@ -425,7 +412,9 @@ public final class NeuralWorldView extends View {
         if (foundation==null && cellularFrame != null) { paint.setAlpha(organismVaeFrame == null ? 255 : 76); canvas.drawBitmap(cellularFrame, null, organismRect, paint); paint.setAlpha(255); }
         paint.setColor(Color.argb(150, 255, 90, 180)); paint.setStrokeWidth(3); canvas.drawLine(cx, cy - organismSize * .12f, cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, paint); canvas.drawCircle(cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, 5, paint);
         paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(25); canvas.drawText("NULLVECTOR // NEURAL HABITAT", 28, 39, paint); paint.setTextSize(15); paint.setColor(Color.rgb(165, 199, 199)); canvas.drawText("CELLULAR CREATURE STAGE · WORLD 4096² · MATERIAL " + gathered, 29, 63, paint);
-        bar(canvas, 28, 78, 230, cellularHealth, Color.rgb(62, 224, 115), "HEALTH"); bar(canvas, 28, 102, 230, cellularNeural, Color.rgb(214, 72, 255), "NEURAL");
+        FoundationWorld.Creature selectedBody=foundation==null?null:foundation.selected();
+        bar(canvas,28,78,158,cellularHealth,Color.rgb(62,224,115),"HEALTH");bar(canvas,28,102,158,cellularNeural,Color.rgb(214,72,255),"NEURAL");
+        if(selectedBody!=null){bar(canvas,198,78,142,selectedBody.circulation,Color.rgb(245,77,101),"CIRCULATION");bar(canvas,198,102,142,selectedBody.respiration,Color.rgb(71,213,242),"RESPIRATION");bar(canvas,352,78,142,selectedBody.digestion,Color.rgb(245,174,62),"DIGESTION");bar(canvas,352,102,142,selectedBody.locomotion,Color.rgb(155,240,80),"LOCOMOTION");bar(canvas,506,78,142,selectedBody.sensory,Color.rgb(207,118,255),"SENSORY");bar(canvas,506,102,142,selectedBody.energy,Color.rgb(255,225,92),"ENERGY");}
         if(foundation!=null){float cardWidth=Math.min(112,(width-40)/5);for(int i=0;i<5;i++){float left=20+i*cardWidth;paint.setColor(i==foundation.selected?Color.argb(220,16,75,75):Color.argb(190,5,17,22));canvas.drawRect(left,130,left+cardWidth-5,166,paint);paint.setColor(i==foundation.selected?Color.rgb(105,255,220):Color.rgb(160,190,200));paint.setTextSize(11);canvas.drawText(FoundationWorld.FAMILIES[i],left+5,152,paint);}}
         paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(movementTouch ? Color.rgb(67, 239, 220) : Color.argb(145, 67, 125, 130)); canvas.drawCircle(width * .13f, height * .82f, 72, paint); paint.setStyle(Paint.Style.FILL); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawCircle(width * .13f + controlX * 58, height * .82f + controlY * 58, 14, paint);
         String[] actions={"GRASP","FEED","STRIKE","THROW"};float actionStart=width*.62f,actionGap=Math.min(115,width*.085f),actionY=height*.84f;for(int i=0;i<4;i++){float x=actionStart+i*actionGap;paint.setColor(i==selectedAction?Color.rgb(132,42,103):Color.rgb(48,30,47));canvas.drawCircle(x,actionY,44,paint);paint.setColor(Color.WHITE);paint.setTextSize(12);canvas.drawText(actions[i],x-20,actionY+4,paint);}paint.setColor(Color.rgb(170,205,205));paint.setTextSize(12);canvas.drawText(actionStatus,actionStart,actionY+67,paint);

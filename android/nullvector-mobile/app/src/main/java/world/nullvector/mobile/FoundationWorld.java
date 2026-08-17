@@ -5,6 +5,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +16,7 @@ import java.util.List;
  * activation; this class owns the causal skeleton, anchors, cells and world plane. */
 final class FoundationWorld {
     static final int MAX_APPENDAGES = 8, MAX_MUSCLES = 60;
+    static final int CELL_PIXELS = 48 * 48, CELL_STATIC_CHANNELS = 85, CELL_STATE_CHANNELS = 12, CELL_BOND_CHANNELS = 8;
     static final String[] FAMILIES = {"HUMANOID", "ANIMALIAN", "PLANTLIKE", "ANOMALY", "MACHINE"};
 
     static final class Appendage {
@@ -21,7 +25,7 @@ final class FoundationWorld {
     }
 
     static final class Cell {
-        float x, y; int tissue, appendage, component;
+        float x, y; int tissue, appendage, component, ncaX, ncaY;
         float health=1f;
         float red,green,blue,alpha,sigma,offsetX,offsetY;
         final int[] nearest = new int[3]; final float[] weight = new float[3];
@@ -33,7 +37,11 @@ final class FoundationWorld {
         final int[][] edges; final int[] edgeAppendage, terminal; final float[] edgeLength;
         final float[][] muscles; final float[][] anchors; final boolean[] previousContact, contact;
         final float[] muscleActivation;
+        final float[] cellStatic = new float[CELL_STATIC_CHANNELS * CELL_PIXELS];
+        final float[] cellState = new float[CELL_STATE_CHANNELS * CELL_PIXELS];
+        final float[] cellBonds = new float[CELL_BOND_CHANNELS * CELL_PIXELS];
         float x, y, vx, vy, desiredX, desiredY, phase, bodyProgress, bodyVelocity, health = 1f, neural = 1f, energy = .82f;
+        float circulation=1f, respiration=1f, digestion=1f, sensory=1f, locomotion=1f;
         int intent = 11; float urgency = .5f;
         boolean selected;
 
@@ -52,7 +60,7 @@ final class FoundationWorld {
             JSONArray muscleArray=skeleton.getJSONArray("muscles");muscles=new float[muscleArray.length()][];muscleActivation=new float[muscles.length];
             for(int i=0;i<muscles.length;i++){JSONArray m=muscleArray.getJSONArray(i);muscles[i]=new float[m.length()];for(int j=0;j<m.length();j++)muscles[i][j]=(float)m.getDouble(j);}
             JSONArray cellArray=row.getJSONArray("cells");cells=new Cell[cellArray.length()];
-            for(int i=0;i<cells.length;i++){JSONObject value=cellArray.getJSONObject(i);JSONArray xy=value.getJSONArray("xy"),style=value.getJSONArray("neural_style");Cell c=new Cell();c.x=(float)xy.getDouble(0);c.y=(float)xy.getDouble(1);c.tissue=value.getInt("tissue");c.appendage=value.getInt("appendage");c.component=value.getInt("component");c.red=(float)style.getDouble(0);c.green=(float)style.getDouble(1);c.blue=(float)style.getDouble(2);c.alpha=(float)style.getDouble(3);c.sigma=(float)style.getDouble(4);c.offsetX=(float)style.getDouble(5);c.offsetY=(float)style.getDouble(6);cells[i]=c;skinWeights(c);}
+            for(int i=0;i<cells.length;i++){JSONObject value=cellArray.getJSONObject(i);JSONArray xy=value.getJSONArray("xy"),nca=value.getJSONArray("nca_xy"),style=value.getJSONArray("neural_style");Cell c=new Cell();c.x=(float)xy.getDouble(0);c.y=(float)xy.getDouble(1);c.ncaX=nca.getInt(0);c.ncaY=nca.getInt(1);c.tissue=value.getInt("tissue");c.appendage=value.getInt("appendage");c.component=value.getInt("component");c.red=(float)style.getDouble(0);c.green=(float)style.getDouble(1);c.blue=(float)style.getDouble(2);c.alpha=(float)style.getDouble(3);c.sigma=(float)style.getDouble(4);c.offsetX=(float)style.getDouble(5);c.offsetY=(float)style.getDouble(6);cells[i]=c;skinWeights(c);}
             anchors=new float[appendages.length][2];previousContact=new boolean[appendages.length];contact=new boolean[appendages.length];for(float[] a:anchors){a[0]=Float.NaN;a[1]=Float.NaN;}
             double angle=ordinal*Math.PI*2/5-Math.PI/2;x=2048f+(float)Math.cos(angle)*430f;y=2048f+(float)Math.sin(angle)*300f;phase=ordinal*.137f;
         }
@@ -72,8 +80,15 @@ final class FoundationWorld {
     FoundationWorld(Context context) throws Exception {
         byte[] bytes; try(InputStream input=context.getAssets().open("foundation_anatomy.json")){bytes=input.readAllBytes();}
         JSONObject root=new JSONObject(new String(bytes, StandardCharsets.UTF_8));JSONArray rows=root.getJSONArray("organisms");
-        for(int i=0;i<rows.length();i++)creatures.add(new Creature(rows.getJSONObject(i),i));creatures.get(0).selected=true;
+        for(int i=0;i<rows.length();i++)creatures.add(new Creature(rows.getJSONObject(i),i));
+        float[] staticValues=floatAsset(context,"foundation_cell_static.f32",creatures.size()*CELL_STATIC_CHANNELS*CELL_PIXELS);
+        float[] stateValues=floatAsset(context,"foundation_cell_state.f32",creatures.size()*CELL_STATE_CHANNELS*CELL_PIXELS);
+        float[] bondValues=floatAsset(context,"foundation_cell_bonds.f32",creatures.size()*CELL_BOND_CHANNELS*CELL_PIXELS);
+        for(int i=0;i<creatures.size();i++){Creature c=creatures.get(i);System.arraycopy(staticValues,i*c.cellStatic.length,c.cellStatic,0,c.cellStatic.length);System.arraycopy(stateValues,i*c.cellState.length,c.cellState,0,c.cellState.length);System.arraycopy(bondValues,i*c.cellBonds.length,c.cellBonds,0,c.cellBonds.length);}
+        creatures.get(0).selected=true;
     }
+
+    private static float[] floatAsset(Context context,String name,int count)throws Exception{byte[] bytes;try(InputStream input=context.getAssets().open(name)){bytes=input.readAllBytes();}FloatBuffer values=ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();if(values.remaining()!=count)throw new IllegalStateException(name+" length");float[] result=new float[count];values.get(result);return result;}
 
     synchronized Creature selected(){ return creatures.get(selected); }
     synchronized void select(int index){if(index<0||index>=creatures.size())return;creatures.get(selected).selected=false;selected=index;creatures.get(selected).selected=true;}
@@ -90,7 +105,7 @@ final class FoundationWorld {
     }
 
     synchronized void applyNeural(float[][] muscles,float[][] logits,float[] drive){
-        for(int n=0;n<creatures.size();n++){Creature c=creatures.get(n);float activity=Math.min(1f,(float)Math.hypot(c.desiredX,c.desiredY));
+        for(int n=0;n<creatures.size();n++){Creature c=creatures.get(n);float activity=Math.min(1f,(float)Math.hypot(c.desiredX,c.desiredY))*c.neural*c.locomotion;
             for(int i=0;i<c.muscleActivation.length;i++){int owner=(int)c.muscles[i][2];c.muscleActivation[i]=muscles[n][i]*activity*appendageIntegrity(c,owner);}
             for(int a=0;a<c.appendages.length;a++)c.contact[a]=activity>.08f&&appendageIntegrity(c,a)>.22f&&c.appendages[a].grounded()&&logits[n][a]>=0;
         }
@@ -114,6 +129,16 @@ final class FoundationWorld {
 
     synchronized void feedSelected(float nutrition){Creature c=selected();c.energy=Math.min(1.2f,c.energy+Math.max(0,nutrition));c.health=Math.min(1,c.health+nutrition*.05f);}
 
+    synchronized void preparePhysiology(int index){Creature c=creatures.get(index);for(Cell cell:c.cells){int pixel=cell.ncaY*48+cell.ncaX;c.cellState[pixel]=Math.min(c.cellState[pixel],cell.health);if(cell.health<=.01f)c.cellState[11*CELL_PIXELS+pixel]=0;}}
+
+    synchronized void addNutritionToSelected(float amount){Creature c=selected();for(Cell cell:c.cells){int p=cell.ncaY*48+cell.ncaX;if(c.cellStatic[(34*CELL_PIXELS)+p]+c.cellStatic[(35*CELL_PIXELS)+p]+c.cellStatic[(36*CELL_PIXELS)+p]>.1f){c.cellState[2*CELL_PIXELS+p]=clamp(c.cellState[2*CELL_PIXELS+p]+amount*.12f,0,1);c.cellState[3*CELL_PIXELS+p]=clamp(c.cellState[3*CELL_PIXELS+p]+amount*.07f,0,1);}}}
+
+    synchronized void applyPhysiology(int index,float[] next){Creature c=creatures.get(index);System.arraycopy(next,0,c.cellState,0,c.cellState.length);for(Cell cell:c.cells){int p=cell.ncaY*48+cell.ncaX;float role=Math.min(1,c.cellStatic[37*CELL_PIXELS+p]+c.cellStatic[38*CELL_PIXELS+p]+c.cellStatic[39*CELL_PIXELS+p]);if(role>0){float health=c.cellState[p],oxygen=c.cellState[4*CELL_PIXELS+p],energy=c.cellState[3*CELL_PIXELS+p],weight=c.cellStatic[55*CELL_PIXELS+p];float homeostasis=role*weight*health*oxygen*(.3f+.7f*energy)*.78f;c.cellState[8*CELL_PIXELS+p]=Math.max(c.cellState[8*CELL_PIXELS+p],homeostasis);}cell.health=c.cellState[p];}c.health=bodyMean(c,0);c.energy=bodyMean(c,3);c.neural=organMean(c,8,37);c.circulation=organMean(c,1,28);c.respiration=organMean(c,4,31);c.digestion=organMean(c,3,34);c.sensory=systemHealth(c,40);c.locomotion=systemHealth(c,43);if(c.neural<.12f||c.respiration<.08f){c.desiredX=c.desiredY=0;} }
+
+    private static float bodyMean(Creature c,int channel){float total=0,count=0;int offset=channel*CELL_PIXELS;for(int p=0;p<CELL_PIXELS;p++)if(c.cellStatic[p]>.5f){total+=c.cellState[offset+p];count++;}return count>0?total/count:0;}
+    private static float organMean(Creature c,int channel,int staticStart){float total=0,count=0;int offset=channel*CELL_PIXELS;for(int p=0;p<CELL_PIXELS;p++){float mask=Math.min(1,c.cellStatic[staticStart*CELL_PIXELS+p]+c.cellStatic[(staticStart+1)*CELL_PIXELS+p]+c.cellStatic[(staticStart+2)*CELL_PIXELS+p]);total+=c.cellState[offset+p]*mask;count+=mask;}return count>0?total/count:c.health;}
+    private static float systemHealth(Creature c,int staticStart){float total=0,count=0;for(int p=0;p<CELL_PIXELS;p++){float mask=Math.min(1,c.cellStatic[staticStart*CELL_PIXELS+p]+c.cellStatic[(staticStart+1)*CELL_PIXELS+p]+c.cellStatic[(staticStart+2)*CELL_PIXELS+p]);total+=c.cellState[p]*mask;count+=mask;}return count>0?total/count:c.health;}
+
     synchronized int attackSelected(float aimX,float aimY){Creature source=selected();float length=Math.max(.001f,(float)Math.hypot(aimX,aimY));aimX/=length;aimY/=length;Creature best=null;float bestAlong=Float.MAX_VALUE;for(Creature target:creatures){if(target==source||target.health<=0)continue;float dx=shortDelta(source.x,target.x,4096),dy=shortDelta(source.y,target.y,4096),along=dx*aimX+dy*aimY,side=Math.abs(dx*aimY-dy*aimX);if(along>0&&along<190&&side<52&&along<bestAlong){best=target;bestAlong=along;}}if(best==null)return 0;return damageCreature(best,source.x+aimX*bestAlong,source.y+aimY*bestAlong,42,.28f);}
 
     synchronized int impact(float worldX,float worldY,float radius,float damage){int affected=0;for(Creature target:creatures)affected+=damageCreature(target,worldX,worldY,radius,damage);return affected;}
@@ -133,7 +158,7 @@ final class FoundationWorld {
         float rate=Math.min(1,dt*60);for(int n=0;n<c.node.length;n++){float tx=target[n][0]+c.bodyProgress,ty=target[n][1];float ax=(tx-c.node[n][0])*(n<componentCount(c)?.115f:.075f)+fx[n],ay=(ty-c.node[n][1])*(n<componentCount(c)?.115f:.075f)+fy[n];if(c.family!=3)ay+=.018f;c.velocity[n][0]=c.velocity[n][0]*.72f+ax*rate;c.velocity[n][1]=c.velocity[n][1]*.72f+ay*rate;c.node[n][0]+=c.velocity[n][0]*rate;c.node[n][1]+=c.velocity[n][1]*rate;}
         for(int iteration=0;iteration<6;iteration++){for(int e=0;e<c.edges.length;e++){int p=c.edges[e][0],q=c.edges[e][1];float dx=c.node[q][0]-c.node[p][0],dy=c.node[q][1]-c.node[p][1],len=Math.max(1e-5f,(float)Math.hypot(dx,dy)),cor=(len-c.edgeLength[e])/len*.5f;c.node[p][0]+=dx*cor;c.node[p][1]+=dy*cor;c.node[q][0]-=dx*cor;c.node[q][1]-=dy*cor;}c.node[0][0]+=(target[0][0]+c.bodyProgress-c.node[0][0])*.42f;c.node[0][1]+=(target[0][1]-c.node[0][1])*.42f;for(int a=0;a<c.appendages.length;a++)if(c.contact[a]){int tip=c.terminal[a];c.node[tip][0]=c.node[tip][0]*.08f+c.anchors[a][0]*.92f;c.node[tip][1]=c.node[tip][1]*.08f+c.anchors[a][1]*.92f;}}
         for(int n=0;n<c.node.length;n++){c.velocity[n][0]*=.38f;c.velocity[n][1]*=.38f;}System.arraycopy(c.contact,0,c.previousContact,0,c.contact.length);
-        float gaitPixels=(c.bodyProgress-priorProgress)*7.2f;float desiredLen=Math.max(.001f,(float)Math.hypot(c.desiredX,c.desiredY));float desiredSpeed=activity*(120+105*c.traits[6]);float targetVx=c.desiredX/desiredLen*Math.max(Math.abs(gaitPixels)/Math.max(dt,.001f),desiredSpeed*.32f),targetVy=c.desiredY/desiredLen*Math.max(Math.abs(gaitPixels)/Math.max(dt,.001f),desiredSpeed*.32f);c.vx+=(targetVx-c.vx)*Math.min(1,dt*7);c.vy+=(targetVy-c.vy)*Math.min(1,dt*7);c.x=wrap(c.x+c.vx*dt,4096);c.y=wrap(c.y+c.vy*dt,4096);c.energy=Math.max(0,c.energy-dt*(.0003f+activity*.0012f));
+        float gaitPixels=(c.bodyProgress-priorProgress)*7.2f;float desiredLen=Math.max(.001f,(float)Math.hypot(c.desiredX,c.desiredY));float capacity=c.neural*c.locomotion*Math.min(1,c.energy*1.4f);float desiredSpeed=activity*capacity*(120+105*c.traits[6]);float targetVx=c.desiredX/desiredLen*Math.max(Math.abs(gaitPixels)/Math.max(dt,.001f)*capacity,desiredSpeed*.32f),targetVy=c.desiredY/desiredLen*Math.max(Math.abs(gaitPixels)/Math.max(dt,.001f)*capacity,desiredSpeed*.32f);c.vx+=(targetVx-c.vx)*Math.min(1,dt*7);c.vy+=(targetVy-c.vy)*Math.min(1,dt*7);c.x=wrap(c.x+c.vx*dt,4096);c.y=wrap(c.y+c.vy*dt,4096);c.energy=Math.max(0,c.energy-dt*(.0003f+activity*.0012f));
     }
 
     private static float[][] authoredPose(Creature c,float phase){float[][] out=new float[c.rest.length][2];for(int i=0;i<out.length;i++){out[i][0]=c.rest[i][0];out[i][1]=c.rest[i][1];}float theta=(float)(Math.PI*2*phase);int components=componentCount(c);for(int i=0;i<components;i++){float leverage=clamp(Math.abs(c.rest[i][1])/15f,.18f,1);float sway=c.family==2?.28f:c.family==4?.12f:c.family==1?.16f:.65f;float bob=c.family==2?.34f:c.family==4?.10f:c.family==1?.42f:.72f;if(c.family==3){out[i][0]+=(float)Math.sin(theta*2+i*1.1)*(.22f+Math.abs(c.rest[i][1])/55);out[i][1]+=(float)Math.cos(theta*3+i*.8)*(.17f+Math.abs(c.rest[i][1])/70);}else{out[i][0]+=(float)Math.sin(theta+i*.37)*sway*leverage;out[i][1]-=Math.abs((float)Math.sin(theta+i*.21))*bob*(.55f+leverage*.45f);}}
