@@ -11,18 +11,13 @@ import torch
 
 from ..config import PROJECT_ROOT
 from ..creature_stage_developmental import FAMILIES,TISSUES,develop
-from ..creature_stage_neural_locomotion_25d import NeuralLocomotionRuntime
-from ..nature_behavior_nn import NeuralBehaviorRuntime
-from ..nature_colony_nn import NeuralColonyRuntime
-from ..nature_society_nn import NeuralSocietyRuntime
 from ..nature_timeline_nn import EVENTS as TIMELINE_EVENTS,NeuralTimelineRuntime,extract_world_features
-from ..nature_counterfactual_nn import ACTIONS as COUNTERFACTUAL_ACTIONS,NeuralCounterfactualRuntime
+from ..nature_counterfactual_nn import ACTIONS as COUNTERFACTUAL_ACTIONS
 from ..nature_neural_feeding_v1 import NatureNeuralFeedingSystem
 from ..creature_stage_manipulation_v1.contract import NEURAL_TARGET_FIELD_CONTROLLER,assert_neural_target_field_controller
 from ..creature_stage_neural_target_field_v1.runtime import NeuralTargetFieldRuntime
 from ..action_teacher_v1 import ACTIONS as TEACHER_ACTIONS,FRAME_SIZE,TeacherTrajectoryRecorder
-from ..world_latent_dit import WorldActionDiTRuntime
-from ..world_frame_vae_refiner import RefinedWorldFrameVAERuntime
+from ..playable_neural_runtime_v1 import PlayableNeuralRuntime
 from ..qud_quests_v1 import QuestJournal
 from ..qud_society_v1 import SocietyLayer
 from ..qud_trade_v1 import execute_trade,generate_trade_offers
@@ -45,15 +40,6 @@ from .forecast_interventions import INTERVENTIONS,apply_intervention
 from .world import NatureWorld
 
 
-CHECKPOINT=PROJECT_ROOT/"outputs/creature_stage_neural_locomotion_25d/controller_1200_runtime.pt"
-BEHAVIOR_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_behavior/controller_v3_fastbody.pt"
-COLONY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_colony/coordinator_v1.pt"
-SOCIETY_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_society/strategist_v1.pt"
-TIMELINE_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_timeline/timeline_v1.pt"
-COUNTERFACTUAL_CHECKPOINT=PROJECT_ROOT/"game/generated/models/nature_counterfactual/counterfactual_v1.pt"
-WORLD_VAE_CHECKPOINT=PROJECT_ROOT/"game/generated/models/world_frame_vae/raster_v1.pt"
-WORLD_VAE_REFINER_CHECKPOINT=PROJECT_ROOT/"game/generated/models/world_frame_vae_refiner/refiner_v1.pt"
-WORLD_ACTION_DIT_CHECKPOINT=PROJECT_ROOT/"game/generated/models/world_latent_dit/action_dit_v1.pt"
 ATLAS=PROJECT_ROOT/"game/generated/anatomical_demo/v2/neural_motion_atlas.png"
 QUICK_SAVE=PROJECT_ROOT/"saves/nature_campaign.nvs"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
@@ -66,7 +52,7 @@ class NatureDemo:
         import pygame
         self.pg=pygame;pygame.init();self.screen=pygame.display.set_mode((1440,900),pygame.RESIZABLE);pygame.display.set_caption("Nullvector // Neural Nature Stage v2")
         self.clock=pygame.time.Clock();self.font=pygame.font.SysFont("Consolas",16);self.small=pygame.font.SysFont("Consolas",12);self.big=pygame.font.SysFont("Georgia",30,bold=True)
-        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.runtime=NeuralLocomotionRuntime.from_checkpoint(CHECKPOINT,device=device);assert_neural_target_field_controller();self.target_field_runtime=NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER,device=device);self.behavior=NeuralBehaviorRuntime.from_checkpoint(BEHAVIOR_CHECKPOINT,device=device);self.colony_runtime=NeuralColonyRuntime.from_checkpoint(COLONY_CHECKPOINT,device=device);self.society_runtime=NeuralSocietyRuntime.from_checkpoint(SOCIETY_CHECKPOINT,device=device);self.timeline_runtime=NeuralTimelineRuntime.from_checkpoint(TIMELINE_CHECKPOINT,device=device);self.counterfactual_runtime=NeuralCounterfactualRuntime.from_checkpoint(COUNTERFACTUAL_CHECKPOINT,device=device);self.world_vae=RefinedWorldFrameVAERuntime.from_checkpoints(WORLD_VAE_CHECKPOINT,WORLD_VAE_REFINER_CHECKPOINT,device=device);self.action_dit=WorldActionDiTRuntime.from_checkpoint(WORLD_ACTION_DIT_CHECKPOINT,device=device)
+        self.atlas=pygame.image.load(str(ATLAS)).convert_alpha();self.atlas_rgb=pygame.surfarray.array3d(self.atlas);self.tissue_rgb=np.asarray([pygame.Color(TISSUE_COLORS.get(name,"#ffffff"))[:3] for name in TISSUES],np.uint8);self.neural=PlayableNeuralRuntime.from_release(device=device);self.runtime=self.neural.locomotion;self.behavior=self.neural.behavior;self.colony_runtime=self.neural.colony;self.society_runtime=self.neural.society;self.timeline_runtime=self.neural.timeline;self.counterfactual_runtime=self.neural.counterfactual;self.composite=self.neural.composite;assert_neural_target_field_controller();self.target_field_runtime=NeuralTargetFieldRuntime.from_checkpoint(NEURAL_TARGET_FIELD_CONTROLLER,device=device)
         self.atlas_world=InfiniteNatureAtlas(seed=seed^0x574F524C44);self.region=RegionKey(0,0);region_seed=self.atlas_world.region_seed(self.region);self.feeding=NatureNeuralFeedingSystem(seed=region_seed^0x46454544,device=device);self.world=NatureWorld(seed=region_seed,size=64,max_population=180,motion_policy=self.runtime,behavior_policy=self.behavior,feeding_system=self.feeding);self.atlas_world.terraform(self.world,self.region);self.world.seed_founders(variants_per_family=3)
         self.region_store=PersistentRegionStore(PROJECT_ROOT/"saves/regions",atlas_seed=self.atlas_world.seed)
         self.world.colony_ecology.role_policy=self.colony_runtime;self.society=SocietyLayer(self.world,seed=seed^0x515544,policy=self.society_runtime);self.last_society_tick=0;self.quests=QuestJournal()
@@ -115,15 +101,17 @@ class NatureDemo:
 
     def _compute_neural_raster(self,frame):
         if self.neural_stream is None:
-            with torch.inference_mode():return self.world_vae.reconstruct(frame)
-        with torch.inference_mode(),torch.cuda.stream(self.neural_stream),torch.autocast("cuda",dtype=torch.bfloat16):result=self.world_vae.reconstruct(frame)
-        self.neural_stream.synchronize();return result
+            latent=self.composite.encode(frame);decoded=self.composite.decode(latent)[0].permute(1,2,0).float().cpu().numpy()
+        else:
+            with torch.cuda.stream(self.neural_stream),torch.autocast("cuda",dtype=torch.bfloat16):latent=self.composite.encode(frame);decoded=self.composite.decode(latent)[0].permute(1,2,0).float().cpu().numpy()
+            self.neural_stream.synchronize()
+        return np.clip(decoded*255,0,255).astype(np.uint8)
 
     def _compute_neural_dream(self,frame,action,control,state):
         if self.neural_stream is None:
-            with torch.inference_mode():latent=self.world_vae.encode(frame);future=self.action_dit.predict_latent(latent,action=TEACHER_ACTIONS.index(action),control=control,state=state,steps=8);decoded=self.world_vae.decode(future)[0].permute(1,2,0).float().cpu().numpy()
+            latent=self.composite.encode(frame);future=self.composite.step_visual(latent,action=TEACHER_ACTIONS.index(action),control=control,state=state,steps=8);decoded=self.composite.decode(future)[0].permute(1,2,0).float().cpu().numpy()
         else:
-            with torch.inference_mode(),torch.cuda.stream(self.neural_stream),torch.autocast("cuda",dtype=torch.bfloat16):latent=self.world_vae.encode(frame);future=self.action_dit.predict_latent(latent,action=TEACHER_ACTIONS.index(action),control=control,state=state,steps=8);decoded=self.world_vae.decode(future)[0].permute(1,2,0).float().cpu().numpy()
+            with torch.cuda.stream(self.neural_stream),torch.autocast("cuda",dtype=torch.bfloat16):latent=self.composite.encode(frame);future=self.composite.step_visual(latent,action=TEACHER_ACTIONS.index(action),control=control,state=state,steps=8);decoded=self.composite.decode(future)[0].permute(1,2,0).float().cpu().numpy()
             self.neural_stream.synchronize()
         return np.clip(decoded*255,0,255).astype(np.uint8),action
 

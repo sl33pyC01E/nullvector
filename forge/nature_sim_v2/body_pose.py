@@ -67,11 +67,22 @@ class VisibleBodyPhysics:
         target=rest.copy();speed=float(np.linalg.norm(entity.velocity));activity=float(np.clip(speed*1.35,0,1))
         if self.target_policy is not None:
             phase=(world.time*(.62+min(speed,1.8)*.58)+entity.entity_id*.071)%1.0
-            muscles,contact,terminal_targets=self.target_policy.predict(organism,state.nodes,state.velocity,state.previous_contact,phase,speed)
-            muscles=np.asarray(muscles,np.float32);contact=np.asarray(contact,np.bool_);terminal_targets=np.asarray(terminal_targets,np.float32)
-            if muscles.shape!=(len(organism.muscles),) or contact.shape!=(len(organism.genome.appendages),) or terminal_targets.shape!=(len(organism.genome.appendages),2) or not np.isfinite(muscles).all() or not np.isfinite(terminal_targets).all():raise FloatingPointError("visible neural target field became invalid")
-            target=self._target_nodes(organism,terminal_targets);muscles*=activity;target=rest+(target-rest)*activity
-            contact&=activity>.08
+            try:
+                muscles,contact,terminal_targets=self.target_policy.predict(organism,state.nodes,state.velocity,state.previous_contact,phase,speed)
+                muscles=np.asarray(muscles,np.float32);contact=np.asarray(contact,np.bool_);terminal_targets=np.asarray(terminal_targets,np.float32)
+                if muscles.shape!=(len(organism.muscles),) or contact.shape!=(len(organism.genome.appendages),) or terminal_targets.shape!=(len(organism.genome.appendages),2) or not np.isfinite(muscles).all() or not np.isfinite(terminal_targets).all():raise FloatingPointError("visible neural target field became invalid")
+                target=self._target_nodes(organism,terminal_targets);muscles*=activity;target=rest+(target-rest)*activity
+                contact&=activity>.08
+            except ValueError as exc:
+                # The fixed-width target-field specialist cannot encode every
+                # newly evolved/grafted muscle census.  Retain neural motion
+                # through the general locomotion controller already attached
+                # to the entity instead of failing the entire living world.
+                if "census drifted" not in str(exc):raise
+                muscles=np.asarray(entity.neural_muscles,np.float32)
+                if muscles.shape!=(len(organism.muscles),):muscles=np.zeros(len(organism.muscles),np.float32)
+                contact=np.asarray(entity.neural_contacts,np.bool_)
+                if contact.shape!=(len(organism.genome.appendages),):contact=np.zeros(len(organism.genome.appendages),np.bool_)
         else:
             muscles=np.asarray(entity.neural_muscles,np.float32)
             if muscles.shape!=(len(organism.muscles),):muscles=np.zeros(len(organism.muscles),np.float32)

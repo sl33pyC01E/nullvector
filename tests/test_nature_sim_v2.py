@@ -108,7 +108,7 @@ def test_lod_demotion_conserves_lineage_mass_and_ancestry() -> None:
 def test_native_nature_demo_and_launcher_are_present() -> None:
     root=Path(__file__).resolve().parents[1]
     source=(root/"forge/nature_sim_v2/demo.py").read_text("utf-8")
-    for capability in ("NeuralLocomotionRuntime","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
+    for capability in ("PlayableNeuralRuntime","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
 
@@ -124,6 +124,15 @@ def test_body_leaks_death_and_weapons_enter_material_world() -> None:
     projectile=world.fire_projectile(attacker,(22,16),speed=20,energy=2)
     for _ in range(5):world.step(.1)
     assert all(p.projectile_id!=projectile for p in world.materials.projectiles)
+
+
+def test_visible_body_uses_general_neural_controller_for_unseen_muscle_census() -> None:
+    class FixedWidthPolicy:
+        def predict(self,*_args):raise ValueError("grounded feedback muscle census drifted")
+    world=NatureWorld(seed=613,size=32);world.seed_founders(variants_per_family=1)
+    entity=next(iter(world.organisms.values()));entity.neural_muscles=np.zeros(len(entity.body.organism.muscles),np.float32);entity.neural_contacts=np.zeros(len(entity.body.organism.genome.appendages),np.bool_)
+    points=VisibleBodyPhysics(FixedWidthPolicy()).step(world,entity,1/60)
+    assert points.shape==entity.body.organism.cell_xy.shape and np.isfinite(points).all()
 
 
 def test_organs_and_paired_locomotors_can_cross_lineages() -> None:
