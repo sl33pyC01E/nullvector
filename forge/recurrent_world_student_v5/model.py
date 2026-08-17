@@ -39,6 +39,12 @@ class PerceptionRecurrentWorldStudent(nn.Module):
         super().__init__()
         self.world = RecurrentWorldStudent(config)
         self.perception = PerceptionAdapter()
+        self.change_gate = nn.Sequential(
+            nn.Conv2d(98, 32, 3, padding=1), nn.SiLU(),
+            nn.Conv2d(32, 1, 1),
+        )
+        nn.init.zeros_(self.change_gate[-1].weight)
+        nn.init.constant_(self.change_gate[-1].bias, -3.0)
 
     @property
     def parameter_count(self):
@@ -50,6 +56,13 @@ class PerceptionRecurrentWorldStudent(nn.Module):
     def action(self, current, previous, action, control, state, actor_state, visibility, memory):
         spatial, summary = self.perception(visibility, memory)
         return self.world.action(current + spatial, previous + spatial, action, control, state + summary, actor_state)
+
+    def gated_action(self, current, previous, action, control, state, actor_state, visibility, memory):
+        spatial, summary = self.perception(visibility, memory)
+        delta = self.world.action(current + spatial, previous + spatial, action, control, state + summary, actor_state)
+        gate_input = torch.cat((current.float(), delta.float(), visibility.float(), memory.float()), 1)
+        logits = self.change_gate(gate_input)
+        return delta, logits
 
     def actor(self, current, previous, action, control, state, visibility, memory):
         _, summary = self.perception(visibility, memory)

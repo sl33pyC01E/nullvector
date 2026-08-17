@@ -78,8 +78,8 @@ def _metrics(model, sequence, norms, device, perception="normal"):
             visibility = visibility.flip(0); memory = memory.flip(0)
         cn, pn = (current - lm) / ls, (previous - lm) / ls
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            delta = model.action(cn, pn, action, control, state, actor, visibility, memory)
-        prediction = (cn + delta) * ls + lm
+            delta, logits = model.gated_action(cn, pn, action, control, state, actor, visibility, memory)
+        prediction = (cn + torch.sigmoid(logits) * delta) * ls + lm
         total_mae += float(F.l1_loss(prediction, target, reduction="sum"))
         total_persistence += float(F.l1_loss(current, target, reduction="sum"))
         samples += target.numel()
@@ -125,16 +125,20 @@ def train(output: Path = DEFAULT_OUTPUT, *, plan: TrainingPlan = TrainingPlan())
                 cn, pn = (current - lm) / ls, (previous - lm) / ls
                 an, pan, tan = (actor - am) / ass, (previous_actor - am) / ass, (target_actor - am) / ass
                 with torch.autocast("cuda", dtype=torch.bfloat16):
-                    delta = model.action(cn, pn, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], actor, visibility, memory)
+                    delta, change_logits = model.gated_action(cn, pn, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], actor, visibility, memory)
                     magnitude = ((target - current) / ls).abs().mean(1, keepdim=True)
-                    latent_loss = (F.smooth_l1_loss(delta, (target-current)/ls, reduction="none") * (1 + 5 * torch.clamp(magnitude/.35, 0, 2))).mean()
+                    change_target = torch.clamp(magnitude / .20, 0, 1)
+                    gated_delta = torch.sigmoid(change_logits) * delta
+                    transition_loss = (F.smooth_l1_loss(gated_delta, (target-current)/ls, reduction="none") * (1 + 5 * torch.clamp(magnitude/.35, 0, 2))).mean()
+                    change_loss = F.binary_cross_entropy_with_logits(change_logits, change_target)
+                    latent_loss = transition_loss + .12 * change_loss
                     actor_result = model.actor(an, pan, batch["action"][:, offset], batch["control"][:, offset], batch["state"][:, offset], visibility, memory)
                     changed = (tan - an).abs() > .025
                     actor_loss = (F.smooth_l1_loss(actor_result.state, tan, reduction="none") * (1 + 6 * changed)).mean()
                     loss = (latent_loss + plan.actor_weight * actor_loss) / plan.rollout_steps
                 loss.backward(); latent_total += float(latent_loss); actor_total += float(actor_loss)
                 with torch.no_grad():
-                    next_latent = (cn + delta) * ls + lm
+                    next_latent = (cn + torch.sigmoid(change_logits) * delta) * ls + lm
                     next_actor = (an + .9 * (actor_result.gate >= .7) * (actor_result.state - an)) * ass + am
                 previous, current = current.detach(), next_latent.detach(); previous_actor, actor = actor.detach(), next_actor.detach()
             gradient = float(torch.nn.utils.clip_grad_norm_(model.parameters(), 1)); optimizer.step()

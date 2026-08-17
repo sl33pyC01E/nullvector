@@ -28,3 +28,12 @@ def test_perception_adapter_has_trainable_spatial_and_summary_paths() -> None:
     names={name for name,_ in model.named_parameters()}
     assert "perception.spatial.2.weight" in names
     assert "perception.summary.2.weight" in names
+    assert "change_gate.2.weight" in names
+
+
+def test_learned_change_gate_starts_near_persistence() -> None:
+    model=PerceptionRecurrentWorldStudent(ModelConfig(width=32,layers=1,heads=4,patch=4)).eval()
+    current=torch.randn(1,48,32,32); previous=torch.randn_like(current); action=torch.zeros(1,dtype=torch.long); control=torch.zeros(1,4); state=torch.zeros(1,64); actor=torch.zeros(1,128); visibility=torch.ones(1,1,32,32); memory=torch.ones_like(visibility)
+    with torch.inference_mode():
+        _,logits=model.gated_action(current,previous,action,control,state,actor,visibility,memory)
+    torch.testing.assert_close(logits,torch.full_like(logits,-3.0))
