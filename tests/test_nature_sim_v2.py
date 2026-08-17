@@ -142,6 +142,8 @@ def test_teacher_frame_is_captured_before_diagnostic_overlays() -> None:
     for draw_call in ("self._draw_ecosystem_links()","self._draw_settlements()","self._draw_adventure()","self._draw_sensory_field(selected_entity)"):
         assert capture<source.index(draw_call)
     assert "if self.dream_frame is None or self.student_view:return" in inspect.getsource(NatureDemo._apply_neural_dream)
+    assert "self.capture_clean_once" in inspect.getsource(NatureDemo.capture_clean_target)
+    assert "self._blit_toroidal(self.field_cache)" in inspect.getsource(NatureDemo._field_background)
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:
