@@ -1,5 +1,10 @@
-android/nullvector-mobile/app/src/main/assets/macro_fp32.onnx filter=lfs diff=lfs merge=lfs -text
-android/nullvector-mobile/app/src/main/assets/colony_fp32.onnx filter=lfs diff=lfs merge=lfs -text
-android/nullvector-mobile/app/src/main/assets/society_fp32.onnx filter=lfs diff=lfs merge=lfs -text
-android/nullvector-mobile/app/src/main/assets/timeline_fp32.onnx filter=lfs diff=lfs merge=lfs -text
-android/nullvector-mobile/app/src/main/assets/counterfactual_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/fp32/assets/macro_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/fp32/assets/colony_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/fp32/assets/society_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/fp32/assets/timeline_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/fp32/assets/counterfactual_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/int8/assets/macro_int8.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/int8/assets/colony_int8.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/int8/assets/society_int8.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/int8/assets/timeline_int8.onnx filter=lfs diff=lfs merge=lfs -text
+android/nullvector-mobile/app/src/int8/assets/counterfactual_int8.onnx filter=lfs diff=lfs merge=lfs -text

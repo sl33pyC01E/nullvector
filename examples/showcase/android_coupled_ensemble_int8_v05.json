@@ -1,0 +1,40 @@
+{
+  "apk": {
+    "bytes": 192893855,
+    "package": "world.nullvector.mobile.int8",
+    "sha256": "a5ab88bc6cfdba90295c2de6cb3604e120fd374f43afedb8ae7eb04dd7cb1fcb",
+    "version": "0.5.0-ensemble-preview-int8"
+  },
+  "device_exercised": "Android 16 x86_64 emulator",
+  "ensemble": {
+    "fp32_teacher_bytes": 368264677,
+    "int8_teacher_bytes": 98103378,
+    "int8_teacher_mib": 93.55867195129395,
+    "minimum_decision_agreement": 0.9951171875,
+    "quantization_manifest_sha256": "2fa6a26b562bb468592dbff9894185a7f8512a2bb756d4e95847a63bb382f4bc"
+  },
+  "runtime": {
+    "android_pss_bytes": 400970752,
+    "android_rss_bytes": 453390336,
+    "cold_first_cycle_milliseconds": {
+      "colony": 4.16,
+      "counterfactual": 30.20,
+      "macro": 33.74,
+      "society": 4.16,
+      "structured_context": 8.53,
+      "timeline": 10.00
+    },
+    "result": "coupled_int8_ensemble_ok"
+  },
+  "screenshots": {
+    "diagnostics": {
+      "path": "android_coupled_ensemble_int8_diagnostics_v05.png",
+      "sha256": "3d6e68b564cdad20e35b874fcc2ac4ae80b970deb7ad617336b297b00f06084f"
+    },
+    "world": {
+      "path": "android_coupled_ensemble_int8_v05.png",
+      "sha256": "7253493d6479f7bd9a7e674a27aba7e86ca5fb27cc10bb34da89dfe63b3c8be8"
+    }
+  },
+  "status": "android_quantized_coupled_teacher_ensemble_running"
+}

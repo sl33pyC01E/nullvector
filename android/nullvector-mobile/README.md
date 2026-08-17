@@ -6,6 +6,8 @@ Android deployment foundation for the Samsung Galaxy S25 Ultra.
 
 [Runtime model panel](../../examples/showcase/android_coupled_ensemble_diagnostics_v05.png) · [machine-readable run evidence](../../examples/showcase/android_coupled_ensemble_v05.json)
 
+The compact build is the preferred mobile candidate: [INT8 world capture](../../examples/showcase/android_coupled_ensemble_int8_v05.png) · [INT8 model panel](../../examples/showcase/android_coupled_ensemble_int8_diagnostics_v05.png) · [run evidence](../../examples/showcase/android_coupled_ensemble_int8_v05.json)
+
 Version 0.5 runs the coupled desktop teacher ensemble inside the playable neural habitat. The cellular organism stays vertically aligned in a camera-following 2.5D world; touch controls movement and aim, thrown material follows a height/shadow ballistic arc, and persistent nutrient, fluid, and mineral clumps react to contact or impact. Absorbed resources enter the organism's cellular physiology before the next neural update. The selected posed body is restyled continuously by the cell VAE without allowing the rasterizer to create, hide, or repair physical cells.
 
 `MODEL INFO` opens an explicitly labeled internal runtime view. It reports each neural graph, precision, cadence, parameter count and measured latency. Its blurry image is retained as a world-latent decoder probe—not a creature render or normal gameplay view—and runs only at debug cadence while the panel is open.
@@ -17,7 +19,7 @@ Two side-by-side preview flavors are available:
 - `fp32`: full FP32 action graph. Package `world.nullvector.mobile.fp32`.
 - `int8`: 13.2 MiB INT8 QDQ action graph plus 2.3 MiB FP32 actor graph. Package `world.nullvector.mobile.int8`.
 
-Both flavors share the local and high-level teacher ensemble. The correct FP32 bundle is intentionally large (roughly 421 MiB of shared ONNX graphs before the action model); calibrated FP16/INT8 conversion and model-by-model QNN partitioning follow correctness testing on the physical S25.
+The FP32 flavor keeps every teacher weight unchanged. The compact flavor uses the accepted split INT8 action model and weight-quantized high-level ensemble: those five teachers shrink from 351.2 MiB to 93.6 MiB with at least 99.5% decision agreement. On the emulator, the complete compact APK is 184 MiB and its running process uses about 432 MiB RSS. QNN partitioning and physical-S25 profiling remain next.
 
 The INT8 candidate preserves actor outputs to numerical precision and diverges from the FP32 action rollout by 0.0090 latent units after 16 prediction-fed steps. The action student retains 74% of the desktop teacher's raw counter-action sensitivity at 32.7% of its parameters.
 

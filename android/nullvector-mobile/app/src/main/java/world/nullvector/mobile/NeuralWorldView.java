@@ -109,6 +109,8 @@ public final class NeuralWorldView extends View {
         return target;
     }
 
+    private String ensembleModel(String stem){return stem+(BuildConfig.SPLIT_ACTION?"_int8.onnx":"_fp32.onnx");}
+
     private void stage(String value) {
         status = value; Log.i(TAG, value); postInvalidate();
     }
@@ -282,11 +284,11 @@ public final class NeuralWorldView extends View {
                  OrtSession groundedSession = environment.createSession(assetFile("grounded_feedback_fp32.onnx").getAbsolutePath(), options);
                  OrtSession ecologySession = environment.createSession(assetFile("mobile_ecology_fp32.onnx").getAbsolutePath(), options);
                  OrtSession grasperSession = environment.createSession(assetFile("neural_grasper_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession macroSession = environment.createSession(assetFile("macro_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession colonySession = environment.createSession(assetFile("colony_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession societySession = environment.createSession(assetFile("society_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession timelineSession = environment.createSession(assetFile("timeline_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession counterfactualSession = environment.createSession(assetFile("counterfactual_fp32.onnx").getAbsolutePath(), options)) {
+                 OrtSession macroSession = environment.createSession(assetFile(ensembleModel("macro")).getAbsolutePath(), options);
+                 OrtSession colonySession = environment.createSession(assetFile(ensembleModel("colony")).getAbsolutePath(), options);
+                 OrtSession societySession = environment.createSession(assetFile(ensembleModel("society")).getAbsolutePath(), options);
+                 OrtSession timelineSession = environment.createSession(assetFile(ensembleModel("timeline")).getAbsolutePath(), options);
+                 OrtSession counterfactualSession = environment.createSession(assetFile(ensembleModel("counterfactual")).getAbsolutePath(), options)) {
                 float[] rawInitial = latentAsset(), latentNorm = floatAsset("latent_normalization.f32", 96), current = new float[rawInitial.length];
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
@@ -464,10 +466,11 @@ public final class NeuralWorldView extends View {
             canvas.drawText(String.format("ECOLOGY INTENT/STEERING POLICY · 125,127 PARAM · 7.5 Hz · %.2f ms", ecologyMilliseconds), panelX, panelY + 148, paint);
             canvas.drawText(String.format("ORGANISM CELL VAE · 138,539 PARAM · 3.75 Hz · %.2f ms", organismVaeMilliseconds), panelX, panelY + 168, paint);
             canvas.drawText(String.format("WORLD FRAME VAE · 91,407 PARAM · DEBUG 2 Hz · %.2f ms", decoderMilliseconds), panelX, panelY + 188, paint);
-            canvas.drawText(String.format("MACRO PATCH DYNAMICS · 1 Hz · %.2f ms", macroMilliseconds), panelX, panelY + 208, paint);
-            canvas.drawText(String.format("COLONY ROLE POLICY · 0.25 Hz · %.2f ms", colonyMilliseconds), panelX, panelY + 228, paint);
-            canvas.drawText(String.format("SOCIETY / BUILD POLICY · 0.05 Hz · %.2f ms", societyMilliseconds), panelX, panelY + 248, paint);
-            canvas.drawText(String.format("TIMELINE + COUNTERFACTUAL · %.2f + %.2f ms", timelineMilliseconds,counterfactualMilliseconds), panelX, panelY + 268, paint);
+            String ensemblePrecision=BuildConfig.SPLIT_ACTION?"INT8":"FP32";
+            canvas.drawText(String.format("MACRO PATCH DYNAMICS · %s · 1 Hz · %.2f ms",ensemblePrecision,macroMilliseconds), panelX, panelY + 208, paint);
+            canvas.drawText(String.format("COLONY ROLE POLICY · %s · 0.25 Hz · %.2f ms",ensemblePrecision,colonyMilliseconds), panelX, panelY + 228, paint);
+            canvas.drawText(String.format("SOCIETY / BUILD POLICY · %s · 0.05 Hz · %.2f ms",ensemblePrecision,societyMilliseconds), panelX, panelY + 248, paint);
+            canvas.drawText(String.format("TIMELINE + COUNTERFACTUAL · %s · %.2f + %.2f ms",ensemblePrecision,timelineMilliseconds,counterfactualMilliseconds), panelX, panelY + 268, paint);
             if(foundation!=null){String[] events={"QUIET","BIRTH","DEATH","PREDATION","MUTATION","COLONY","CLIMATE","CONSTRUCTION","DISCOVERY","MIGRATION"};String[] projects={"HABITAT","WORKSHOP","CLINIC","GRANARY","OBSERVATORY","GRAFT HOUSE","BATTERY HALL","SHRINE","MARKET"};canvas.drawText("FORECAST "+events[Math.max(0,Math.min(9,foundation.timelineEvent))]+" "+Math.round(foundation.timelineConfidence*100)+"% · PROJECT "+projects[Math.max(0,Math.min(8,foundation.societyProject))],panelX,panelY+288,paint);}
             if (neuralFrame != null) {
                 float size = Math.min(height * .28f, width * .17f), frameLeft = width - size - 38, frameTop = panelY + 148;

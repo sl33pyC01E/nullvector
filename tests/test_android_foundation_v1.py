@@ -46,7 +46,7 @@ def test_android_foundation_supplies_live_perception_and_clean_view():
 
 
 def test_android_world_runs_the_coupled_teacher_ensemble():
-    assets = PROJECT_ROOT / "android/nullvector-mobile/app/src/main/assets"
+    assets = PROJECT_ROOT / "android/nullvector-mobile/app/src/fp32/assets"
     manifest = json.loads((assets / "coupled_ensemble_manifest.json").read_bytes())
     assert manifest["status"] == "android_coupled_ensemble_export_ready"
     assert set(manifest["models"]) == {"macro", "colony", "society", "timeline", "counterfactual"}
@@ -55,7 +55,12 @@ def test_android_world_runs_the_coupled_teacher_ensemble():
     view = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
     for token in ("encodeMacro()", "encodeColony()", "encodeSociety()", "timelineFeatures()", "encodeWorldContext()", "encodeSelectedVae()"):
         assert token in world
-    for asset in ("macro_fp32.onnx", "colony_fp32.onnx", "society_fp32.onnx", "timeline_fp32.onnx", "counterfactual_fp32.onnx"):
-        assert f'assetFile("{asset}")' in view
+    for stem in ("macro", "colony", "society", "timeline", "counterfactual"):
+        assert f'ensembleModel("{stem}")' in view
     assert "applySelectedVae(rgba)" in view
     assert "COUPLED_ENSEMBLE_OK" in view
+    compact = PROJECT_ROOT / "android/nullvector-mobile/app/src/int8/assets"
+    compact_manifest = json.loads((compact / "coupled_ensemble_int8_manifest.json").read_bytes())
+    assert compact_manifest["status"] == "android_int8_ensemble_ready"
+    assert compact_manifest["total_mib"] < 100
+    assert all((compact / row["path"]).stat().st_size == row["bytes"] for row in compact_manifest["models"].values())
