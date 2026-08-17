@@ -17,6 +17,7 @@ SOURCE_FILES=(
  "forge/creature_stage_neural_target_field_v1/runtime.py",
  "forge/creature_stage_neural_target_field_v1/physics.py",
  "forge/creature_stage_neural_target_field_v1/training.py",
+ "forge/creature_stage_neural_target_field_v1/bank.py",
  "forge/creature_stage_neural_grounded_feedback_v2/dataset.py",
  "forge/creature_stage_neural_grounded_feedback_v2/model.py",
  "forge/creature_stage_neural_grounded_feedback_v2/physics.py",

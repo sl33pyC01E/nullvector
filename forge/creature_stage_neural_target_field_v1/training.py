@@ -10,6 +10,7 @@ from .dataset import build_target_augmentation,build_target_corpus
 from .model import NeuralGroundedTargetField
 from .runtime import NeuralTargetFieldRuntime
 from .physics import simulate_target_field_cycle
+from .bank import load_training_bank
 
 def _target_loss(output,target,mask):
  return F.smooth_l1_loss(output[mask[:,:,None].expand_as(output)],target.float()[mask[:,:,None].expand_as(output)],beta=.015)
@@ -40,10 +41,13 @@ def evaluate(model,corpus,device):
 def gates(m):
  g={"target_accuracy":m["terminal_mae_px"]<.18 and m["terminal_p95_px"]<.45,"contact_accuracy":m["contact_f1"]>.98,"advance":m["advance_ratio_min"]>.75 and m["advance_ratio_max"]<1.3,"shape":m["node_l1"]<.7,"physics":m["maximum_contact_slip_px"]<.05 and m["maximum_edge_strain"]<.12 and m["vertical_axis_max_degrees"]<5 and m["loop_seam_max_abs"]<.002};g["all_passed"]=all(g.values());return g
 
-def train(output:Path,*,updates=None,device="cuda"):
+def train(output:Path,*,updates=None,device="cuda",bank:Path|None=None):
  output=Path(output).resolve();require_disk_floor(output.parent,floor_gb=100,planned_bytes=2*1024**3)
  if output.exists():raise FileExistsError(output)
- cfg=TrainingConfig(updates=updates or TrainingConfig().updates);dev=torch.device(device if device!="cuda" or torch.cuda.is_available() else "cpu");trainset=build_target_corpus(split="train",variants_per_family=cfg.variants_per_family);target_aug=build_target_augmentation(variants_per_chassis=cfg.target_variants_per_chassis);val=build_target_corpus(split="validation")
+ cfg=TrainingConfig(updates=updates or TrainingConfig().updates);dev=torch.device(device if device!="cuda" or torch.cuda.is_available() else "cpu")
+ if bank is None: trainset=build_target_corpus(split="train",variants_per_family=cfg.variants_per_family);target_aug=build_target_augmentation(variants_per_chassis=cfg.target_variants_per_chassis)
+ else: trainset,target_aug=load_training_bank(bank)
+ val=build_target_corpus(split="validation")
  torch.manual_seed(cfg.seed);np.random.seed(cfg.seed&0xffffffff);model_cfg=ModelConfig();model=NeuralGroundedTargetField(model_cfg).to(dev).train();ema=copy.deepcopy(model).eval();opt=torch.optim.AdamW(model.parameters(),lr=cfg.learning_rate,fused=dev.type=="cuda");gen=torch.Generator().manual_seed(cfg.seed);history=[];started=time.perf_counter()
  for u in range(1,cfg.updates+1):
   b=trainset.batch(torch.randint(0,trainset.samples,(cfg.batch_size,),generator=gen),dev);a=target_aug.batch(torch.randint(0,target_aug.samples,(cfg.batch_size,),generator=gen),dev);opt.zero_grad(set_to_none=True)

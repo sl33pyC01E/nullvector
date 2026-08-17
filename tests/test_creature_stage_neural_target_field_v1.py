@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+from pathlib import Path
 
 from forge.creature_stage_developmental.development import develop
 from forge.creature_stage_developmental.genomes import review_genomes
@@ -13,6 +14,7 @@ from forge.creature_stage_neural_target_field_v1.dataset import (
     build_target_augmentation, encode_target_context,
 )
 from forge.creature_stage_neural_target_field_v1.model import NeuralGroundedTargetField
+from forge.creature_stage_neural_target_field_v1.bank import load_training_bank, validate_training_bank
 
 
 def _inputs():
@@ -56,3 +58,13 @@ def test_target_augmentation_is_balanced_over_all_reviewed_chassis() -> None:
     assert torch.bincount(corpus.family, minlength=5).tolist() == [144] * 5
     assert corpus.target_context.shape[1:] == (8, TARGET_FEATURES)
     assert torch.isfinite(corpus.terminal_target).all()
+
+
+def test_published_training_bank_is_source_bound_and_loadable() -> None:
+    root = Path("outputs/creature_stage_neural_target_field_v1/training_bank_v1")
+    if not root.is_dir():
+        return
+    manifest = validate_training_bank(root)
+    train, augmentation = load_training_bank(root)
+    assert train.samples == manifest["train_samples"]
+    assert augmentation.samples == manifest["augmentation_samples"]
