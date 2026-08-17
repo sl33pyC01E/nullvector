@@ -336,6 +336,20 @@ class NatureNeuralFeedingSystem:
         released = self._metabolize(entity.body, state.feeding, delta=delta, activity=min(1.0, float(np.linalg.norm(entity.velocity))))
         entity.energy = min(1.2, entity.energy + released * 12.0)
         entity.reserve = state.feeding.reserve / state.feeding.reserve_capacity
+        if state.target_id in self.clumps and (not np.isfinite(self.clumps[state.target_id].food.mass) or self.clumps[state.target_id].food.mass <= 1e-5):
+            self.clumps.pop(state.target_id,None);state.constraint.attached=False;state.target_id=None;state.grasp_appendage=None
+            return {"contact":False,"absorbed":0.0,"attached":False,"target":-1}
+        # Articulated hand physics is staggered across alternating world ticks.
+        # Metabolism remains continuous, while the expensive whole-skeleton
+        # constraint solve advances with the accumulated bounded timestep.
+        # Held matter follows the existing hand on the intervening tick rather
+        # than becoming a second independent ballistic body.
+        if (world.tick_index + entity.entity_id) & 1:
+            if state.constraint.attached and state.target_id in self.clumps and state.grasp_appendage is not None:
+                clump=self.clumps[state.target_id];effector=state.articulation.endpoint(state.grasp_appendage);clump.food.position=(entity.position+effector/CELLS_PER_WORLD)%world.size;clump.food.velocity=entity.velocity+state.articulation.endpoint_velocity(state.grasp_appendage)/CELLS_PER_WORLD
+                return {"contact":False,"absorbed":0.0,"attached":True,"target":clump.clump_id}
+            return {"contact":False,"absorbed":0.0,"attached":False,"target":-1}
+        delta=min(.25,delta*2)
         if state.constraint.attached and state.target_id in self.clumps:
             clump = self.clumps[state.target_id]
             world_delta = world._delta(entity.position, clump.food.position)

@@ -85,6 +85,32 @@ class ContinuousCellVAERuntime:
             result[:, 3:] = (result[:, 3:] >= self.alpha_threshold).to(result.dtype)
         return result
 
+    @torch.inference_mode()
+    def cell_styles(self, features, mask) -> torch.Tensor:
+        """Decode neural per-cell appearance without rasterizing a full image.
+
+        The trained VAE already predicts RGB, density, footprint and subpixel
+        offset for every living cell before its differentiable splat stage.
+        Exposing that representation lets the realtime physics solver move the
+        authored cells at presentation rate without rerunning a 96x96 neural
+        raster for every limb pose.
+        """
+        features = torch.as_tensor(features, dtype=torch.float32)
+        mask = torch.as_tensor(mask, dtype=torch.bool)
+        if features.ndim == 2:
+            features, mask = features[None], mask[None]
+        if features.ndim != 3 or features.shape[1:] != (MAX_CELLS, CELL_FEATURES) or mask.shape != features.shape[:2] or not bool(mask.any(1).all()):
+            raise ValueError("continuous cell VAE style tensor geometry drifted")
+        value = features.to(self.device); active = mask.to(self.device)
+        encoded = self.model.cell_encoder(value.float()); weight = active[:, :, None].float()
+        mean_pool = (encoded * weight).sum(1) / weight.sum(1).clamp_min(1)
+        max_pool = encoded.masked_fill(~active[:, :, None], -1e4).max(1).values
+        mean, _logvar = self.model.global_encoder(torch.cat((mean_pool, max_pool), 1)).chunk(2, 1)
+        raw = self.model.decoder(torch.cat((value.float(), mean[:, None].expand(-1, value.shape[1], -1)), 2))
+        rgb = torch.sigmoid(raw[:, :, :3]); strength = 1.5 + 6 * torch.sigmoid(raw[:, :, 3:4])
+        alpha = 1 - torch.exp(-strength); sigma = .32 + .48 * torch.sigmoid(raw[:, :, 4:5]); offset = .65 * torch.tanh(raw[:, :, 5:7])
+        return torch.cat((rgb, alpha, sigma, offset), 2).float().cpu()
+
     def render_organism(self, organism, cell_xy: np.ndarray, *, phase: float = 0.0, threshold_alpha: bool = False) -> torch.Tensor:
         features, mask = self.organism_features(organism, cell_xy, phase=phase)
         return self.render_features(features, mask, threshold_alpha=threshold_alpha)[0]

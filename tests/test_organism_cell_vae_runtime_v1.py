@@ -17,6 +17,12 @@ def test_runtime_rejects_malformed_feature_geometry():
         assert "geometry" in str(error)
     else:
         raise AssertionError("malformed cellular field was accepted")
+    try:
+        runtime.cell_styles(torch.zeros(4, 52), torch.ones(4, dtype=torch.bool))
+    except ValueError as error:
+        assert "geometry" in str(error)
+    else:
+        raise AssertionError("malformed neural cell style field was accepted")
 
 
 def test_live_organism_coordinates_match_centered_training_raster() -> None:
