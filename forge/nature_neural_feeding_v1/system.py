@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import math
@@ -8,6 +8,7 @@ import math
 import numpy as np
 
 from ..creature_stage_neural_grasper_v1.constraint import GraspBody, GraspConstraint, solve_grasp
+from ..creature_stage_neural_grasper_v1.contract import MAX_APPENDAGES
 from ..creature_stage_neural_grasper_v1.feeding import FoodClump, FeedingState, IntakeResult, absorb_food, metabolize_reserve
 from ..creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
 from ..creature_stage_manipulation_v1.articulation import ArticulatedBody
@@ -23,6 +24,25 @@ MATERIAL_PROFILES = {
     "charge": (0.00, 0.00, 0.04, 0.66, 1.00),
     "phase": (0.03, 0.00, 0.08, 1.00, 0.24),
 }
+
+
+def _controller_view(organism):
+    """Project evolved anatomy into the neural controller's bounded token bank.
+
+    The living body and articulation keep every appendage. Only the controller
+    input is compacted, and the local output slot is mapped back to its original
+    anatomical index. Manipulators are retained before locomotors so a heavily
+    grafted creature can still feed without invalidating the frozen controller.
+    """
+    genes = organism.genome.appendages
+    if len(genes) <= MAX_APPENDAGES:
+        return organism, tuple(range(len(genes)))
+    priority = {"arm": 0, "tendril": 1, "frond": 2, "hardpoint": 3, "tail": 4, "leg": 5, "root": 6, "wheel": 7}
+    ranked = sorted(range(len(genes)), key=lambda index: (priority[genes[index].kind], index))
+    indices = tuple(sorted(ranked[:MAX_APPENDAGES]))
+    compact_genes = tuple(replace(genes[index], paired_with=None) for index in indices)
+    compact_genome = replace(organism.genome, appendages=compact_genes)
+    return replace(organism, genome=compact_genome), indices
 
 
 @dataclass(slots=True)
@@ -235,11 +255,13 @@ class NatureNeuralFeedingSystem:
         local_target = world_delta * CELLS_PER_WORLD
         distance_cells = float(np.linalg.norm(local_target))
         direction = local_target / max(distance_cells, 1e-8)
+        controller_organism, appendage_lookup = _controller_view(entity.body.organism)
         command = self.controller.plan(
-            entity.body.organism, target_type="material", goal="consume", direction=direction,
+            controller_organism, target_type="material", goal="consume", direction=direction,
             distance=min(1.25, distance_cells / 24), mass=min(1.0, clump.food.mass / 4),
             cohesion=min(1.0, clump.cohesion), mobility=1.0, attached=state.constraint.attached,
         )
+        command = replace(command, appendage=appendage_lookup[min(command.appendage, len(appendage_lookup) - 1)])
         appendage = min(command.appendage, len(state.articulation.chain_ids) - 1)
         if entity.family == 2:
             preferred = tuple(range(len(state.articulation.chain_ids)))

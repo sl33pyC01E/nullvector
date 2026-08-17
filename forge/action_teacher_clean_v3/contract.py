@@ -18,6 +18,7 @@ SOURCE_FILES=(
     "forge/action_teacher_clean_v3/recorder.py",
     "forge/action_teacher_v1/curriculum_v3.py",
     "forge/nature_sim_v2/demo.py",
+    "forge/nature_neural_feeding_v1/system.py",
 )
 ARRAY_NAMES=("frame","state","actor_state","actor_field","control","action","selected","timeline_event","timeline","counterfactual","tick")
 

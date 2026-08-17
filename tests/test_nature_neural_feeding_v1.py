@@ -3,8 +3,11 @@ from __future__ import annotations
 import numpy as np
 from pathlib import Path
 
+from forge.creature_stage_developmental import develop
 from forge.nature_neural_feeding_v1 import NatureNeuralFeedingSystem
+from forge.nature_neural_feeding_v1.system import _controller_view
 from forge.nature_sim_v2 import NatureWorld, founder_genomes, load_world, save_world
+from forge.nature_sim_v2.grafting import graft_appendage_pair
 
 
 MATERIALS = ("biomass", "flora", "flora", "phase", "mineral")
@@ -31,6 +34,21 @@ def test_all_families_use_neural_grasper_and_physical_feeder() -> None:
         assert system.grasps > 0, family
         assert system.absorbed_mass > .08, family
         assert entity.reserve > 0, family
+
+
+def test_evolved_anatomy_is_projected_without_removing_living_appendages() -> None:
+    founders = founder_genomes()
+    anomaly = next(item for item in founders if item.family == 3 and len(item.developmental.appendages) == 8)
+    humanoid = next(item for item in founders if item.family == 0)
+    arm = next(item.appendage_id for item in humanoid.developmental.appendages if item.kind == "arm")
+    grafted = graft_appendage_pair(anomaly, humanoid, arm, seed=0xC011EC7)
+    organism = develop(grafted.developmental)
+    projected, lookup = _controller_view(organism)
+    assert len(organism.genome.appendages) == 10
+    assert len(projected.genome.appendages) == 8
+    assert len(lookup) == 8 and len(set(lookup)) == 8
+    assert any(gene.kind == "arm" for gene in projected.genome.appendages)
+    assert organism.genome.appendages == grafted.developmental.appendages
 
 
 def test_persistent_held_clump_is_exactly_constrained_to_the_hand() -> None:
