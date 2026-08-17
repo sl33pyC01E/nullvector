@@ -78,12 +78,18 @@ they are still the safer or better authority.
 | Local cell dynamics | Promoted causal cellular NCA with organ-ablation and rollout gates |
 | Maps | Procedural topology authority with neural topology and decoration models under evaluation |
 | Ecology and societies | Neural behavior, colony, society, timeline, and counterfactual specialists inside the causal scaffold |
-| World frames | Callable Action-DiT + refined VAE; live in the Python nature stage, not yet the native Godot authority |
+| World frames | Recurrent Action-DiT + adapted continuous VAE change compositor; live in the Python nature stage, not yet the native Godot authority |
 
-The first composite neural foundation now loads 67.7M parameters across the
+Composite Build 2 loads 67.7M parameters across the
 Action-DiT, world VAE, exact-parent pixel refiner, actor-state student, organism
 cell VAE, and causal physiology model. The larger 13-specialist teacher
 ensemble is hash-closed for reverse distillation.
+
+The first recurrent action-frame student now beats exact frame persistence by
+10.43% on its untouched cellular world. Its decoder adaptation cuts cellular
+reconstruction MAE by 91.0% while keeping the original encoder and latent
+contract frozen. This result is promoted as a tested component, not yet as the
+whole game runtime.
 
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The
