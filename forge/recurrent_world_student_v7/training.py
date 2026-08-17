@@ -51,7 +51,7 @@ def train(output:Path=DEFAULT_OUTPUT,*,plan:TrainingPlan=TrainingPlan()):
         for update in range(end-plan.segment_updates+1,end+1):
             rows=_rows(sequences[:4],rng,plan.batch_size,plan.rollout_steps);batch=_batch_from_rows(rows,plan.rollout_steps,device);pixel_count=min(plan.pixel_batch_size,plan.batch_size);frame_target=_frame_targets(rows,plan.rollout_steps,device,pixel_count);optimizer.zero_grad(set_to_none=True);previous=batch["latent"][:,0];current=batch["latent"][:,1];previous_actor=batch["actor"][:,0];actor=batch["actor"][:,1];latent_total=actor_total=0.
             for offset in range(plan.rollout_steps):
-                target=batch["latent"][:,offset+2];target_actor=batch["actor"][:,offset+2];visibility=batch["visibility"][:,offset];memory=batch["memory"][:,offset];cn,pn=(current-lm)/ls,(previous-lm)/ls;an,pan,tan=(actor-am)/ass,(previous_actor-am)/ass
+                target=batch["latent"][:,offset+2];target_actor=batch["actor"][:,offset+2];visibility=batch["visibility"][:,offset];memory=batch["memory"][:,offset];cn,pn=(current-lm)/ls,(previous-lm)/ls;an,pan,tan=(actor-am)/ass,(previous_actor-am)/ass,(target_actor-am)/ass
                 with torch.autocast("cuda",dtype=torch.bfloat16):
                     delta,logits=model.gated_action(cn,pn,batch["action"][:,offset],batch["control"][:,offset],batch["state"][:,offset],actor,visibility,memory);target_delta=(target-current)/ls;magnitude=target_delta.abs().mean(1,keepdim=True)
                     with torch.no_grad():proposal=delta.float();truth=target_delta.float();trust=torch.clamp((proposal*truth).sum(1,keepdim=True)/(proposal.square().sum(1,keepdim=True)+1e-6),0,1)
