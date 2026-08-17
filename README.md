@@ -92,6 +92,12 @@ contract frozen. This result is promoted as a tested component, not yet as the
 authoritative world simulation. It is callable in the nature stage as the live
 action-conditioned future view.
 
+The next recurrent student carries both visual and 128-feature organism state
+through contiguous rollouts. On the untouched world it beats its unchanged
+parents by 2.36–2.79% at every 4–32 step horizon, while beating initial-frame
+persistence by 9.10–12.33%. It is the long-horizon candidate; the one-step
+Build 3 path remains the live default until integration testing is complete.
+
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The
 callable ensemble is now integrated into the nature stage; the next phase is
@@ -125,6 +131,12 @@ Controls:
 - `R` — mutate
 - `Space` — sprint
 - `Z/X/C/V/B` — expressions and actions
+
+The Python nature-stage demo uses `F1` for a click-driven overlay panel. It
+only controls presentation and information: vision and sensed-target markers,
+anatomy and organs, integrity bars, labels, ecology links, settlements, sites,
+atlas, shadows, selection, evolution offers, and the status HUD. `L` toggles
+the vision field directly; `Shift+L` toggles sensed-target markers.
 
 ## Forge and tests
 

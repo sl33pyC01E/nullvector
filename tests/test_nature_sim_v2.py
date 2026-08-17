@@ -5,6 +5,7 @@ from pathlib import Path
 
 from forge.creature_stage_developmental import develop
 from forge.nature_sim_v2 import AdventureState,NatureWorld,VisibleBodyPhysics,cohort_conservation,demote_to_cohort,founder_genomes,graft_appendage_pair,graft_organ,harvest_appendage_pair,recombine
+from forge.nature_sim_v2.demo import OVERLAY_TOGGLES
 from forge.creature_stage_grounded_locomotion.physics import primary_mode
 
 
@@ -111,6 +112,14 @@ def test_native_nature_demo_and_launcher_are_present() -> None:
     for capability in ("PlayableNeuralRuntime","_step_neural_physiology","_damage_at","show_cells","show_organs","WASD PLAY","VAE"):
         assert capability in source
     assert (root/"Launch Neural Nature Stage.bat").is_file()
+
+
+def test_overlay_controls_only_change_presentation_and_information() -> None:
+    attributes=[attribute for attribute,_label,_key in OVERLAY_TOGGLES]
+    assert len(attributes)==len(set(attributes))
+    assert {"show_vision_cone","show_senses","show_health_bars","show_cells","show_organs"}<=set(attributes)
+    forbidden={"paused","neural_raster","show_dream","tool","action_latch"}
+    assert forbidden.isdisjoint(attributes)
 
 
 def test_body_leaks_death_and_weapons_enter_material_world() -> None:

@@ -47,6 +47,16 @@ QUICK_SAVE=PROJECT_ROOT/"saves/nature_campaign.nvs"
 TISSUE_COLORS={"skin":"#58cde0","bone":"#eee4ca","muscle":"#ed5a73","vascular":"#ff416b","respiratory":"#5ce8ff","digestive":"#ffbd4a","neural":"#dc72ff","sensor":"#f4ffff","storage":"#ecd05d","phase":"#aa71ff","root":"#8de05c","machine":"#9cadbd","armor":"#c3ccd6","weapon":"#ff6a50"}
 FAMILY_COLORS=("#35dcff","#ff5ca9","#91ff42","#b778ff","#ffb236")
 MATERIAL_COLORS=((0,0,0,0),(92,73,46,150),(105,113,117,210),(42,126,174,150),(180,20,58,190),(91,176,62,175),(76,66,43,180),(151,166,178,225),(119,73,63,185),(87,232,148,190),(255,107,26,230),(125,140,150,130),(155,92,255,210))
+OVERLAY_TOGGLES=(
+    ("show_vision_cone","VISION CONE","L"),("show_senses","SENSED TARGETS","SHIFT+L"),
+    ("show_ecosystem_links","ECOLOGY LINKS",""),
+    ("show_settlements","SETTLEMENTS + ROADS",""),("show_adventure_hud","EXPEDITION + SITES",""),
+    ("show_atlas","REGION ATLAS","M"),("show_shadows","2.5D SHADOWS",""),
+    ("show_health_bars","INTEGRITY BARS",""),("show_entity_labels","COLONY LABELS",""),
+    ("show_selection_box","SELECTION BOX",""),("show_cells","ANATOMY PANEL","C"),
+    ("show_organs","ORGAN OUTLINES","O"),("show_evolution_offers","EVOLUTION OFFERS",""),
+    ("show_status_hud","STATUS + CONTROLS",""),
+)
 
 
 class NatureDemo:
@@ -69,7 +79,7 @@ class NatureDemo:
                 self.world.colonies[1]=ColonyState(1,0,founders[0].genome.lineage_id,members,center.copy());self.world.next_colony_id=2;self.society.found_from_colony(1)
                 self.society.step_history(1)
                 self.quests.accept_nearest(self.society,self.world,founders[0],self.adventure)
-        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_atlas=showcase;self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_source_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="CONTINUOUS CELL VAE + CAUSAL PHYSIOLOGY + RECURRENT ACTION DIT + NEURAL ECOLOGY";self.sprite_cache={};self.sprite_budget=16;self.neural_sprite_unsupported=set();self.field_cache=None;self.field_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics(self.target_field_runtime);self.physiology=self.composite.physiology;self.cell_vae=self.composite.organism;self.physiology_unsupported=set();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
+        self.evolution=EvolutionLedger();self.evolution.observe(self.world);self.evolution_epoch=0;self.creator=CreatureCreator();self.creator_seed=seed^0x43524541544F52;self.creator_cache={};self.selected=next(iter(self.world.organisms));self.camera=np.asarray((32.0,32.0));self.zoom=10.0;self.paused=False;self.show_cells=True;self.show_organs=True;self.show_senses=True;self.show_vision_cone=True;self.show_atlas=showcase;self.show_ecosystem_links=True;self.show_settlements=True;self.show_adventure_hud=True;self.show_shadows=True;self.show_health_bars=True;self.show_entity_labels=True;self.show_selection_box=True;self.show_evolution_offers=True;self.show_status_hud=True;self.show_toggle_panel=False;self.toggle_hitboxes=[];self.show_chronicle=False;self.show_planner=False;self.neural_raster=False;self.show_dream=False;self.neural_raster_previous=None;self.neural_raster_frame=None;self.neural_raster_blend_start=0.0;self.neural_raster_tick=-1000;self.dream_frame=None;self.dream_source_frame=None;self.dream_tick=-1000;self.dream_action="none";self.neural_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="nullvector-neural-presentation");self.neural_future:Future|None=None;self.neural_job_kind=None;self.neural_last_kind="dream";self.neural_stream=torch.cuda.Stream() if device.startswith("cuda") and torch.cuda.is_available() else None;self.teacher_frame=None;self.teacher_aim_override=None;self.intervention_offers=();self.counterfactuals={};self.manual=np.zeros(2);self.tool="inspect";self.message="CONTINUOUS CELL VAE + CAUSAL PHYSIOLOGY + RECURRENT ACTION DIT + NEURAL ECOLOGY";self.sprite_cache={};self.sprite_budget=16;self.neural_sprite_unsupported=set();self.field_cache=None;self.field_cache_key=None;self.render_snapshot=None;self.render_snapshot_tick=-1;self.render_alpha=1.0;self.previous_positions={entity_id:item.position.copy() for entity_id,item in self.world.organisms.items()};self.visible_physics=VisibleBodyPhysics(self.target_field_runtime);self.physiology=self.composite.physiology;self.cell_vae=self.composite.organism;self.physiology_unsupported=set();self.trade_settlement=None;self.trade_offers=();self.timeline_forecast=self.timeline_runtime.observe(self.world,self.society);self._refresh_interventions();self.trajectory=TeacherTrajectoryRecorder(PROJECT_ROOT/"outputs/action_teacher_v1");self.action_latch="none"
 
     def _enter_region(self,dx,dy,player):
         self.atlas_world.record(self.region,self.world);old_world=self.world;self.region_store.save(self.region,old_world,exclude_entity_id=player.entity_id,society=self.society,adventure=self.adventure);self.region=RegionKey(self.region.x+dx,self.region.y+dy,self.region.depth);seed=self.atlas_world.region_seed(self.region);new_feeding=NatureNeuralFeedingSystem(seed=seed^0x46454544,device=str(self.feeding.controller.device));loaded=self.region_store.load(self.region,motion_policy=self.runtime,behavior_policy=self.behavior,colony_policy=self.colony_runtime,feeding_system=new_feeding,society_policy=self.society_runtime,include_society=True);new=None if loaded is None else loaded[0];restored_society=None if loaded is None else loaded[1];restored_adventure=None if loaded is None else loaded[2]
@@ -216,11 +226,27 @@ class NatureDemo:
             self.sprite_cache.clear();self.message=f"GRAFT {str(event['label']).upper()} // {event['installed_cells']} PHYSICAL CELLS // DONOR {donor.entity_id}"
         except ValueError as exc:self.message=f"GRAFT REJECTED // {exc}"
 
+    def _toggle_overlay_at(self,position):
+        for rect,attribute,label in self.toggle_hitboxes:
+            if rect.collidepoint(position):
+                value=not bool(getattr(self,attribute));setattr(self,attribute,value);self.message=f"{label} // {'VISIBLE' if value else 'HIDDEN'}";return True
+        return False
+
+    def _draw_toggle_controls(self):
+        pg=self.pg;columns=2;rows=(len(OVERLAY_TOGGLES)+columns-1)//columns;width=620;height=78+rows*31;panel=pg.Rect((self.screen.get_width()-width)//2,74,width,height);shade=pg.Surface(self.screen.get_size(),pg.SRCALPHA);shade.fill((0,3,7,132));self.screen.blit(shade,(0,0));pg.draw.rect(self.screen,(4,14,20),panel);pg.draw.rect(self.screen,(63,218,237),panel,2);self.screen.blit(self.font.render("OVERLAY + INFORMATION CONTROLS",True,(178,244,255)),(panel.x+18,panel.y+14));self.screen.blit(self.small.render("F1 CLOSE // CLICK ANY ROW // SIMULATION CONTINUES UNDER HIDDEN LAYERS",True,(112,153,165)),(panel.x+20,panel.y+40));self.toggle_hitboxes=[]
+        for index,(attribute,label,key) in enumerate(OVERLAY_TOGGLES):
+            column=index//rows;row=index%rows;x=panel.x+18+column*294;y=panel.y+66+row*31;rect=pg.Rect(x,y,278,24);active=bool(getattr(self,attribute));pg.draw.rect(self.screen,(9,34,39) if active else (9,17,22),rect);pg.draw.rect(self.screen,(84,235,207) if active else (50,72,80),rect,1);mark="ON " if active else "OFF";self.screen.blit(self.small.render(mark,True,(116,255,209) if active else (108,126,133)),(x+8,y+5));self.screen.blit(self.small.render(label,True,(218,239,242) if active else (121,142,150)),(x+45,y+5));
+            if key:self.screen.blit(self.small.render(key,True,(255,195,86)),(rect.right-8-self.small.size(key)[0],y+5))
+            self.toggle_hitboxes.append((rect,attribute,label))
+
     def events(self)->bool:
         pg=self.pg
         for event in pg.event.get():
             if event.type==pg.QUIT:return False
             if event.type==pg.MOUSEWHEEL:self.zoom=float(np.clip(self.zoom*(1.12**event.y),5,24))
+            if event.type==pg.MOUSEBUTTONDOWN and self.show_toggle_panel:
+                if event.button==1:self._toggle_overlay_at(event.pos)
+                continue
             if event.type==pg.MOUSEBUTTONDOWN:
                 if event.button==1:
                     if self.tool=="inspect":self._select(event.pos)
@@ -259,6 +285,7 @@ class NatureDemo:
                     continue
                 if event.key==pg.K_ESCAPE:return False
                 if event.key==pg.K_SPACE:self.paused=not self.paused
+                elif event.key==pg.K_F1:self.show_toggle_panel=not self.show_toggle_panel;self.message=f"OVERLAY CONTROLS // {'OPEN' if self.show_toggle_panel else 'CLOSED'}"
                 elif event.key==pg.K_F6:self.show_dream=not self.show_dream;self.dream_frame=None;self.message=f"ACTION-CONDITIONED DiT FUTURE // {'LIVE +4 TICK ORACLE' if self.show_dream else 'CLOSED'}"
                 elif event.key==pg.K_F7:self.neural_raster=not self.neural_raster;self.message=f"CONTINUOUS WORLD VAE + LEARNED PIXEL REFINER // {'LIVE' if self.neural_raster else 'SCAFFOLD COMPARISON'}"
                 elif event.key==pg.K_F8:
@@ -273,7 +300,9 @@ class NatureDemo:
                 elif event.key==pg.K_c:self.show_cells=not self.show_cells
                 elif event.key==pg.K_o:self.show_organs=not self.show_organs
                 elif event.key==pg.K_m:self.show_atlas=not self.show_atlas
-                elif event.key==pg.K_l:self.show_senses=not self.show_senses
+                elif event.key==pg.K_l:
+                    if event.mod&pg.KMOD_SHIFT:self.show_senses=not self.show_senses;self.message=f"SENSED TARGET MARKERS // {'VISIBLE' if self.show_senses else 'HIDDEN'}"
+                    else:self.show_vision_cone=not self.show_vision_cone;self.message=f"VISION CONE // {'VISIBLE' if self.show_vision_cone else 'HIDDEN'}"
                 elif event.key==pg.K_F5:
                     report=save_session(world=self.world,adventure=self.adventure,society=self.society,quests=self.quests,atlas=self.atlas_world,region=self.region,selected=self.selected,path=QUICK_SAVE);self.message=f"CAMPAIGN SAVED // CELLS + RELICS + SOCIETIES + CONTRACTS // {report['bytes']/1024:.1f} KIB"
                 elif event.key==pg.K_F9 and QUICK_SAVE.is_file():
@@ -422,22 +451,26 @@ class NatureDemo:
         if cached is None:base=self._sprite(entity);self.sprite_cache[entity.entity_id]=(self.world.tick_index,float(entity.body.health.sum()),float(entity.body.fluid.sum()),base)
         else:base=cached[3]
         sprite=pg.transform.smoothscale(base,(size,size))
-        shadow=pg.Rect(int(point[0]-size*.28),int(point[1]+size*.30),int(size*.56),int(size*.13));pg.draw.ellipse(self.screen,(0,0,0,120),shadow)
+        if self.show_shadows:
+            shadow=pg.Rect(int(point[0]-size*.28),int(point[1]+size*.30),int(size*.56),int(size*.13));pg.draw.ellipse(self.screen,(0,0,0,120),shadow)
         self.screen.blit(sprite,(int(point[0]-size/2),int(point[1]-size*.62)))
         color=pg.Color(FAMILY_COLORS[entity.family]);systems=entity.body.snapshot().systems
-        if entity.entity_id==self.selected:pg.draw.rect(self.screen,color,pg.Rect(point[0]-size*.55,point[1]-size*.68,size*1.1,size*1.08),2)
-        bar=pg.Rect(point[0]-28,point[1]+size*.42,56,4);pg.draw.rect(self.screen,(16,28,32),bar);pg.draw.rect(self.screen,color,pg.Rect(bar.x,bar.y,bar.w*systems["integrity"],bar.h))
-        if entity.colony_id is not None:
+        if self.show_selection_box and entity.entity_id==self.selected:pg.draw.rect(self.screen,color,pg.Rect(point[0]-size*.55,point[1]-size*.68,size*1.1,size*1.08),2)
+        if self.show_health_bars:
+            bar=pg.Rect(point[0]-28,point[1]+size*.42,56,4);pg.draw.rect(self.screen,(16,28,32),bar);pg.draw.rect(self.screen,color,pg.Rect(bar.x,bar.y,bar.w*systems["integrity"],bar.h))
+        if self.show_entity_labels and entity.colony_id is not None:
             role=self.world.colony_ecology.assignment(entity.entity_id) or "kin";self.screen.blit(self.small.render(f"C{entity.colony_id} {role[:3].upper()}",True,color),(point[0]+22,point[1]-size*.58))
 
     def _draw_sensory_field(self,entity):
         pg=self.pg;field=sensory_field(entity,equipment_bonus=self.adventure.bonus("perception"));center=self.world_to_screen(self._render_position(entity));overlay=pg.Surface(self.screen.get_size(),pg.SRCALPHA);color=pg.Color(FAMILY_COLORS[entity.family]);alpha=int(16+28*field.integrity);radius=field.range*self.zoom
-        if field.radial:pg.draw.circle(overlay,(*color[:3],alpha),(int(center[0]),int(center[1])),int(radius));pg.draw.circle(overlay,(*color[:3],90),(int(center[0]),int(center[1])),int(radius),1)
-        else:
-            angles=np.linspace(entity.heading-field.arc_radians*.5,entity.heading+field.arc_radians*.5,22);points=[tuple(center)]+[(center[0]+math.cos(angle)*radius,center[1]+math.sin(angle)*radius) for angle in angles];pg.draw.polygon(overlay,(*color[:3],alpha),points);pg.draw.lines(overlay,(*color[:3],95),False,points[1:],1)
-        self.screen.blit(overlay,(0,0))
-        for target_id in visible_targets(self.world,entity,field):
-            point=self.world_to_screen(self._render_position(self.world.organisms[target_id]));pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),10,1)
+        if self.show_vision_cone:
+            if field.radial:pg.draw.circle(overlay,(*color[:3],alpha),(int(center[0]),int(center[1])),int(radius));pg.draw.circle(overlay,(*color[:3],90),(int(center[0]),int(center[1])),int(radius),1)
+            else:
+                angles=np.linspace(entity.heading-field.arc_radians*.5,entity.heading+field.arc_radians*.5,22);points=[tuple(center)]+[(center[0]+math.cos(angle)*radius,center[1]+math.sin(angle)*radius) for angle in angles];pg.draw.polygon(overlay,(*color[:3],alpha),points);pg.draw.lines(overlay,(*color[:3],95),False,points[1:],1)
+            self.screen.blit(overlay,(0,0))
+        if self.show_senses:
+            for target_id in visible_targets(self.world,entity,field):
+                point=self.world_to_screen(self._render_position(self.world.organisms[target_id]));pg.draw.circle(self.screen,color,(int(point[0]),int(point[1])),10,1)
 
     def _draw_settlements(self):
         pg=self.pg
@@ -577,12 +610,12 @@ class NatureDemo:
     def draw(self):
         pg=self.pg;self.screen.fill((3,9,13));self._field_background()
         self._draw_materials()
-        self._draw_ecosystem_links()
-        self._draw_settlements()
-        self._draw_adventure()
+        if self.show_ecosystem_links:self._draw_ecosystem_links()
+        if self.show_settlements:self._draw_settlements()
+        if self.show_adventure_hud:self._draw_adventure()
         if self.show_atlas:self._draw_atlas()
         selected_entity=self.world.organisms.get(self.selected)
-        if self.show_senses and selected_entity is not None and selected_entity.alive:self._draw_sensory_field(selected_entity)
+        if (self.show_vision_cone or self.show_senses) and selected_entity is not None and selected_entity.alive:self._draw_sensory_field(selected_entity)
         self._prepare_sprites()
         for entity in sorted(self.world.organisms.values(),key=lambda o:(o.position[1],o.entity_id)):
             if entity.alive:self._draw_entity(entity)
@@ -591,20 +624,23 @@ class NatureDemo:
         if self.neural_raster or self.show_dream:self._schedule_neural_presentation(self.teacher_frame)
         if self.neural_raster:self._apply_neural_raster()
         if self.show_dream:self._apply_neural_dream()
-        width=self.screen.get_width();pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
+        width=self.screen.get_width()
+        if self.show_status_hud:pg.draw.rect(self.screen,(3,10,14),(0,0,width,58));self.screen.blit(self.big.render("NULLVECTOR // NATURE",True,(229,245,246)),(22,12))
         if self.render_snapshot is None or self.render_snapshot_tick!=self.world.tick_index:self.render_snapshot=self.world.snapshot();self.render_snapshot_tick=self.world.tick_index
         snap=self.render_snapshot;biome=self.atlas_world.describe(self.region).biome.upper();climate=self.world.climate.current;forecast=self.timeline_forecast;record=f" REC●{self.trajectory.frame_count:03}" if self.trajectory.active else "";raster="VAE+NN" if self.neural_raster else "RAW";status=f"REG {self.region.x:+04},{self.region.y:+04} {biome[:10]:10} {climate.season.upper():9} POP {snap.population:03} B{snap.births:03} D{snap.deaths:03} C{snap.colony_count:02} M{snap.mutation_count:02} NN>{forecast.event.upper()} {forecast.confidence:.0%} {raster} {self.clock.get_fps():04.1f}FPS{record}"
-        self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("WASD PLAY/MOVE  ARROWS ACTIONS  ` NEURAL PLAN  F6 DiT FUTURE  F7 VAE/RAW  F8 TEACHER REC  TAB HISTORY",True,(133,164,174)),(20,self.screen.get_height()-24))
+        if self.show_status_hud:self.screen.blit(self.font.render(status,True,(75,227,255)),(470,20));self.screen.blit(self.small.render("F1 OVERLAYS  WASD PLAY/MOVE  ARROWS ACTIONS  ` NEURAL PLAN  F6 DiT  F7 VAE  F8 RECORD  TAB HISTORY",True,(133,164,174)),(20,self.screen.get_height()-24))
         entity=self.world.organisms.get(self.selected)
         if entity is not None:
             if self.show_cells:self._draw_cells(entity)
-            self._draw_evolution_offers(entity)
+            if self.show_evolution_offers:self._draw_evolution_offers(entity)
         if self.adventure.pending_encounter is not None:self._draw_encounter()
         if self.trade_settlement is not None:self._draw_trade()
         if self.show_chronicle:self._draw_chronicle()
         if self.show_planner:self._draw_planner()
         if self.creator.active:self._draw_creator()
-        self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66));self._record_teacher_frame();pg.display.flip()
+        if self.show_status_hud:self.screen.blit(self.small.render(f"TOOL {self.tool.upper()} // {self.message}",True,(255,196,80)),(22,66))
+        if self.show_toggle_panel:self._draw_toggle_controls()
+        self._record_teacher_frame();pg.display.flip()
 
     def run(self,*,capture:Path|None=None)->None:
         if capture is not None:
@@ -625,7 +661,7 @@ class NatureDemo:
 
 
 def main()->None:
-    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");parser.add_argument("--planner",action="store_true");parser.add_argument("--neural-raster",action="store_true");parser.add_argument("--dream",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle;demo.neural_raster=args.neural_raster;demo.show_dream=args.dream
+    parser=argparse.ArgumentParser();parser.add_argument("--seed",type=int,default=0x51554944);parser.add_argument("--device",default="cuda");parser.add_argument("--capture",type=Path);parser.add_argument("--showcase",action="store_true");parser.add_argument("--creator",action="store_true");parser.add_argument("--encounter",action="store_true");parser.add_argument("--trade",action="store_true");parser.add_argument("--mutant",action="store_true");parser.add_argument("--chronicle",action="store_true");parser.add_argument("--planner",action="store_true");parser.add_argument("--neural-raster",action="store_true");parser.add_argument("--dream",action="store_true");parser.add_argument("--overlays",action="store_true");args=parser.parse_args();demo=NatureDemo(seed=args.seed,device=args.device,showcase=args.showcase);demo.creator.active=args.creator;demo.show_chronicle=args.chronicle;demo.neural_raster=args.neural_raster;demo.show_dream=args.dream;demo.show_toggle_panel=args.overlays
     if args.planner:demo._refresh_interventions();demo.show_planner=True
     if args.encounter:
         entity=demo.world.organisms[demo.selected];site=next(item for item in demo.adventure.sites if item.kind=="phase_well");entity.position=site.position.copy();demo.message=demo.adventure.interact(demo.world,entity)
