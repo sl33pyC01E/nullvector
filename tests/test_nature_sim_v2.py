@@ -159,6 +159,21 @@ def test_visible_body_uses_neural_muscles_and_persistent_contacts() -> None:
     assert np.allclose(solver.states[entity.entity_id].nodes[0],organism.skeleton_nodes[0,:2],atol=.2)
 
 
+def test_visible_body_accepts_periodic_neural_target_field() -> None:
+    class Policy:
+        calls=0
+        def predict(self,organism,nodes,velocity,previous_contact,phase,body_velocity):
+            self.calls+=1
+            targets=np.asarray([appendage.endpoint for appendage in organism.genome.appendages],np.float32)
+            targets[:,0]+=np.asarray([appendage.side for appendage in organism.genome.appendages],np.float32)*.35
+            contact=np.asarray([appendage.kind=="leg" and appendage.side<0 for appendage in organism.genome.appendages])
+            return np.full(len(organism.muscles),.35,np.float32),contact,targets
+    world=NatureWorld(seed=1773,size=32,max_population=32);world.seed_founders(variants_per_family=1);entity=next(o for o in world.organisms.values() if o.family==1);entity.velocity[:]=(.8,0);policy=Policy();solver=VisibleBodyPhysics(policy)
+    first=solver.step(world,entity,1/60).copy();world.time+=.1;second=solver.step(world,entity,1/60).copy();state=solver.states[entity.entity_id]
+    assert policy.calls==2 and np.isfinite(second).all()
+    assert bool(state.previous_contact.any()) and float(np.mean(np.linalg.norm(second-first,axis=1)))>.005
+
+
 def test_adventure_sites_inventory_building_and_collision_are_physical() -> None:
     world=NatureWorld(seed=774,size=48,max_population=32);world.seed_founders(variants_per_family=1);entity=world.organisms[1];adventure=AdventureState(seed=44,size=48);site=adventure.sites[0];entity.position=site.position.copy()
     assert "SALVAGED" in adventure.interact(world,entity) and adventure.discoveries

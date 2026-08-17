@@ -31,7 +31,21 @@ class VisibleBodyState:
 
 class VisibleBodyPhysics:
     """Online 2.5D cell/skeleton solver driven by neural muscles and contacts."""
-    def __init__(self)->None:self.states:dict[int,VisibleBodyState]={}
+    def __init__(self,target_policy=None)->None:
+        self.states:dict[int,VisibleBodyState]={}
+        self.target_policy=target_policy
+
+    @staticmethod
+    def _target_nodes(organism,terminal_targets:np.ndarray)->np.ndarray:
+        target=organism.skeleton_nodes[:,:2].astype(np.float32,copy=True)
+        for owner in range(len(organism.genome.appendages)):
+            edge_ids=np.flatnonzero(organism.skeleton_edge_appendage==owner)
+            if not edge_ids.size:continue
+            chain=[int(organism.skeleton_edges[int(edge_ids[0]),0])]+[int(organism.skeleton_edges[int(edge),1]) for edge in edge_ids]
+            displacement=np.asarray(terminal_targets[owner],np.float32)-target[chain[-1]]
+            denominator=max(1,len(chain)-1)
+            for rank,node in enumerate(chain[1:],1):target[node]+=displacement*(rank/denominator)
+        return target
 
     @staticmethod
     def _register(entity)->VisibleBodyState:
@@ -50,15 +64,25 @@ class VisibleBodyPhysics:
         organism=entity.body.organism;state=self.states.get(entity.entity_id)
         if state is None or state.identity_sha256!=organism.identity_sha256:state=self._register(entity);self.states[entity.entity_id]=state
         rest=state.rest;component_count=state.component_count;terminals=state.terminals
-        muscles=np.asarray(entity.neural_muscles,np.float32)
-        if muscles.shape!=(len(organism.muscles),):muscles=np.zeros(len(organism.muscles),np.float32)
-        contact=np.asarray(entity.neural_contacts,np.bool_)
-        if contact.shape!=(len(organism.genome.appendages),):contact=np.zeros(len(organism.genome.appendages),np.bool_)
+        target=rest.copy();speed=float(np.linalg.norm(entity.velocity));activity=float(np.clip(speed*1.35,0,1))
+        if self.target_policy is not None:
+            phase=(world.time*(.62+min(speed,1.8)*.58)+entity.entity_id*.071)%1.0
+            muscles,contact,terminal_targets=self.target_policy.predict(organism,state.nodes,state.velocity,state.previous_contact,phase,speed)
+            muscles=np.asarray(muscles,np.float32);contact=np.asarray(contact,np.bool_);terminal_targets=np.asarray(terminal_targets,np.float32)
+            if muscles.shape!=(len(organism.muscles),) or contact.shape!=(len(organism.genome.appendages),) or terminal_targets.shape!=(len(organism.genome.appendages),2) or not np.isfinite(muscles).all() or not np.isfinite(terminal_targets).all():raise FloatingPointError("visible neural target field became invalid")
+            target=self._target_nodes(organism,terminal_targets);muscles*=activity;target=rest+(target-rest)*activity
+            contact&=activity>.08
+        else:
+            muscles=np.asarray(entity.neural_muscles,np.float32)
+            if muscles.shape!=(len(organism.muscles),):muscles=np.zeros(len(organism.muscles),np.float32)
+            contact=np.asarray(entity.neural_contacts,np.bool_)
+            if contact.shape!=(len(organism.genome.appendages),):contact=np.zeros(len(organism.genome.appendages),np.bool_)
         contact&=state.grounded_modes
+        ground=max([float(organism.genome.appendages[index].endpoint[1]) for index in np.flatnonzero(state.grounded_modes)],default=float(rest[:,1].max()+3))
         for index in range(len(contact)):
-            if contact[index] and not state.previous_contact[index]:state.anchors[index]=entity.position+np.asarray((organism.genome.appendages[index].endpoint[0]/6,0),np.float32)
+            if contact[index] and not state.previous_contact[index]:state.anchors[index]=(state.nodes[int(terminals[index]),0],ground)
             elif not contact[index]:state.anchors[index]=np.nan
-        target=rest.copy();target[:component_count,1]+=math.sin(world.time*2.4+entity.entity_id*.31)*.13
+        target[:component_count,1]+=math.sin(world.time*2.4+entity.entity_id*.31)*(.045+.085*(1-activity))
         delta_node=state.nodes[state.muscle_insertion]-state.nodes[state.muscle_origin];muscle_length=np.maximum(np.linalg.norm(delta_node,axis=1),1e-6);normal=np.stack((-delta_node[:,1],delta_node[:,0]),axis=1)/muscle_length[:,None];muscle_force=normal*state.muscle_strength[:,None]*muscles[:,None]*.102;force=np.zeros_like(state.nodes);np.add.at(force,state.muscle_insertion,muscle_force);np.add.at(force,state.muscle_origin,-muscle_force*.35);force_norm=np.linalg.norm(force,axis=1,keepdims=True);force*=np.minimum(1,.52/np.maximum(force_norm,1e-6));acceleration=(target-state.nodes)*.055+force
         if entity.family!=3:acceleration[:,1]+=.012
         rate=min(1,delta*60);state.velocity=state.velocity*.72+acceleration*rate;state.nodes+=state.velocity*rate
@@ -66,9 +90,7 @@ class VisibleBodyPhysics:
             vector=state.nodes[state.edge_right]-state.nodes[state.edge_left];distance=np.maximum(np.linalg.norm(vector,axis=1),1e-6);correction=vector*((distance-state.lengths)/distance)[:,None]*.5;node_correction=np.zeros_like(state.nodes);np.add.at(node_correction,state.edge_left,correction);np.add.at(node_correction,state.edge_right,-correction);state.nodes+=node_correction
             state.nodes[0]=target[0]
             for index in np.flatnonzero(contact):
-                terminal=int(terminals[index]);relative=world._delta(entity.position,state.anchors[index]);offset=np.asarray((relative[0]*6,relative[1]*2.4),np.float32);magnitude=float(np.linalg.norm(offset))
-                if magnitude>6:offset*=6/magnitude
-                state.nodes[terminal]=state.nodes[terminal]*.08+(rest[terminal]+offset)*.92
+                terminal=int(terminals[index]);state.nodes[terminal]=state.nodes[terminal]*.08+state.anchors[index]*.92
         state.velocity*=.38;delta_nodes=state.nodes-rest;state.cells=organism.cell_xy.astype(np.float32)+(delta_nodes[state.nearest]*state.weights[:,:,None]).sum(1);state.previous_contact=contact.copy();return state.cells
 
     def cells(self,entity)->np.ndarray:
