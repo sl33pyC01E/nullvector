@@ -12,13 +12,16 @@ from ..safety import require_disk_floor
 
 
 FORMAT = "nullvector-neural-foundation-v3/1.0.0"
-DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/neural_foundation_v3/build_001"
+DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/neural_foundation_v3/build_002"
 COMPONENTS = (
     ("organism_to_planet_teacher_ensemble", "outputs/neural_ensemble_v1/build_001/ensemble_manifest.json", None, ("teacher_ensemble_ready",)),
     ("recurrent_action_vae_pipeline", "outputs/recurrent_world_pipeline_v1/release.json", None, ("ready",)),
     ("biome_topology_and_decoration", "outputs/neural_world_synthesis_v1/build_004/synthesis_manifest.json", None, ("experimental_ready",)),
     ("city_layout", "outputs/neural_city_layout_v1/evaluation_004/report.json", "examples/models/neural_city_layout_v1_ema.pt", ("experimental_ready",)),
     ("city_growth", "examples/showcase/neural_city_growth_v1_report.json", "examples/models/neural_city_growth_v1_ema.pt", ("experimental_ready",)),
+    ("world_state_codec", "examples/showcase/neural_world_state_v1_report.json", "examples/models/neural_world_state_v1.pt", ("runtime_ready",)),
+    ("recurrent_world_context", "examples/models/recurrent_world_context_v1.json", "examples/models/recurrent_world_context_v1.pt", ("ready",)),
+    ("contextual_recurrent_action_vae", "examples/manifests/contextual_recurrent_world_pipeline_v1.json", None, ("ready",)),
 )
 SOURCE_FILES = (
     "forge/neural_foundation_v3/__init__.py",
@@ -55,22 +58,25 @@ def build(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
     if destination.exists(): raise FileExistsError(destination)
     require_disk_floor(output.parent, floor_gb=100, planned_bytes=1 << 20)
     rows = []
+    reports: dict[str, dict[str, object]] = {}
     for name, report_relative, artifact_relative, allowed_status in COMPONENTS:
         report = json.loads((PROJECT_ROOT / report_relative).read_text("utf-8"))
         if report.get("status") not in allowed_status: raise ValueError(f"Foundation component is not promoted: {name}")
+        reports[name] = report
         row = {"name": name, "status": report["status"], "report": _record(report_relative)}
         if artifact_relative: row["artifact"] = _record(artifact_relative)
         rows.append(row)
     payload = {
         "format": FORMAT,
-        "status": "organism_to_city_neural_foundation_ready",
+        "status": "organism_to_city_contextual_neural_foundation_ready",
         "source_sha256": source_sha256(),
         "components": rows,
         "cadence": {"display_fps": 30, "organism_physics_hz": 30, "world_causality_hz": 15, "city_growth_event_driven": True},
-        "benchmark": {"recurrent_frames_per_second": 76.67266510468298, "recurrent_milliseconds_per_frame": 13.042457812503017, "city_growth_ticks_per_second": 211.53260981420348, "city_growth_milliseconds_per_tick": 4.727403500000946},
-        "capabilities": {"cellular_organisms": True, "continuous_cell_vae": True, "grounded_locomotion": True, "grasping_and_feeding": True, "ecology_colony_society_timeline": True, "action_conditioned_recurrent_frames": True, "biome_topology": True, "neural_city_layout": True, "neural_city_growth": True},
+        "benchmark": {"contextual_recurrent_frames_per_second": reports["contextual_recurrent_action_vae"]["benchmark"]["frames_per_second"], "contextual_recurrent_milliseconds_per_frame": reports["contextual_recurrent_action_vae"]["benchmark"]["milliseconds_per_frame"], "parent_recurrent_frames_per_second": 76.67266510468298, "city_growth_ticks_per_second": 211.53260981420348, "city_growth_milliseconds_per_tick": 4.727403500000946},
+        "capabilities": {"cellular_organisms": True, "continuous_cell_vae": True, "grounded_locomotion": True, "grasping_and_feeding": True, "ecology_colony_society_timeline": True, "action_conditioned_recurrent_frames": True, "biome_topology": True, "neural_city_layout": True, "neural_city_growth": True, "learned_world_state_codec": True, "structured_world_context_for_recurrence": True, "scaffold_summary_replaced_for_recurrent_inference": True},
         "distillation": {"teacher_ensemble_ready": True, "recurrent_student_ready": True, "continuous_vae_ready": True, "single_monolithic_student_ready": False},
-        "limitations": ["Physical scaffold remains authoritative for damage, topology safety, and resource conservation.", "City-growth v1 misses specialized purpose material on 4 of 30 audited actions.", "Long recurrent frame rollouts remain softer than the scaffold teacher."],
+        "deployment_roadmap": {"desktop_foundation_first": True, "android_after_monolithic_foundation": True, "android_target": "Samsung Galaxy S25 Ultra", "mobile_scaling_started": False},
+        "limitations": ["Physical scaffold remains authoritative for damage, topology safety, and resource conservation.", "The learned world-context embedding conditions recurrence but is not an exact human-readable semantic decoder.", "City-growth v1 misses specialized purpose material on 4 of 30 audited actions.", "Long recurrent frame rollouts remain softer than the scaffold teacher."],
     }
     payload["manifest_sha256"] = hashlib.sha256(canonical(payload)).hexdigest(); _atomic(destination, canonical(payload)); return validate(output)
 
@@ -84,4 +90,4 @@ def validate(output: Path = DEFAULT_OUTPUT) -> dict[str, object]:
             if key in row:
                 record = row[key]; source = PROJECT_ROOT / record["path"]
                 if source.stat().st_size != record["bytes"] or file_sha256(source) != record["sha256"]: raise ValueError(f"Foundation component drifted: {row['name']}/{key}")
-    return {"passed": payload["status"] == "organism_to_city_neural_foundation_ready", "components": len(payload["components"]), "manifest_sha256": payload["manifest_sha256"], "recurrent_frames_per_second": payload["benchmark"]["recurrent_frames_per_second"], "organism_physics_hz": payload["cadence"]["organism_physics_hz"]}
+    return {"passed": payload["status"] == "organism_to_city_contextual_neural_foundation_ready", "components": len(payload["components"]), "manifest_sha256": payload["manifest_sha256"], "recurrent_frames_per_second": payload["benchmark"]["contextual_recurrent_frames_per_second"], "organism_physics_hz": payload["cadence"]["organism_physics_hz"]}
