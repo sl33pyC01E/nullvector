@@ -4,6 +4,15 @@ Selected outputs from the current NULLVECTOR pipeline. These are generated
 results, not concept art. Some show accepted runtime systems; others are
 clearly labeled research prototypes.
 
+## Playable neural foundation
+
+![Playable neural foundation](showcase/playable_neural_foundation_v1.gif)
+
+The current nature-stage integration: live posed and damaged cell sets are
+batched through the continuous organism VAE while the promoted locomotion,
+physiology, feeding, intent, colony, society, timeline, and world-model
+specialists run inside the causal simulation.
+
 ## Physical creatures
 
 ### Grounded locomotion and feeding

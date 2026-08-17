@@ -38,6 +38,14 @@ scale exist as scaffolds and research systems rather than a finished game.
 
 ## Selected results
 
+| Playable neural foundation |
+|---|
+| ![Playable neural foundation](examples/showcase/playable_neural_foundation_v1.gif) |
+
+The live nature simulation now batches current posed and damaged cells through
+the continuous organism VAE while neural controllers drive locomotion,
+physiology, feeding, behavior, colonies, societies, and forecasts.
+
 | Grounded motion and feeding | Five feeding strategies |
 |---|---|
 | ![Grounded neural feeding](examples/showcase/articulated_grounded_feeding_v12.gif) | ![Five-family feeding](examples/showcase/articulated_five_family_feeding_v11.gif) |
@@ -69,8 +77,8 @@ they are still the safer or better authority.
 | Limb pose and grasping | Neural inverse-muscle and grasp controllers inside an articulated solver |
 | Local cell dynamics | Promoted causal cellular NCA with organ-ablation and rollout gates |
 | Maps | Procedural topology authority with neural topology and decoration models under evaluation |
-| Ecology and societies | Deterministic causal scaffold; neural replacement has started but is incomplete |
-| World frames | Callable Action-DiT + VAE composite; the native game has not switched authority yet |
+| Ecology and societies | Neural behavior, colony, society, timeline, and counterfactual specialists inside the causal scaffold |
+| World frames | Callable Action-DiT + refined VAE; live in the Python nature stage, not yet the native Godot authority |
 
 The first composite neural foundation now loads 67.7M parameters across the
 Action-DiT, world VAE, exact-parent pixel refiner, actor-state student, organism
@@ -78,10 +86,9 @@ cell VAE, and causal physiology model. The larger 13-specialist teacher
 ensemble is hash-closed for reverse distillation.
 
 The physical projector still enforces bone lengths, attached roots, planted
-contacts, collision safety, and feeder contact. That is intentional. The next
-major replacement is the remaining procedural locomotion target field, followed
-by physiology, ecology, maps, and societies. Once the ensemble is good enough,
-it becomes the teacher for a unified student model.
+contacts, collision safety, and feeder contact. That is intentional. The
+callable ensemble is now integrated into the nature stage; the next phase is
+broader rollout evaluation and reverse distillation into a recurrent student.
 
 ## Run the game
 
