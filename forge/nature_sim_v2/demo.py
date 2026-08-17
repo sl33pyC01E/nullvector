@@ -57,6 +57,17 @@ OVERLAY_TOGGLES=(
     ("show_status_hud","STATUS + CONTROLS",""),
 )
 STUDENT_VIEW_HIDDEN=tuple(attribute for attribute,_label,_key in OVERLAY_TOGGLES if attribute!="show_shadows")
+DISPLAY_FPS=30
+EMBODIED_MOTION_HZ=24
+CAUSAL_WORLD_HZ=12
+MINIMUM_ORGANISM_HZ=12
+
+if not (24<=DISPLAY_FPS<=30):
+    raise RuntimeError("Display cadence must remain inside the deployment target.")
+if EMBODIED_MOTION_HZ<MINIMUM_ORGANISM_HZ or EMBODIED_MOTION_HZ>DISPLAY_FPS:
+    raise RuntimeError("Embodied motion cadence violates the organism presentation budget.")
+if not 0<CAUSAL_WORLD_HZ<=EMBODIED_MOTION_HZ:
+    raise RuntimeError("Causal world cadence is invalid.")
 
 
 class NatureDemo:
@@ -780,9 +791,9 @@ class NatureDemo:
             if self.neural_future is not None:self.neural_future.result();self._poll_neural_job();self.draw()
             if self.sprite_future is not None:self.sprite_future.result();self._prepare_sprites();self.draw()
             capture.parent.mkdir(parents=True,exist_ok=True);self.pg.image.save(self.screen,str(capture));self.neural_executor.shutdown(wait=True,cancel_futures=True);self.sprite_executor.shutdown(wait=True,cancel_futures=True);return
-        running=True;world_accumulator=0.0;pose_accumulator=0.0;world_step=1/12;pose_step=1/24
+        running=True;world_accumulator=0.0;pose_accumulator=0.0;world_step=1/CAUSAL_WORLD_HZ;pose_step=1/EMBODIED_MOTION_HZ
         while running:
-            delta=min(.05,self.clock.tick(30)/1000);running=self.events();world_accumulator=min(.12,world_accumulator+delta);pose_accumulator=min(.08,pose_accumulator+delta)
+            delta=min(.05,self.clock.tick(DISPLAY_FPS)/1000);running=self.events();world_accumulator=min(.12,world_accumulator+delta);pose_accumulator=min(.08,pose_accumulator+delta)
             while world_accumulator>=world_step:self.update(world_step,step_pose=False);world_accumulator-=world_step
             if not self.paused and not self.show_planner:
                 while pose_accumulator>=pose_step:self._step_visible_poses(pose_step);pose_accumulator-=pose_step
