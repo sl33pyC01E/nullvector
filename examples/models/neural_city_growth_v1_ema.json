@@ -1,0 +1,1 @@
+{"artifact":"neural_city_growth_v1_ema.pt","artifact_bytes":22736906,"artifact_sha256":"7e2143a2a52dade9961bd7e0807b6d2f56b9808207dfa830d09cc4cf549ab859","device":"cuda","format":"nullvector-neural-city-growth-ema-v1/1.0.0","parameters":5674120,"runtime_vram_allocated_bytes":44058624,"single_tick_hz":211.53260981420348,"single_tick_milliseconds":4.727403500000946}
