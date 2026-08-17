@@ -117,11 +117,11 @@ safety repair stage.
 
 ### Rollout-aware decoder
 
-![Rollout-aware decoder](showcase/neural_rollout_decoder_v2.gif)
+![Foreground-aware rollout decoder](showcase/neural_rollout_decoder_v3.gif)
 
-Teacher, frozen decoder, and rollout-aware decoder over one continuous
-untouched-world rollout. The adapter removes most ghost geometry and cuts
-rollout MAE by 70.8%; later frames remain visibly soft.
+Teacher, rollout-aware V2, and foreground-aware V3 over one continuous
+untouched-world rollout. V2 removes most ghost geometry; V3 improves foreground
+and edge fidelity. Later frames remain visibly softer than the teacher.
 
 | World VAE | Sparse Action-DiT |
 |---|---|

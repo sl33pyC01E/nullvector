@@ -62,9 +62,9 @@ physiology, feeding, behavior, colonies, societies, and forecasts.
 |---|
 | ![Five-family continuous cell VAE](examples/showcase/neural_cell_vae_five_family.gif) |
 
-| Recurrent world rollout: old decoder vs rollout-aware decoder |
+| Recurrent world rollout: rollout decoder vs foreground-aware decoder |
 |---|
-| ![Rollout-aware neural decoder](examples/showcase/neural_rollout_decoder_v2.gif) |
+| ![Foreground-aware neural decoder](examples/showcase/neural_rollout_decoder_v3.gif) |
 
 More results are in the [output gallery](examples/README.md).
 
@@ -101,6 +101,11 @@ distribution, not only exact VAE encodings. On an untouched world it reduces
 rollout-frame MAE from 0.05742 to 0.01677 (70.8%) while also improving exact
 frame reconstruction. It removes most duplicated-body trails, although long
 rollouts remain softer than the target and are not yet game-quality.
+
+The foreground-aware successor improves rollout MAE another 5.4%, foreground
+MAE 7.24%, and edge error 1.72%. The packaged 57.0M-parameter recurrent + VAE
+pipeline runs at 76.7 decoded 256x256 frames/s on the development GPU, with
+432 MiB peak reserved VRAM and 228 MB of checkpoint artifacts.
 
 The next recurrent student carries both visual and 128-feature organism state
 through contiguous rollouts. On the untouched world it beats its unchanged
