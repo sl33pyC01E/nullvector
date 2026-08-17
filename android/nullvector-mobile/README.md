@@ -2,6 +2,8 @@
 
 Android deployment foundation for the Samsung Galaxy S25 Ultra.
 
+Version 0.4 opens into the playable neural habitat rather than the model diagnostic screen. The cellular organism stays vertically aligned in a camera-following 2.5D world; touch controls movement and aim, thrown material follows a height/shadow ballistic arc, and persistent nutrient, fluid, and mineral clumps react to contact or impact. Absorbed resources are written into the organism's nutrient and energy channels before the next cellular-NCA tick. Model timings and the VAE diagnostic frame are available through `MODEL INFO`, but remain hidden during normal play.
+
 The APK runs the compact neural loop through ONNX Runtime: structured world context, recurrent action/state prediction, a 492k-parameter per-cell physiology NCA, and the 91k-parameter mobile frame VAE. It advances the latent world and a held-out 48×48 cellular organism continuously, displays both neural outputs, and feeds organism health/neural state back into action control.
 
 Two side-by-side preview flavors are available:

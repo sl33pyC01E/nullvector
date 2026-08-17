@@ -21,6 +21,8 @@ import java.nio.ByteOrder;
 import java.nio.LongBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class NeuralWorldView extends View {
     private static final String TAG = "NullvectorRuntime";
@@ -37,11 +39,35 @@ public final class NeuralWorldView extends View {
     private volatile float cellularNeural = 1f;
     private volatile boolean running = true;
     private volatile float controlX = 0f, controlY = 0f;
+    private volatile float aimX = 1f, aimY = 0f;
+    private volatile float worldX = 2048f, worldY = 2048f;
+    private volatile float velocityX = 0f, velocityY = 0f;
+    private volatile boolean diagnostics = false;
+    private volatile int gathered = 0;
+    private volatile int fireRequests = 0;
+    private volatile float pendingNutrition = 0f;
     private volatile int actionId = 0;
     private volatile boolean movementTouch = false, actionTouch = false;
+    private boolean actionWasDown = false;
+    private final List<Projectile> projectiles = new ArrayList<>();
+    private final List<MaterialNode> materials = new ArrayList<>();
+
+    private static final class Projectile {
+        float x, y, z, vx, vy, vz; int bounces; boolean resting;
+        Projectile(float x, float y, float aimX, float aimY) {
+            this.x = x; this.y = y; this.z = 54f; this.vx = aimX * 680f; this.vy = aimY * 680f; this.vz = 255f;
+        }
+    }
+
+    private static final class MaterialNode {
+        float x, y, amount; final int type;
+        MaterialNode(float x, float y, int type, float amount) { this.x = x; this.y = y; this.type = type; this.amount = amount; }
+    }
 
     public NeuralWorldView(Context owner) {
         super(owner); paint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        for (int i = 0; i < 180; i++) { long hash = worldHash(i, i * 37 + 11); materials.add(new MaterialNode(90 + Math.floorMod(hash, 3916), 90 + Math.floorMod(hash >>> 21, 3916), (int)Math.floorMod(hash >>> 42, 3), .55f + Math.floorMod(hash >>> 49, 45) / 100f)); }
+        materials.add(new MaterialNode(2165, 1985, 0, 1f)); materials.add(new MaterialNode(1905, 2115, 1, 1f)); materials.add(new MaterialNode(2250, 2180, 2, 1f));
         new Thread(this::runModels, "nullvector-neural-runtime").start();
     }
 
@@ -125,6 +151,32 @@ public final class NeuralWorldView extends View {
         return count > 0 ? total / count : 0f;
     }
 
+    private static long worldHash(int x, int y) {
+        long value = (x * 0x9E3779B97F4A7C15L) ^ (y * 0xC2B2AE3D27D4EB4FL) ^ 0x4E554C4C56454354L;
+        value ^= value >>> 30; value *= 0xBF58476D1CE4E5B9L; value ^= value >>> 27; value *= 0x94D049BB133111EBL; return value ^ (value >>> 31);
+    }
+
+    private void advanceHabitat(float dt) {
+        float targetX = controlX * 250f, targetY = controlY * 205f;
+        velocityX += (targetX - velocityX) * Math.min(1f, dt * 9f); velocityY += (targetY - velocityY) * Math.min(1f, dt * 9f);
+        worldX = Math.max(80f, Math.min(4016f, worldX + velocityX * dt)); worldY = Math.max(80f, Math.min(4016f, worldY + velocityY * dt));
+        if (fireRequests > 0 || (actionTouch && !actionWasDown)) synchronized (projectiles) { projectiles.add(new Projectile(worldX, worldY - 18f, aimX, aimY)); if (fireRequests > 0) fireRequests--; }
+        actionWasDown = actionTouch;
+        synchronized (projectiles) {
+            for (Projectile shot : projectiles) if (!shot.resting) {
+                shot.x += shot.vx * dt; shot.y += shot.vy * dt; shot.z += shot.vz * dt; shot.vz -= 560f * dt;
+                if (shot.z <= 0f) {
+                    shot.z = 0f;
+                    if (shot.bounces < 2 && Math.abs(shot.vz) > 80f) { shot.vz = -shot.vz * .34f; shot.vx *= .72f; shot.vy *= .72f; shot.bounces++; }
+                    else { shot.vz = 0f; shot.vx *= .88f; shot.vy *= .88f; if (Math.hypot(shot.vx, shot.vy) < 18f) shot.resting = true; }
+                }
+                if (shot.z < 34f) synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f && Math.hypot(shot.x - node.x, shot.y - node.y) < 25f) { node.amount = Math.max(0f, node.amount - .42f); gathered++; shot.vx *= -.18f; shot.vy *= -.18f; shot.vz = Math.max(80f, shot.vz); break; } }
+            }
+            if (projectiles.size() > 48) projectiles.subList(0, projectiles.size() - 48).clear();
+        }
+        synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f && node.type != 2 && Math.hypot(worldX - node.x, worldY - node.y) < 27f) { float eaten = Math.min(node.amount, dt * .32f); node.amount -= eaten; pendingNutrition += eaten * (node.type == 0 ? 1f : .45f); gathered += node.amount <= 0f ? 1 : 0; } }
+    }
+
     private void runModels() {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             OrtEnvironment environment = OrtEnvironment.getEnvironment();
@@ -170,7 +222,7 @@ public final class NeuralWorldView extends View {
                 try (OnnxTensor cellStaticTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellStatic), new long[]{1, 85, 48, 48});
                      OnnxTensor cellBondTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellBonds), new long[]{1, 8, 48, 48})) {
                   while (running) {
-                    long frameBegan = System.nanoTime(); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
+                    long frameBegan = System.nanoTime(); advanceHabitat(1f / 30f); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
                     actionInputs.put("current", OnnxTensor.createTensor(environment, FloatBuffer.wrap(current), new long[]{1, 48, 32, 32}));
                     actionInputs.put("previous", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previous), new long[]{1, 48, 32, 32}));
@@ -210,6 +262,8 @@ public final class NeuralWorldView extends View {
                     decoderMilliseconds = (System.nanoTime() - decoderBegan) / 1_000_000.0; decoderInput.get("latent").close(); postInvalidateOnAnimation(); tick++;
                     if ((tick & 1) == 0) {
                         long cellularBegan = System.nanoTime();
+                        float absorbed = pendingNutrition; pendingNutrition = 0f;
+                        if (absorbed > 0f) for (int p = 0, cells = 48 * 48; p < cells; p++) if (cellStatic[p] > .5f) { cellState[2 * cells + p] = Math.min(1f, cellState[2 * cells + p] + absorbed * .018f); cellState[3 * cells + p] = Math.min(1f, cellState[3 * cells + p] + absorbed * .009f); }
                         try (OnnxTensor cellStateTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellState), new long[]{1, 12, 48, 48})) {
                             Map<String, OnnxTensor> cellInputs = new HashMap<>(); cellInputs.put("static", cellStaticTensor); cellInputs.put("state", cellStateTensor); cellInputs.put("live_bonds", cellBondTensor);
                             try (OrtSession.Result result = cellularSession.run(cellInputs)) {
@@ -231,43 +285,48 @@ public final class NeuralWorldView extends View {
         postInvalidate();
     }
 
+    private void bar(Canvas canvas, float x, float y, float width, float value, int color, String label) {
+        paint.setColor(Color.argb(180, 5, 11, 16)); canvas.drawRect(x, y, x + width, y + 18, paint); paint.setColor(color); canvas.drawRect(x + 2, y + 2, x + 2 + (width - 4) * Math.max(0f, Math.min(1f, value)), y + 16, paint); paint.setTextSize(13); paint.setColor(Color.WHITE); canvas.drawText(label, x + 6, y + 14, paint);
+    }
+
     @Override protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas); canvas.drawColor(Color.rgb(4, 8, 13)); float width = getWidth(), height = getHeight();
-        paint.setColor(Color.rgb(24, 45, 54)); paint.setStrokeWidth(1);
-        for (int x = 0; x < width; x += 32) canvas.drawLine(x, 0, x, height, paint);
-        for (int y = 0; y < height; y += 32) canvas.drawLine(0, y, width, y, paint);
-        float cx = width * .25f, cy = height * .52f, radius = Math.min(width * .5f, height) * .31f;
-        for (int i = 0; i < context.length; i++) {
-            double angle = i * Math.PI * 2 / context.length; float strength = Math.min(1, Math.abs(context[i]));
-            float x = cx + (float)Math.cos(angle) * radius * (.55f + .4f * strength); float y = cy + (float)Math.sin(angle) * radius * (.55f + .4f * strength);
-            paint.setColor(Color.rgb(20 + (int)(40 * strength), 130 + (int)(110 * strength), 145 + (int)(90 * strength)));
-            canvas.drawCircle(x, y, 3 + 10 * strength, paint);
+        super.onDraw(canvas); canvas.drawColor(Color.rgb(4, 9, 12)); float width = getWidth(), height = getHeight(); float cx = width * .5f, cy = height * .54f;
+        int tile = 64, minX = (int)Math.floor((worldX - cx) / tile) - 1, maxX = (int)Math.ceil((worldX + cx) / tile) + 1;
+        int minY = (int)Math.floor((worldY - cy) / tile) - 1, maxY = (int)Math.ceil((worldY + (height - cy)) / tile) + 1;
+        for (int ty = minY; ty <= maxY; ty++) for (int tx = minX; tx <= maxX; tx++) {
+            long hash = worldHash(tx, ty); int kind = (int)Math.floorMod(hash, 17); float sx = cx + tx * tile - worldX, sy = cy + ty * tile - worldY;
+            int base = 13 + (int)Math.floorMod(hash >>> 9, 8); if (kind < 3) paint.setColor(Color.rgb(8, 30 + base, 40 + base)); else if (kind < 6) paint.setColor(Color.rgb(27 + base, 25 + base, 20 + base / 2)); else paint.setColor(Color.rgb(8 + base / 2, 29 + base, 24 + base / 2));
+            canvas.drawRect(sx, sy, sx + tile + 1, sy + tile + 1, paint); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1); paint.setColor(Color.argb(50, 95, 210, 190)); canvas.drawRect(sx, sy, sx + tile, sy + tile, paint); paint.setStyle(Paint.Style.FILL);
+            if (Math.floorMod(hash >>> 22, 29) == 0) { paint.setColor(Color.rgb(155, 112, 64)); canvas.drawRect(sx + 23, sy + 20, sx + 41, sy + 46, paint); paint.setColor(Color.rgb(205, 159, 83)); canvas.drawCircle(sx + 32, sy + 19, 11, paint); }
         }
-        if (neuralFrame != null) {
-            float size = Math.min(height * .72f, width * .43f); paint.setFilterBitmap(true);
-            canvas.drawBitmap(neuralFrame, null, new android.graphics.RectF(width * .73f - size * .5f, cy - size * .5f, width * .73f + size * .5f, cy + size * .5f), paint);
-            paint.setFilterBitmap(false);
+        synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f) { float sx = cx + node.x - worldX, sy = cy + node.y - worldY; if (sx > -30 && sy > -30 && sx < width + 30 && sy < height + 30) { int color = node.type == 0 ? Color.rgb(151, 255, 68) : node.type == 1 ? Color.rgb(61, 206, 255) : Color.rgb(255, 190, 66); paint.setColor(Color.argb(90, 0, 0, 0)); canvas.drawOval(sx - 13, sy + 7, sx + 13, sy + 14, paint); paint.setColor(color); float radius = 5 + node.amount * 8; canvas.drawCircle(sx, sy, radius, paint); paint.setColor(Color.argb(210, 235, 255, 235)); canvas.drawCircle(sx - radius * .28f, sy - radius * .28f, Math.max(2f, radius * .24f), paint); } } }
+        synchronized (projectiles) { for (Projectile shot : projectiles) {
+            float sx = cx + shot.x - worldX, ground = cy + shot.y - worldY; float scale = 1f + shot.z / 260f;
+            paint.setColor(Color.argb(90, 0, 0, 0)); canvas.drawOval(sx - 10 * scale, ground - 3, sx + 10 * scale, ground + 4, paint);
+            paint.setColor(shot.resting ? Color.rgb(160, 130, 76) : Color.rgb(255, 211, 91)); canvas.drawCircle(sx, ground - shot.z, 7 * scale, paint); paint.setColor(Color.rgb(255, 245, 185)); canvas.drawCircle(sx - 2, ground - shot.z - 2, 2 * scale, paint);
+        } }
+        float organismSize = Math.min(250f, height * .31f); paint.setColor(Color.argb(115, 0, 0, 0)); canvas.drawOval(cx - organismSize * .34f, cy + organismSize * .38f, cx + organismSize * .34f, cy + organismSize * .52f, paint);
+        if (cellularFrame != null) { paint.setFilterBitmap(false); canvas.drawBitmap(cellularFrame, null, new android.graphics.RectF(cx - organismSize * .5f, cy - organismSize * .52f, cx + organismSize * .5f, cy + organismSize * .48f), paint); }
+        paint.setColor(Color.argb(150, 255, 90, 180)); paint.setStrokeWidth(3); canvas.drawLine(cx, cy - organismSize * .12f, cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, paint); canvas.drawCircle(cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, 5, paint);
+        paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(25); canvas.drawText("NULLVECTOR // NEURAL HABITAT", 28, 39, paint); paint.setTextSize(15); paint.setColor(Color.rgb(165, 199, 199)); canvas.drawText("CELLULAR CREATURE STAGE · WORLD 4096² · MATERIAL " + gathered, 29, 63, paint);
+        bar(canvas, 28, 78, 230, cellularHealth, Color.rgb(62, 224, 115), "HEALTH"); bar(canvas, 28, 102, 230, cellularNeural, Color.rgb(214, 72, 255), "NEURAL");
+        paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(movementTouch ? Color.rgb(67, 239, 220) : Color.argb(145, 67, 125, 130)); canvas.drawCircle(width * .13f, height * .82f, 72, paint); paint.setStyle(Paint.Style.FILL); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawCircle(width * .13f + controlX * 58, height * .82f + controlY * 58, 14, paint);
+        paint.setColor(actionTouch ? Color.rgb(255, 80, 180) : Color.rgb(84, 45, 73)); canvas.drawCircle(width * .87f, height * .82f, 64, paint); paint.setColor(Color.WHITE); paint.setTextSize(16); canvas.drawText("THROW", width * .87f - 25, height * .82f + 5, paint);
+        paint.setColor(Color.argb(180, 5, 10, 14)); canvas.drawRect(width - 145, 18, width - 18, 58, paint); paint.setColor(Color.rgb(140, 205, 205)); paint.setTextSize(14); canvas.drawText(diagnostics ? "HIDE MODELS" : "MODEL INFO", width - 132, 43, paint);
+        if (diagnostics) {
+            paint.setColor(Color.argb(224, 2, 6, 10)); canvas.drawRect(width * .60f, 72, width - 20, height * .62f, paint); float panelX = width * .60f + 18, panelY = 98;
+            paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(16); canvas.drawText(status, panelX, panelY, paint); paint.setColor(Color.rgb(170, 195, 202)); paint.setTextSize(14); canvas.drawText(String.format("context %.2fms  action %.2fms  cells %.2fms  VAE %.2fms", milliseconds, actionMilliseconds, cellularMilliseconds, decoderMilliseconds), panelX, panelY + 25, paint);
+            if (neuralFrame != null) { float size = Math.min(height * .36f, width * .20f); paint.setFilterBitmap(true); canvas.drawBitmap(neuralFrame, null, new android.graphics.RectF(width - size - 38, panelY + 38, width - 38, panelY + 38 + size), paint); paint.setFilterBitmap(false); }
         }
-        if (cellularFrame != null) {
-            float size = Math.min(height * .34f, width * .23f); paint.setFilterBitmap(false);
-            canvas.drawBitmap(cellularFrame, null, new android.graphics.RectF(cx - size * .5f, cy - size * .5f, cx + size * .5f, cy + size * .5f), paint);
-            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawRect(cx - size * .5f, cy - size * .5f, cx + size * .5f, cy + size * .5f, paint); paint.setStyle(Paint.Style.FILL);
-        }
-        paint.setTextSize(28); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawText("NULLVECTOR // GALAXY S25 ULTRA", 42, 54, paint);
-        paint.setTextSize(20); paint.setColor(Color.rgb(170, 195, 202)); canvas.drawText(status, 42, 88, paint); canvas.drawText(String.format("context %.2f ms · action %.2f ms · cells %.2f ms · VAE %.2f ms", milliseconds, actionMilliseconds, cellularMilliseconds, decoderMilliseconds), 42, 118, paint);
-        canvas.drawText(String.format("live cellular physiology 15 Hz · health %.3f · neural %.3f · display 30 FPS", cellularHealth, cellularNeural), 42, 146, paint);
-        paint.setTextSize(16); canvas.drawText("left touch: move · right touch: action selection/act · recurrent context → action → VAE", 42, height - 42, paint);
-        paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(movementTouch ? Color.rgb(67, 239, 220) : Color.rgb(55, 85, 92)); canvas.drawCircle(width * .16f, height * .82f, 72, paint);
-        paint.setStyle(Paint.Style.FILL); canvas.drawCircle(width * .16f + controlX * 58, height * .82f + controlY * 58, 14, paint);
-        paint.setColor(actionTouch ? Color.rgb(255, 80, 180) : Color.rgb(80, 55, 75)); canvas.drawCircle(width * .84f, height * .82f, 62, paint); paint.setColor(Color.WHITE); paint.setTextSize(18); canvas.drawText("A" + actionId, width * .84f - 15, height * .82f + 6, paint);
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
         boolean move = false, act = false; float width = Math.max(1, getWidth()), height = Math.max(1, getHeight());
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && event.getX() > width - 165 && event.getY() < 75) { diagnostics = !diagnostics; invalidate(); return true; }
         if (event.getActionMasked() != MotionEvent.ACTION_UP && event.getActionMasked() != MotionEvent.ACTION_CANCEL) for (int pointer = 0; pointer < event.getPointerCount(); pointer++) {
             float x = event.getX(pointer), y = event.getY(pointer);
             if (x < width * .55f) { controlX = Math.max(-1, Math.min(1, (x - width * .16f) / 72f)); controlY = Math.max(-1, Math.min(1, (y - height * .82f) / 72f)); move = true; }
-            else { actionId = Math.max(0, Math.min(21, (int)(y / height * 22))); act = true; }
+            else { float dx = x - width * .5f, dy = y - height * .54f, length = Math.max(1f, (float)Math.hypot(dx, dy)); aimX = dx / length; aimY = dy / length; actionId = 10; if (event.getActionMasked() == MotionEvent.ACTION_DOWN) fireRequests++; act = true; }
         }
         movementTouch = move; actionTouch = act; if (!move) { controlX = 0; controlY = 0; } invalidate(); return true;
     }
