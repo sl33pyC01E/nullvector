@@ -28,7 +28,7 @@ too large for an ordinary GitHub repository.
 
 | Grounded locomotion + grasp | 2.5D ballistic throw | True arm severing |
 |---|---|---|
-| ![Causal neural gait transitions into neural articulated grasping and feeding](examples/showcase/articulated_grounded_feeding_v10.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v10.gif) | ![Severed articulated arm dropping its payload and settling](examples/showcase/articulated_severed_grasper_v10.gif) |
+| ![Causal neural gait transitions into neural articulated grasping and feeding](examples/showcase/articulated_grounded_feeding_v11.gif) | ![Ballistic throw with elevation, shadow, bounce and recoil](examples/showcase/articulated_ballistic_throw_v11.gif) | ![Severed articulated arm with a damped healthy shoulder](examples/showcase/articulated_severed_grasper_v11.gif) |
 
 The approach, plant, reach, grasp, and feeding phases use one full skeleton,
 one projected-bone solver, the same grounded contacts, and the same cellular
@@ -52,11 +52,11 @@ and bounce/roll/thud landing responses.
 
 | Damaged grasper | Feeder ablation |
 |---|---|
-| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v10.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v10.gif) |
+| ![Damaged arm twitches but cannot carry](examples/showcase/articulated_damaged_grasper_v11.gif) | ![Destroyed feeder blocks absorption](examples/showcase/articulated_feeder_ablation_v11.gif) |
 
-![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v10.gif)
+![Same throw, three material impact responses](examples/showcase/articulated_impact_modes_v11.gif)
 
-![Five-family morphology-specific acquisition](examples/showcase/articulated_five_family_feeding_v10.gif)
+![Five-family morphology-specific acquisition with visible root siphon and audited intake](examples/showcase/articulated_five_family_feeding_v11.gif)
 
 Ground matter is acquired through five distinct physical strategies rather
 than a universal manipulator: humanoids kneel and grasp, animals lower their

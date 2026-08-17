@@ -109,6 +109,14 @@ def _frame(arena: NeuralManipulationArena, target_id: int, title: str, note: str
                 py = fy + (ty - fy) * unit + np.sin(np.pi * unit) * band * 4
                 points.append((int(round(px)), int(round(py))))
             draw.line(points, fill=color, width=1)
+    elif arena.acquisition_strategy() == "root_siphon" and target.mass > 1e-8:
+        feeder = arena.posed_feeder_points().mean(axis=0)
+        fx, fy = _point(feeder)
+        draw.line((tx, ty, fx, fy), fill=(112, 225, 92, 105), width=2)
+        for pulse in range(4):
+            unit = (arena.articulation.elapsed * .55 + pulse / 4) % 1.0
+            px = int(round(tx + (fx - tx) * unit)); py = int(round(ty + (fy - ty) * unit))
+            draw.rectangle((px - 1, py - 1, px + 1, py + 1), fill=(190, 255, 104, 220))
     if kinetics.impact_mode == "roll":
         cosine, sine = np.cos(kinetics.angle), np.sin(kinetics.angle)
         corners = []
@@ -300,6 +308,11 @@ def _severed_grasper_clip() -> list[Image.Image]:
     arena.sever_appendage(held_step.appendage, impulse=(.8, -1.4))
     for tick in range(150):
         arena._step_detached_limbs(.05)
+        # Attached peer shoulders remain chassis-coupled and relax from the
+        # reach pose; only the explicitly severed chain receives free physics.
+        for peer, gene in enumerate(arena.organism.genome.appendages):
+            if peer != held_step.appendage and arena.articulation.attached[peer] and gene.kind == "arm":
+                arena.articulation.solve(peer, np.asarray(gene.endpoint, np.float64), .10, delta=.05, actuation=arena.appendage_capacity(peer))
         arena.integrate_free_target(target_id, .05)
         target = arena.targets[target_id]
         step = ManipulationStep(
@@ -325,7 +338,7 @@ def _damaged_grasper_clip() -> list[Image.Image]:
     return frames + frames[-12:]
 
 
-def _five_family_clip() -> list[Image.Image]:
+def _five_family_clip(audit: dict[str, object] | None = None) -> list[Image.Image]:
     positions = (5.5, 0.0, 4.0, 8.0, 8.5)
     materials = ("biomass", "biomass", "mineral", "phase", "charge")
     arenas = [_ground_arena(index, positions[family], material=materials[family]) for family, index in enumerate((0, 2, 4, 6, 8))]
@@ -349,21 +362,30 @@ def _five_family_clip() -> list[Image.Image]:
             frames.append(sheet)
         if complete:
             break
+    if audit is not None:
+        for family, (arena, target_id) in enumerate(arenas):
+            audit[FAMILIES[family]] = {
+                "strategy": arena.acquisition_strategy(),
+                "consumed_mass": round(arena.feeding.consumed_mass, 6),
+                "remaining_mass": round(arena.targets[target_id].mass, 6),
+                "passed_visible_intake_gate": arena.feeding.consumed_mass >= .20,
+            }
     return frames + frames[-10:]
 
 
 def build_showcase(destination: Path) -> dict[str, object]:
     destination = Path(destination).resolve()
     destination.mkdir(parents=True, exist_ok=True)
+    family_audit: dict[str, object] = {}
     clips = {
-        "articulated_inertial_feeding_v10.gif": _feed_clip(),
-        "articulated_grounded_feeding_v10.gif": _grounded_grasp_clip(),
-        "articulated_ballistic_throw_v10.gif": _throw_clip(),
-        "articulated_impact_modes_v10.gif": _impact_modes_clip(),
-        "articulated_feeder_ablation_v10.gif": _feeder_ablation_clip(),
-        "articulated_severed_grasper_v10.gif": _severed_grasper_clip(),
-        "articulated_damaged_grasper_v10.gif": _damaged_grasper_clip(),
-        "articulated_five_family_feeding_v10.gif": _five_family_clip(),
+        "articulated_inertial_feeding_v11.gif": _feed_clip(),
+        "articulated_grounded_feeding_v11.gif": _grounded_grasp_clip(),
+        "articulated_ballistic_throw_v11.gif": _throw_clip(),
+        "articulated_impact_modes_v11.gif": _impact_modes_clip(),
+        "articulated_feeder_ablation_v11.gif": _feeder_ablation_clip(),
+        "articulated_severed_grasper_v11.gif": _severed_grasper_clip(),
+        "articulated_damaged_grasper_v11.gif": _damaged_grasper_clip(),
+        "articulated_five_family_feeding_v11.gif": _five_family_clip(family_audit),
     }
     artifacts: dict[str, dict[str, object]] = {}
     for name, frames in clips.items():
@@ -372,7 +394,7 @@ def build_showcase(destination: Path) -> dict[str, object]:
         artifacts[name] = {"sha256": _sha(path), "bytes": path.stat().st_size, "frames": len(frames)}
     limb_report = json.loads((LIMB_POSE_CONTROLLER.parent / "report.json").read_text(encoding="utf-8"))
     report = {
-        "format": "nullvector-neural-manipulation-showcase/10.0.0",
+        "format": "nullvector-neural-manipulation-showcase/11.0.0",
         "controllers": {
             "high_level_grasper_sha256": CONTROLLER_SHA256,
             "neural_limb_pose_sha256": LIMB_POSE_CONTROLLER_SHA256,
@@ -382,6 +404,8 @@ def build_showcase(destination: Path) -> dict[str, object]:
             "neural_grounded_feedback_metrics": json.loads((GROUNDED_FEEDBACK_CONTROLLER.parent / "report.json").read_text(encoding="utf-8"))["metrics"],
         },
         "artifacts": artifacts,
+        "five_family_intake_audit": family_audit,
+        "five_family_intake_all_passed": all(bool(item["passed_visible_intake_gate"]) for item in family_audit.values()),
     }
     (destination / "showcase_report.json").write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return report

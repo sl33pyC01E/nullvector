@@ -257,7 +257,7 @@ class NeuralManipulationArena:
         endpoint = self.articulation.endpoint(appendage)
         return min(feasible, key=lambda point: float(np.linalg.norm(point - endpoint)))
 
-    def _absorb_at_posed_feeder(self, target_id: int, delta: float) -> IntakeResult:
+    def _absorb_at_posed_feeder(self, target_id: int, delta: float, *, intake_rate: float | None = None) -> IntakeResult:
         """Reuse physiology while making contact against the posed cell skin."""
         target = self.targets[target_id]
         kinetics = self.target_kinetics[target_id]
@@ -282,7 +282,11 @@ class NeuralManipulationArena:
         try:
             return absorb_food(
                 self.living, self.feeding, target, body_position=self.body.position,
-                delta=delta, contact_field=1.80, intake_rate=.55,
+                delta=delta, contact_field=1.80,
+                # Collection remains readable instead of deleting a clump on
+                # first contact. Roots and phase fields metabolize gradually;
+                # mouths and machine tools retain a faster physical intake.
+                intake_rate=(.28, .24, .14, .22, .22)[self.family] if intake_rate is None else intake_rate,
             )
         finally:
             target.position[:] = original
@@ -364,8 +368,8 @@ class NeuralManipulationArena:
         release = np.asarray(command.throw_impulse, dtype=np.float64) * (17.5 * throw_strength) if command.release and goal == "throw" else None
         if release is not None:
             magnitude = float(np.linalg.norm(release))
-            if magnitude > 11.5:
-                release *= 11.5 / magnitude
+            if magnitude > 11.3:
+                release *= 11.3 / magnitude
         effective_force = float(command.force * capacity)
         can_hold = capacity >= .12 and target.mass <= .10 + capacity * 2.2
         result = solve_grasp(
@@ -405,7 +409,7 @@ class NeuralManipulationArena:
         self.body.velocity *= math.exp(-delta * 3.2)
         if not result["attached"]:
             self.integrate_free_target(target_id, delta)
-        intake = self._absorb_at_posed_feeder(target_id, delta)
+        intake = self._absorb_at_posed_feeder(target_id, delta, intake_rate=None if goal == "consume" else .55)
         if intake.absorbed_mass > 0 and target.mass <= 1e-8:
             self.constraint.attached = False
             self.held_target = None
