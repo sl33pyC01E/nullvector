@@ -1,0 +1,51 @@
+{
+  "apk": {
+    "bytes": 500281123,
+    "package": "world.nullvector.mobile.fp32",
+    "sha256": "cdd176d0c83cd4a08409c5ccba3a342c230da1316b8db616d7211f8dcbe601d9",
+    "version": "0.5.0-ensemble-preview-fp32"
+  },
+  "device_exercised": "Android 16 x86_64 emulator",
+  "models": {
+    "local": [
+      "world_context",
+      "recurrent_action",
+      "cell_physiology",
+      "grounded_muscle_contact",
+      "articulated_grasper",
+      "ecology",
+      "organism_cell_vae",
+      "world_frame_vae"
+    ],
+    "slow": [
+      "macro_patch",
+      "colony_role",
+      "society_construction",
+      "timeline",
+      "counterfactual"
+    ]
+  },
+  "runtime": {
+    "android_rss_bytes": 780353536,
+    "cold_first_cycle_milliseconds": {
+      "colony": 25.36,
+      "counterfactual": 33.38,
+      "macro": 17.52,
+      "society": 12.55,
+      "structured_context": 43.93,
+      "timeline": 23.40
+    },
+    "result": "coupled_ensemble_ok"
+  },
+  "screenshots": {
+    "diagnostics": {
+      "path": "android_coupled_ensemble_diagnostics_v05.png",
+      "sha256": "1086a4144e2dbcb1dd131cf01a78bedc1e531e46a7340a0d0da453e556629b61"
+    },
+    "world": {
+      "path": "android_coupled_ensemble_v05.png",
+      "sha256": "acc8b068dee398cf261a2b246e338b1e4d80438bff3916276a64a9d77dafe979"
+    }
+  },
+  "status": "android_coupled_teacher_ensemble_running"
+}

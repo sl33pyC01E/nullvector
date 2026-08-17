@@ -43,3 +43,19 @@ def test_android_foundation_supplies_live_perception_and_clean_view():
     assert "visibleOffset" in source and "exploredWorld" in source
     assert "!creature.selected&&!isWorldVisible" in source
     assert "hudVisible" in source and "sightOverlay" in source and "labelsVisible" in source and "barsVisible" in source
+
+
+def test_android_world_runs_the_coupled_teacher_ensemble():
+    assets = PROJECT_ROOT / "android/nullvector-mobile/app/src/main/assets"
+    manifest = json.loads((assets / "coupled_ensemble_manifest.json").read_bytes())
+    assert manifest["status"] == "android_coupled_ensemble_export_ready"
+    assert set(manifest["models"]) == {"macro", "colony", "society", "timeline", "counterfactual"}
+    assert all((assets / row["path"]).stat().st_size == row["bytes"] for row in manifest["models"].values())
+    world = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/FoundationWorld.java").read_text(encoding="utf-8")
+    view = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
+    for token in ("encodeMacro()", "encodeColony()", "encodeSociety()", "timelineFeatures()", "encodeWorldContext()", "encodeSelectedVae()"):
+        assert token in world
+    for asset in ("macro_fp32.onnx", "colony_fp32.onnx", "society_fp32.onnx", "timeline_fp32.onnx", "counterfactual_fp32.onnx"):
+        assert f'assetFile("{asset}")' in view
+    assert "applySelectedVae(rgba)" in view
+    assert "COUPLED_ENSEMBLE_OK" in view

@@ -16,6 +16,7 @@ import java.util.List;
  * activation; this class owns the causal skeleton, anchors, cells and world plane. */
 final class FoundationWorld {
     static final int MAX_APPENDAGES = 8, MAX_MUSCLES = 60;
+    static final int MACRO_SIDE = 32, MACRO_CELLS = MACRO_SIDE * MACRO_SIDE, MACRO_CHANNELS = 32, GLOBAL_FEATURES = 44;
     static final int CELL_PIXELS = 48 * 48, CELL_STATIC_CHANNELS = 85, CELL_STATE_CHANNELS = 12, CELL_BOND_CHANNELS = 8;
     static final String[] FAMILIES = {"HUMANOID", "ANIMALIAN", "PLANTLIKE", "ANOMALY", "MACHINE"};
 
@@ -46,6 +47,7 @@ final class FoundationWorld {
         float circulation=1f, respiration=1f, digestion=1f, sensory=1f, locomotion=1f;
         int manipulationOwner=-1;boolean manipulationActive;float manipulationX,manipulationY,manipulationForce;
         int intent = 11; float urgency = .5f;
+        int colonyRole; final float[] colonyAction = new float[3];
         boolean selected;
 
         Creature(JSONObject row, int ordinal) throws Exception {
@@ -79,6 +81,15 @@ final class FoundationWorld {
     }
 
     final List<Creature> creatures = new ArrayList<>(); int selected = 0; float time;
+    final float[] resources = new float[10 * MACRO_CELLS];
+    final int[] structures = new int[MACRO_CELLS];
+    final float[] macroPrevious = new float[MACRO_CHANNELS * MACRO_CELLS];
+    final float[] macroCurrent = new float[MACRO_CHANNELS * MACRO_CELLS];
+    final float[] globalPrevious = new float[GLOBAL_FEATURES], globalCurrent = new float[GLOBAL_FEATURES];
+    final float[] timelineHistory = new float[24 * 64]; int timelineRows;
+    float settlementFood=.8f,settlementWealth=.5f,settlementPower=.35f,settlementKnowledge=.15f;
+    int societyActivity,societyProject,societyDiplomacy,buildingCount;float timelineConfidence;int timelineEvent,counterfactualAction;
+    final float[] societyLabor = new float[6];
 
     FoundationWorld(Context context) throws Exception {
         byte[] bytes; try(InputStream input=context.getAssets().open("foundation_anatomy.json")){bytes=input.readAllBytes();}
@@ -88,6 +99,8 @@ final class FoundationWorld {
         float[] stateValues=floatAsset(context,"foundation_cell_state.f32",creatures.size()*CELL_STATE_CHANNELS*CELL_PIXELS);
         float[] bondValues=floatAsset(context,"foundation_cell_bonds.f32",creatures.size()*CELL_BOND_CHANNELS*CELL_PIXELS);
         for(int i=0;i<creatures.size();i++){Creature c=creatures.get(i);System.arraycopy(staticValues,i*c.cellStatic.length,c.cellStatic,0,c.cellStatic.length);System.arraycopy(stateValues,i*c.cellState.length,c.cellState,0,c.cellState.length);System.arraycopy(bondValues,i*c.cellBonds.length,c.cellBonds,0,c.cellBonds.length);}
+        for(int channel=0;channel<10;channel++)for(int p=0;p<MACRO_CELLS;p++){int x=p%MACRO_SIDE,y=p/MACRO_SIDE;long hash=(x*0x9E3779B97F4A7C15L)^(y*0xC2B2AE3D27D4EB4FL)^(channel*0x165667B19E3779F9L);float wave=.5f+.25f*(float)Math.sin(x*.31+channel*.73)* (float)Math.cos(y*.27-channel*.41);resources[channel*MACRO_CELLS+p]=clamp(wave+((hash>>>57)&15)/120f,0,1);}
+        MacroInput initial=encodeMacro();System.arraycopy(initial.current,0,macroCurrent,0,macroCurrent.length);System.arraycopy(initial.current,0,macroPrevious,0,macroPrevious.length);System.arraycopy(initial.global,0,globalCurrent,0,globalCurrent.length);System.arraycopy(initial.global,0,globalPrevious,0,globalPrevious.length);
         creatures.get(0).selected=true;
     }
 
@@ -95,6 +108,10 @@ final class FoundationWorld {
 
     synchronized Creature selected(){ return creatures.get(selected); }
     synchronized void select(int index){if(index<0||index>=creatures.size())return;creatures.get(selected).selected=false;selected=index;creatures.get(selected).selected=true;}
+
+    synchronized VaeInput encodeSelectedVae(){Creature c=selected();VaeInput result=new VaeInput();int row=0;for(Cell cell:c.cells){if(row>=576||cell.detached||cell.health<=.01f)continue;int offset=row*52;float localX=c.cellX(cell),localY=c.cellY(cell);result.features[offset]=clamp(localX/23.5f,-1,1);result.features[offset+1]=clamp(localY/23.5f,-1,1);int tissue=Math.max(0,Math.min(14,cell.tissue));result.features[offset+2+tissue]=1;result.features[offset+17+c.family]=1;for(int i=0;i<8;i++)result.features[offset+22+i]=c.traits[i];result.features[offset+30]=c.health;result.features[offset+31]=c.neural;result.features[offset+32]=c.energy;result.features[offset+33]=c.circulation;result.features[offset+34]=c.respiration;result.features[offset+35]=c.digestion;result.features[offset+36]=c.locomotion;int kind=0,side=0;if(cell.appendage>=0&&cell.appendage<c.appendages.length){Appendage appendage=c.appendages[cell.appendage];kind=Math.max(0,Math.min(8,kindIndex(appendage.kind)));side=appendage.side;}result.features[offset+37+kind]=1;result.features[offset+46]=side;result.features[offset+47]=(float)Math.sin(Math.PI*2*c.phase);result.features[offset+48]=(float)Math.cos(Math.PI*2*c.phase);result.features[offset+49]=cell.health;result.features[offset+50]=cell.appendage>=0?1:0;result.features[offset+51]=1;result.mask[row]=1;row++;}return result;}
+
+    synchronized void applySelectedVae(float[][][][] rgba){Creature c=selected();for(Cell cell:c.cells){if(cell.detached||cell.health<=.01f)continue;int x=Math.max(0,Math.min(47,Math.round(c.cellX(cell)+23.5f))),y=Math.max(0,Math.min(47,Math.round(c.cellY(cell)+23.5f)));float predictedAlpha=clamp(rgba[0][3][y][x],0,1),luminance=(rgba[0][0][y][x]+rgba[0][1][y][x]+rgba[0][2][y][x])/3f;if(predictedAlpha<.2f||luminance<.04f)continue;float blend=.12f;cell.red+=(clamp(rgba[0][0][y][x],0,1)-cell.red)*blend;cell.green+=(clamp(rgba[0][1][y][x],0,1)-cell.green)*blend;cell.blue+=(clamp(rgba[0][2][y][x],0,1)-cell.blue)*blend;}}
 
     synchronized void setPlayerControl(float x,float y){Creature c=selected();c.desiredX=x;c.desiredY=y;}
 
@@ -119,12 +136,49 @@ final class FoundationWorld {
         for(int i=20;i<36;i++)input.self[i]=.45f;input.self[36+(c.family==0?0:c.family==1?1:c.family==2?2:c.family==3?4:5)]=1;
         input.self[46]=c.energy<.4f?1:0;input.self[47]=c.energy>=.4f?1:0;input.self[50]=c.health;input.self[51]=c.neural;for(int i=52;i<=56;i++)input.self[i]=Math.min(c.health,c.neural);input.self[57]=c.energy;input.self[58]=Math.min(1,c.energy*.7f);input.self[62]=c.vx/240;input.self[63]=c.vy/240;
         int[] appendageCounts=new int[8];for(Appendage a:c.appendages){int kind=kindIndex(a.kind);if(kind>=0)appendageCounts[kind]++;}for(int i=0;i<8;i++)input.self[67+i]=appendageCounts[i]/8f;
-        for(int resource=0;resource<10;resource++){float scale=.0045f+resource*.00031f;float local=.5f+.5f*(float)Math.sin(c.x*scale+resource*1.7)* (float)Math.cos(c.y*scale*.83-resource*.61);float gx=(float)Math.cos(c.x*scale+resource*1.7)*scale*4,gy=-(float)Math.sin(c.y*scale*.83-resource*.61)*scale*.83f*4;int o=resource*4;input.resource[o]=local;input.resource[o+1]=gx;input.resource[o+2]=gy;input.resource[o+3]=dietAffinity(c.family,resource);}
+        for(int resource=0;resource<10;resource++){float local=resourceAt(resource,c.x,c.y),gx=resourceAt(resource,c.x+128,c.y)-resourceAt(resource,c.x-128,c.y),gy=resourceAt(resource,c.x,c.y+128)-resourceAt(resource,c.x,c.y-128);int o=resource*4;input.resource[o]=local;input.resource[o+1]=gx;input.resource[o+2]=gy;input.resource[o+3]=dietAffinity(c.family,resource);}
         int cursor=0;for(int j=0;j<creatures.size()&&cursor<12;j++){if(j==index)continue;Creature other=creatures.get(j);float dx=shortDelta(c.x,other.x,4096),dy=shortDelta(c.y,other.y,4096),distance=Math.max(1,(float)Math.hypot(dx,dy)),nx=dx/distance,ny=dy/distance;int o=cursor*14;input.neighbor[o+other.family]=1;input.neighbor[o+5]=nx;input.neighbor[o+6]=ny;input.neighbor[o+7]=Math.min(1,distance/900);input.neighbor[o+8]=other.energy;input.neighbor[o+9]=other.energy*.7f;input.neighbor[o+10]=other.health;input.neighbor[o+11]=hostile(c.family,other.family)?1:0;input.neighbor[o+12]=c.family==other.family?1:0;input.neighbor[o+13]=1;input.mask[cursor]=1;cursor++;}
         input.intentIndex=index;return input;
     }
 
     synchronized void applyEcology(int index,float[] logits,float[] direction,float urgency){if(index==selected)return;Creature c=creatures.get(index);int intent=0;for(int i=1;i<logits.length;i++)if(logits[i]>logits[intent])intent=i;c.intent=intent;c.urgency=1f/(1f+(float)Math.exp(-urgency));float length=Math.max(.001f,(float)Math.hypot(direction[0],direction[1]));c.desiredX=direction[0]/length*c.urgency;c.desiredY=direction[1]/length*c.urgency;}
+
+    synchronized MacroInput encodeMacro(){
+        java.util.Arrays.fill(macroCurrent,0);System.arraycopy(resources,0,macroCurrent,0,resources.length);
+        float[] energy=new float[MACRO_CELLS],health=new float[MACRO_CELLS],count=new float[MACRO_CELLS];
+        for(Creature c:creatures){int p=macroIndex(c.x,c.y);macroCurrent[(10+c.family)*MACRO_CELLS+p]+=1f/16f;energy[p]+=c.energy;health[p]+=c.health;count[p]++;macroCurrent[17*MACRO_CELLS+p]+=1f/8f;}
+        for(int p=0;p<MACRO_CELLS;p++)if(count[p]>0){macroCurrent[15*MACRO_CELLS+p]=energy[p]/count[p];macroCurrent[16*MACRO_CELLS+p]=health[p]/count[p];}
+        for(int p=0;p<MACRO_CELLS;p++)if(structures[p]>0){macroCurrent[(18+Math.floorMod(structures[p]-1,9))*MACRO_CELLS+p]=1;macroCurrent[28*MACRO_CELLS+p]=1;}
+        float[] global=worldFeatures44();System.arraycopy(global,0,globalCurrent,0,GLOBAL_FEATURES);return new MacroInput(macroCurrent.clone(),macroPrevious.clone(),global,globalPrevious.clone());
+    }
+
+    synchronized void applyMacro(float[][][][] next,float[][] nextGlobal){
+        System.arraycopy(macroCurrent,0,macroPrevious,0,macroCurrent.length);System.arraycopy(globalCurrent,0,globalPrevious,0,GLOBAL_FEATURES);
+        for(int channel=0;channel<10;channel++)for(int y=0;y<MACRO_SIDE;y++)for(int x=0;x<MACRO_SIDE;x++){int p=y*MACRO_SIDE+x;float value=clamp(next[0][channel][y][x],0,1);resources[channel*MACRO_CELLS+p]=value;macroCurrent[channel*MACRO_CELLS+p]=value;}
+        if(nextGlobal.length>0)for(int i=0;i<GLOBAL_FEATURES;i++)globalCurrent[i]=clamp(nextGlobal[0][i],0,1);
+    }
+
+    synchronized ColonyInput encodeColony(){float[] features=new float[32*64];boolean[] mask=new boolean[32];for(int i=0;i<creatures.size()&&i<32;i++){Creature c=creatures.get(i);mask[i]=true;int o=i*64;for(int j=0;j<15;j++)features[o+j]=c.traits[j];features[o+15+c.family]=1;features[o+20]=c.health;features[o+21]=c.neural;features[o+22]=c.circulation;features[o+23]=c.respiration;features[o+24]=c.digestion;features[o+25]=c.sensory;features[o+26]=c.locomotion;features[o+27]=c.energy;features[o+28]=Math.min(1,creatures.size()/16f);features[o+29]=settlementFood;features[o+30]=.65f;features[o+31]=(float)Math.sin(i*1.7);features[o+32]=(float)Math.cos(i*1.7);}return new ColonyInput(features,mask);}
+
+    synchronized void applyColony(float[][][] roleLogits,float[][][] actions){for(int i=0;i<creatures.size();i++){Creature c=creatures.get(i);int role=0;for(int r=1;r<6;r++)if(roleLogits[0][i][r]>roleLogits[0][i][role])role=r;c.colonyRole=role;for(int a=0;a<3;a++)c.colonyAction[a]=actions[0][i][a];float local=resources[(c.family==4?2:c.family==3?4:8)*MACRO_CELLS+macroIndex(c.x,c.y)];if(role==0){float take=Math.min(local,.004f+.012f*c.colonyAction[0]);c.energy=Math.min(1.2f,c.energy+take);resources[(c.family==4?2:c.family==3?4:8)*MACRO_CELLS+macroIndex(c.x,c.y)]=Math.max(0,local-take);}if(role==3)c.health=Math.min(1,c.health+.004f*c.colonyAction[2]);}}
+
+    synchronized SocietyInput encodeSociety(){float[] f=new float[64];for(int i=0;i<8;i++)f[i]=i<5?creatures.get(i%creatures.size()).traits[(i*2)%15]:.4f;f[18]=1;f[23]=Math.min(1,creatures.size()/24f);f[24]=Math.min(1,settlementWealth/4);f[25]=Math.min(1,settlementFood/3);f[26]=Math.min(1,settlementPower/3);float integrity=0;for(Creature c:creatures)integrity+=c.health;f[27]=integrity/creatures.size();f[30]=Math.min(1,settlementKnowledge);f[35]=Math.min(1,buildingCount/20f);f[38]=Math.min(1,time/5000);f[39]=1;f[47]=1;f[59]=buildingPurposeFraction(0);f[60]=buildingPurposeFraction(1);f[61]=buildingPurposeFraction(2);f[62]=buildingPurposeFraction(3);f[63]=Math.min(1,buildingCount/12f);return new SocietyInput(f);}
+
+    synchronized void applySociety(float[][] activity,float[][] labor,float[][] diplomacy,float[][] project){societyActivity=argmax(activity[0]);societyDiplomacy=argmax(diplomacy[0]);societyProject=argmax(project[0]);float max=-Float.MAX_VALUE,sum=0;for(float v:labor[0])max=Math.max(max,v);for(int i=0;i<6;i++){societyLabor[i]=(float)Math.exp(labor[0][i]-max);sum+=societyLabor[i];}for(int i=0;i<6;i++)societyLabor[i]/=Math.max(sum,1e-6f);float harvest=.02f+.12f*societyLabor[0];settlementFood=Math.min(4,settlementFood+harvest);settlementWealth=Math.min(4,settlementWealth+.015f+.05f*societyLabor[5]);settlementKnowledge=Math.min(4,settlementKnowledge+.01f+.05f*societyLabor[4]);settlementPower=Math.min(4,settlementPower+.02f);if(settlementWealth>.62f&&settlementFood>.35f&&buildingCount<24){int center=macroIndex(creatures.get(0).x,creatures.get(0).y),cx=center%32,cy=center/32;int radius=2+buildingCount/5,angle=buildingCount*5;int x=Math.floorMod(cx+(int)Math.round(Math.cos(angle)*radius),32),y=Math.floorMod(cy+(int)Math.round(Math.sin(angle)*radius),32);for(int oy=-1;oy<=1;oy++)for(int ox=-1;ox<=1;ox++)if(Math.abs(ox)+Math.abs(oy)<=1)structures[Math.floorMod(y+oy,32)*32+Math.floorMod(x+ox,32)]=societyProject+1;buildingCount++;settlementWealth-=.55f;settlementFood-=.12f;}}
+
+    synchronized float[] timelineFeatures(){float[] row=new float[64];float[] counts=new float[5];float health=0,energy=0;for(Creature c:creatures){counts[c.family]++;health+=c.health;energy+=c.energy;}row[0]=creatures.size()/180f;for(int i=0;i<5;i++)row[1+i]=counts[i]/creatures.size();row[7]=Math.min(1,buildingCount/20f);for(int r=0;r<10;r++){float total=0;for(int p=0;p<MACRO_CELLS;p++)total+=resources[r*MACRO_CELLS+p];row[12+r]=total/MACRO_CELLS;}row[30]=health/creatures.size();row[31]=energy/creatures.size();for(Creature c:creatures)row[40+Math.min(11,c.intent)]+=1f/creatures.size();System.arraycopy(timelineHistory,64, timelineHistory,0,23*64);System.arraycopy(row,0,timelineHistory,23*64,64);timelineRows=Math.min(24,timelineRows+1);if(timelineRows<24)for(int r=0;r<24-timelineRows;r++)System.arraycopy(row,0,timelineHistory,r*64,64);return timelineHistory.clone();}
+
+    synchronized void applyTimeline(float[][] state,float[][] logits,float[] confidence){timelineEvent=argmax(logits[0]);timelineConfidence=confidence[0];}
+    synchronized void applyCounterfactual(float[] benefit,float[] risk){counterfactualAction=0;float best=benefit[0]-.35f*risk[0];for(int i=1;i<benefit.length;i++){float score=benefit[i]-.35f*risk[i];if(score>best){best=score;counterfactualAction=i;}}}
+
+    synchronized WorldContextInput encodeWorldContext(){long[] terrain=new long[MACRO_CELLS],city=new long[MACRO_CELLS];float[] continuous=new float[7*MACRO_CELLS],condition=new float[15];for(int p=0;p<MACRO_CELLS;p++){int best=0;for(int r=1;r<8;r++)if(resources[r*MACRO_CELLS+p]>resources[best*MACRO_CELLS+p])best=r;terrain[p]=best;city[p]=Math.min(7,Math.max(0,structures[p]));for(int r=0;r<7;r++)continuous[r*MACRO_CELLS+p]=resources[r*MACRO_CELLS+p];}condition[4]=1;for(Creature c:creatures)condition[6+c.family]+=1f/creatures.size();float season=time*.012f;condition[11]=(float)Math.sin(season);condition[12]=(float)Math.cos(season);condition[13]=Math.min(1,buildingCount/24f);condition[14]=Math.min(1,Math.abs(settlementFood-settlementPower)*.25f);return new WorldContextInput(terrain,city,continuous,condition);}
+
+    synchronized boolean structureBlocked(float x,float y){return structures[macroIndex(x,y)]>0;}
+    synchronized float resourceAt(int channel,float x,float y){return resources[Math.max(0,Math.min(9,channel))*MACRO_CELLS+macroIndex(x,y)];}
+    private float[] worldFeatures44(){float[] row=new float[GLOBAL_FEATURES];row[0]=1;for(Creature c:creatures)row[18+c.family]+=1f/180f;row[27]=1;row[28]=1;row[29]=Math.min(1,buildingCount/24f);row[30]=Math.min(1,settlementWealth/8);row[31]=Math.min(1,settlementFood/8);row[32]=Math.min(1,settlementPower/8);row[33]=Math.min(1,buildingCount/24f);row[34]=Math.min(1,settlementKnowledge/4);row[35]=.7f;row[36]=1;return row;}
+    private float buildingPurposeFraction(int purpose){int count=0;for(int value:structures)if(value==purpose+1)count++;return Math.min(1,count/24f);}
+    private static int macroIndex(float x,float y){int gx=Math.floorMod((int)Math.floor(x/128f),32),gy=Math.floorMod((int)Math.floor(y/128f),32);return gy*32+gx;}
+    private static int argmax(float[] values){int best=0;for(int i=1;i<values.length;i++)if(values[i]>values[best])best=i;return best;}
 
     synchronized void step(float dt){time+=dt;for(int i=0;i<creatures.size();i++)stepCreature(creatures.get(i),dt);resolveCreatureCollisions();}
     synchronized float[] positionSnapshot(){float[] values=new float[creatures.size()*2];for(int i=0;i<creatures.size();i++){values[i*2]=creatures.get(i).x;values[i*2+1]=creatures.get(i).y;}return values;}
@@ -169,7 +223,7 @@ final class FoundationWorld {
     private static float appendageIntegrity(Creature c,int owner){float total=0,count=0;for(Cell cell:c.cells)if(cell.appendage==owner){total+=cell.health;count++;}return count>0?total/count:1;}
 
     private void stepCreature(Creature c,float dt){
-        float activity=Math.min(1f,(float)Math.hypot(c.desiredX,c.desiredY));float cadence=.16f+activity*(.72f+.40f*c.traits[6]);c.phase=(c.phase+dt*cadence)%1f;
+        float activity=Math.min(1f,(float)Math.hypot(c.desiredX,c.desiredY));float roleSpeed=c.colonyRole==1?1.12f:c.colonyRole==2?1.04f:1f;float cadence=.16f+activity*(.72f+.40f*c.traits[6])*roleSpeed;c.phase=(c.phase+dt*cadence)%1f;
         float ground=Float.NEGATIVE_INFINITY;for(Appendage a:c.appendages)if(a.grounded())ground=Math.max(ground,a.endY);if(!Float.isFinite(ground))ground=maxRestY(c)+3;
         float[][] target=authoredPose(c,c.phase);
         for(int a=0;a<c.appendages.length;a++){if(c.contact[a]&&!c.previousContact[a]){int tip=c.terminal[a];c.anchors[a][0]=c.node[tip][0];c.anchors[a][1]=ground;}else if(!c.contact[a]){c.anchors[a][0]=Float.NaN;c.anchors[a][1]=Float.NaN;}}
@@ -201,4 +255,9 @@ final class FoundationWorld {
     static final class EcologyInput {final float[] self=new float[94],resource=new float[40],neighbor=new float[168],mask=new float[12];int intentIndex;}
     static final class GrasperInput {final float[] owner=new float[MAX_APPENDAGES*16],target=new float[18],global=new float[10];final boolean[] mask=new boolean[MAX_APPENDAGES];}
     static final class GrasperCommand {final int owner;final boolean engage,release;final float throwX,throwY;GrasperCommand(int owner,boolean engage,boolean release,float throwX,float throwY){this.owner=owner;this.engage=engage;this.release=release;this.throwX=throwX;this.throwY=throwY;}}
+    static final class MacroInput {final float[] current,previous,global,previousGlobal;MacroInput(float[] c,float[] p,float[] g,float[] pg){current=c;previous=p;global=g;previousGlobal=pg;}}
+    static final class ColonyInput {final float[] features;final boolean[] mask;ColonyInput(float[] f,boolean[] m){features=f;mask=m;}}
+    static final class SocietyInput {final float[] features;SocietyInput(float[] f){features=f;}}
+    static final class WorldContextInput {final long[] terrain,city;final float[] continuous,condition;WorldContextInput(long[] t,long[] c,float[] v,float[] k){terrain=t;city=c;continuous=v;condition=k;}}
+    static final class VaeInput {final float[] features=new float[576*52],mask=new float[576];}
 }

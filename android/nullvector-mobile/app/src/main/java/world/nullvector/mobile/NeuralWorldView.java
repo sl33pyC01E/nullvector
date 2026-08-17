@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class NeuralWorldView extends View {
     private static final String TAG = "NullvectorRuntime";
@@ -66,6 +67,7 @@ public final class NeuralWorldView extends View {
     private volatile double groundedMilliseconds = 0;
     private volatile double ecologyMilliseconds = 0;
     private volatile double grasperMilliseconds = 0;
+    private volatile double macroMilliseconds = 0, colonyMilliseconds = 0, societyMilliseconds = 0, timelineMilliseconds = 0, counterfactualMilliseconds = 0;
     private volatile int interactionGoal = -1, grasperOwner = -1;
     private MaterialNode interactionTarget;
 
@@ -217,7 +219,7 @@ public final class NeuralWorldView extends View {
 
     private boolean terrainWalkable(float x, float y) {
         if (neuralTerrainCells == null) return true; int cellX = Math.floorMod((int)Math.floor(x / 24f), 32), cellY = Math.floorMod((int)Math.floor(y / 24f), 32);
-        if (cellX == 0 || cellY == 0 || cellX == 31 || cellY == 31) return true;
+        if(foundation!=null&&foundation.structureBlocked(x,y))return false;if (cellX == 0 || cellY == 0 || cellX == 31 || cellY == 31) return true;
         int value = neuralTerrainCells[cellY * 32 + cellX] & 255; return value == 1 || value == 4 || value == 5 || value == 6 || value == 8;
     }
 
@@ -268,32 +270,23 @@ public final class NeuralWorldView extends View {
             // build on ORT CPU until a model-by-model QNN partition is tested.
             options.setIntraOpNumThreads(2); options.setInterOpNumThreads(1);
             String provider = "ORT CPU SAFE";
-            stage("Extracting neural world context…");
-            try (OrtSession session = environment.createSession(assetFile("world_context_fp32.onnx").getAbsolutePath(), options)) {
-                long[] categorical = new long[32 * 32]; float[] continuous = new float[7 * 32 * 32]; float[] condition = new float[15]; condition[0] = condition[6] = 1f;
-                for (int i = 0; i < continuous.length; i++) continuous[i] = .25f + .25f * (float)Math.sin(i * .019);
-                Map<String, OnnxTensor> inputs = new HashMap<>();
-                inputs.put("terrain", OnnxTensor.createTensor(environment, LongBuffer.wrap(categorical), new long[]{1, 32, 32}));
-                inputs.put("city", OnnxTensor.createTensor(environment, LongBuffer.wrap(categorical), new long[]{1, 32, 32}));
-                inputs.put("continuous", OnnxTensor.createTensor(environment, FloatBuffer.wrap(continuous), new long[]{1, 7, 32, 32}));
-                inputs.put("condition", OnnxTensor.createTensor(environment, FloatBuffer.wrap(condition), new long[]{1, 15}));
-                for (int warmup = 0; warmup < 4; warmup++) try (OrtSession.Result ignored = session.run(inputs)) { }
-                long began = System.nanoTime();
-                try (OrtSession.Result result = session.run(inputs)) { context = ((float[][])result.get(0).getValue())[0]; }
-                milliseconds = (System.nanoTime() - began) / 1_000_000.0;
-                for (OnnxTensor tensor : inputs.values()) tensor.close();
-                stage(provider + " · structured world encoder live");
-            }
+            stage("Loading coupled neural world ensemble…");
             String actionModel = BuildConfig.SPLIT_ACTION ? "action_delta_int8_qdq.onnx" : "action_core_fp32.onnx";
             stage(provider + " · loading " + (BuildConfig.SPLIT_ACTION ? "INT8" : "FP32") + " action runtime…");
-            try (OrtSession actionSession = environment.createSession(assetFile(actionModel).getAbsolutePath(), options);
+            try (OrtSession contextSession = environment.createSession(assetFile("world_context_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession actionSession = environment.createSession(assetFile(actionModel).getAbsolutePath(), options);
                  OrtSession actorSession = BuildConfig.SPLIT_ACTION ? environment.createSession(assetFile("actor_state_fp32.onnx").getAbsolutePath(), options) : null;
                  OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options);
                  OrtSession cellularSession = environment.createSession(assetFile("mobile_cell_nca_fp32.onnx").getAbsolutePath(), options);
                  OrtSession organismVaeSession = environment.createSession(assetFile("organism_cell_vae_fp32.onnx").getAbsolutePath(), options);
                  OrtSession groundedSession = environment.createSession(assetFile("grounded_feedback_fp32.onnx").getAbsolutePath(), options);
                  OrtSession ecologySession = environment.createSession(assetFile("mobile_ecology_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession grasperSession = environment.createSession(assetFile("neural_grasper_fp32.onnx").getAbsolutePath(), options)) {
+                 OrtSession grasperSession = environment.createSession(assetFile("neural_grasper_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession macroSession = environment.createSession(assetFile("macro_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession colonySession = environment.createSession(assetFile("colony_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession societySession = environment.createSession(assetFile("society_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession timelineSession = environment.createSession(assetFile("timeline_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession counterfactualSession = environment.createSession(assetFile("counterfactual_fp32.onnx").getAbsolutePath(), options)) {
                 float[] rawInitial = latentAsset(), latentNorm = floatAsset("latent_normalization.f32", 96), current = new float[rawInitial.length];
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
@@ -307,6 +300,7 @@ public final class NeuralWorldView extends View {
                   while (running) {
                     long frameBegan = System.nanoTime();
                     if (foundation != null) {
+                        if((tick&1)==0){FoundationWorld.WorldContextInput world=foundation.encodeWorldContext();Map<String,OnnxTensor> contextInputs=new HashMap<>();contextInputs.put("terrain",OnnxTensor.createTensor(environment,LongBuffer.wrap(world.terrain),new long[]{1,32,32}));contextInputs.put("city",OnnxTensor.createTensor(environment,LongBuffer.wrap(world.city),new long[]{1,32,32}));contextInputs.put("continuous",OnnxTensor.createTensor(environment,FloatBuffer.wrap(world.continuous),new long[]{1,7,32,32}));contextInputs.put("condition",OnnxTensor.createTensor(environment,FloatBuffer.wrap(world.condition),new long[]{1,15}));long contextBegan=System.nanoTime();try(OrtSession.Result result=contextSession.run(contextInputs)){context=((float[][])result.get(0).getValue())[0];}for(OnnxTensor tensor:contextInputs.values())tensor.close();milliseconds=(System.nanoTime()-contextBegan)/1_000_000.0;}
                         FoundationWorld.NeuralBatch batch = foundation.encodeNeural(); long groundedBegan = System.nanoTime();
                         Map<String, OnnxTensor> groundedInputs = new HashMap<>();
                         groundedInputs.put("owner_state", OnnxTensor.createTensor(environment, FloatBuffer.wrap(batch.owner), new long[]{batch.count, FoundationWorld.MAX_APPENDAGES, 23}));
@@ -318,6 +312,11 @@ public final class NeuralWorldView extends View {
                         try (OrtSession.Result result=groundedSession.run(groundedInputs)) { foundation.applyNeural((float[][])result.get(0).getValue(),(float[][])result.get(1).getValue(),(float[])result.get(2).getValue()); }
                         for(OnnxTensor tensor:groundedInputs.values())tensor.close();groundedMilliseconds=(System.nanoTime()-groundedBegan)/1_000_000.0;float[] previousPositions=foundation.positionSnapshot();foundation.step(1f/30f);enforceFoundationTerrain(previousPositions);
                         if((tick&3)==0){long ecologyBegan=System.nanoTime();for(int ecologyIndex=0;ecologyIndex<foundation.creatures.size();ecologyIndex++){if(ecologyIndex==foundation.selected)continue;FoundationWorld.EcologyInput ecology=foundation.encodeEcology(ecologyIndex);Map<String,OnnxTensor> ecologyInputs=new HashMap<>();ecologyInputs.put("self_features",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.self),new long[]{1,94}));ecologyInputs.put("resource",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.resource),new long[]{1,10,4}));ecologyInputs.put("neighbor",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.neighbor),new long[]{1,12,14}));ecologyInputs.put("neighbor_mask",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.mask),new long[]{1,12}));try(OrtSession.Result result=ecologySession.run(ecologyInputs)){foundation.applyEcology(ecologyIndex,((float[][])result.get(0).getValue())[0],((float[][])result.get(1).getValue())[0],((float[])result.get(2).getValue())[0]);}for(OnnxTensor tensor:ecologyInputs.values())tensor.close();}ecologyMilliseconds=(System.nanoTime()-ecologyBegan)/1_000_000.0;}
+                        if(tick%30==0){FoundationWorld.MacroInput macro=foundation.encodeMacro();Map<String,OnnxTensor> inputs=new HashMap<>();inputs.put("current",OnnxTensor.createTensor(environment,FloatBuffer.wrap(macro.current),new long[]{1,32,32,32}));inputs.put("previous",OnnxTensor.createTensor(environment,FloatBuffer.wrap(macro.previous),new long[]{1,32,32,32}));inputs.put("global_state",OnnxTensor.createTensor(environment,FloatBuffer.wrap(macro.global),new long[]{1,44}));inputs.put("previous_global",OnnxTensor.createTensor(environment,FloatBuffer.wrap(macro.previousGlobal),new long[]{1,44}));long began=System.nanoTime();try(OrtSession.Result result=macroSession.run(inputs)){foundation.applyMacro((float[][][][])result.get(0).getValue(),(float[][])result.get(1).getValue());}for(OnnxTensor tensor:inputs.values())tensor.close();macroMilliseconds=(System.nanoTime()-began)/1_000_000.0;}
+                        if(tick%120==0){FoundationWorld.ColonyInput colony=foundation.encodeColony();Map<String,OnnxTensor> inputs=new HashMap<>();inputs.put("features",OnnxTensor.createTensor(environment,FloatBuffer.wrap(colony.features),new long[]{1,32,64}));inputs.put("mask",OnnxTensor.createTensor(environment,boolMatrix(colony.mask,1,32)));long began=System.nanoTime();try(OrtSession.Result result=colonySession.run(inputs)){foundation.applyColony((float[][][])result.get(0).getValue(),(float[][][])result.get(1).getValue());}for(OnnxTensor tensor:inputs.values())tensor.close();colonyMilliseconds=(System.nanoTime()-began)/1_000_000.0;}
+                        if(tick%600==0){FoundationWorld.SocietyInput society=foundation.encodeSociety();try(OnnxTensor tensor=OnnxTensor.createTensor(environment,FloatBuffer.wrap(society.features),new long[]{1,64})){Map<String,OnnxTensor> inputs=new HashMap<>();inputs.put("features",tensor);long began=System.nanoTime();try(OrtSession.Result result=societySession.run(inputs)){foundation.applySociety((float[][])result.get(0).getValue(),(float[][])result.get(1).getValue(),(float[][])result.get(2).getValue(),(float[][])result.get(3).getValue());}societyMilliseconds=(System.nanoTime()-began)/1_000_000.0;}}
+                        if(tick%1500==0){float[] history=foundation.timelineFeatures();try(OnnxTensor tensor=OnnxTensor.createTensor(environment,FloatBuffer.wrap(history),new long[]{1,24,64})){Map<String,OnnxTensor> inputs=new HashMap<>();inputs.put("sequence",tensor);long began=System.nanoTime();try(OrtSession.Result result=timelineSession.run(inputs)){foundation.applyTimeline((float[][])result.get(0).getValue(),(float[][])result.get(1).getValue(),(float[])result.get(2).getValue());}timelineMilliseconds=(System.nanoTime()-began)/1_000_000.0;}float[] batchHistory=new float[5*24*64];for(int i=0;i<5;i++)System.arraycopy(history,0,batchHistory,i*24*64,24*64);Map<String,OnnxTensor> inputs=new HashMap<>();inputs.put("sequence",OnnxTensor.createTensor(environment,FloatBuffer.wrap(batchHistory),new long[]{5,24,64}));inputs.put("action",OnnxTensor.createTensor(environment,LongBuffer.wrap(new long[]{0,1,2,3,4}),new long[]{5}));long began=System.nanoTime();try(OrtSession.Result result=counterfactualSession.run(inputs)){foundation.applyCounterfactual((float[])result.get(1).getValue(),(float[])result.get(2).getValue());}for(OnnxTensor tensor:inputs.values())tensor.close();counterfactualMilliseconds=(System.nanoTime()-began)/1_000_000.0;}
+                        if(tick==0)Log.i(TAG,String.format(Locale.US,"COUPLED_ENSEMBLE_OK context=%.2f macro=%.2f colony=%.2f society=%.2f timeline=%.2f counterfactual=%.2f event=%d project=%d action=%d",milliseconds,macroMilliseconds,colonyMilliseconds,societyMilliseconds,timelineMilliseconds,counterfactualMilliseconds,foundation.timelineEvent,foundation.societyProject,foundation.counterfactualAction));
                         tickGrasper(environment,grasperSession);
                     }
                     advanceHabitat(1f / 30f);updatePerception(visibility,memory);control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
@@ -369,12 +368,13 @@ public final class NeuralWorldView extends View {
                         if(foundation!=null){if(absorbed>0)foundation.addNutritionToSelected(absorbed);int selectedIndex=foundation.selected;int[] updateIndices=(tick&7)==0?new int[]{selectedIndex,(selectedIndex+1+(tick/8)%4)%5}:new int[]{selectedIndex};for(int physiologyIndex:updateIndices){foundation.preparePhysiology(physiologyIndex);FoundationWorld.Creature body=foundation.creatures.get(physiologyIndex);Map<String,OnnxTensor> cellInputs=new HashMap<>();cellInputs.put("static",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellStatic),new long[]{1,85,48,48}));cellInputs.put("state",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellState),new long[]{1,12,48,48}));cellInputs.put("live_bonds",OnnxTensor.createTensor(environment,FloatBuffer.wrap(body.cellBonds),new long[]{1,8,48,48}));try(OrtSession.Result result=cellularSession.run(cellInputs)){float[][][][] value=(float[][][][])result.get(0).getValue();float[] nextPhysiology=new float[12*48*48];int cursor=0;for(int c=0;c<12;c++)for(int y=0;y<48;y++)for(int x=0;x<48;x++)nextPhysiology[cursor++]=value[0][c][y][x];foundation.applyPhysiology(physiologyIndex,nextPhysiology);}for(OnnxTensor tensor:cellInputs.values())tensor.close();}}
                         cellularMilliseconds = (System.nanoTime() - cellularBegan) / 1_000_000.0;
                         if(foundation!=null){FoundationWorld.Creature body=foundation.selected();cellularHealth=body.health;cellularNeural=body.neural;cellularFrame=cellularBitmap(body.cellStatic,body.cellState);}
-                        if (foundation==null && (tick & 7) == 0) {
+                        if ((tick & 7) == 0) {
                             long rasterBegan = System.nanoTime();
-                            try (OnnxTensor featureTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(organismFeatures), new long[]{1, 576, 52});
-                                 OnnxTensor maskTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(organismMask), new long[]{1, 576})) {
+                            FoundationWorld.VaeInput liveVae=foundation==null?null:foundation.encodeSelectedVae();float[] vaeFeatures=liveVae==null?organismFeatures:liveVae.features,vaeMask=liveVae==null?organismMask:liveVae.mask;
+                            try (OnnxTensor featureTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(vaeFeatures), new long[]{1, 576, 52});
+                                 OnnxTensor maskTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(vaeMask), new long[]{1, 576})) {
                                 Map<String, OnnxTensor> rasterInputs = new HashMap<>(); rasterInputs.put("features", featureTensor); rasterInputs.put("mask", maskTensor);
-                                try (OrtSession.Result result = organismVaeSession.run(rasterInputs)) { organismVaeFrame = rgbaBitmap((float[][][][])result.get(0).getValue()); }
+                                try (OrtSession.Result result = organismVaeSession.run(rasterInputs)) {float[][][][] rgba=(float[][][][])result.get(0).getValue();organismVaeFrame=rgbaBitmap(rgba);if(foundation!=null)foundation.applySelectedVae(rgba);}
                             }
                             organismVaeMilliseconds = (System.nanoTime() - rasterBegan) / 1_000_000.0;
                         }
@@ -428,6 +428,7 @@ public final class NeuralWorldView extends View {
             if (Math.floorMod(hash >>> 22, 29) == 0) { paint.setColor(Color.rgb(155, 112, 64)); canvas.drawRect(sx + 23, sy + 20, sx + 41, sy + 46, paint); paint.setColor(Color.rgb(205, 159, 83)); canvas.drawCircle(sx + 32, sy + 19, 11, paint); }
             float tileWorldX=tx*tile+tile*.5f,tileWorldY=ty*tile+tile*.5f;if(!isWorldVisible(tileWorldX,tileWorldY)){paint.setColor(isWorldRemembered(tileWorldX,tileWorldY)?Color.argb(112,0,8,11):Color.argb(178,0,5,8));canvas.drawRect(sx,sy,sx+tile+1,sy+tile+1,paint);}
         }
+        if(foundation!=null)synchronized(foundation){for(int p=0;p<FoundationWorld.MACRO_CELLS;p++)if(foundation.structures[p]>0){float wx=(p%32)*128+64,wy=(p/32)*128+64,sx=cx+wrappedDelta(worldX,wx),sy=cy+wrappedDelta(worldY,wy);if(sx<-90||sy<-90||sx>width+90||sy>height+90)continue;paint.setColor(Color.argb(220,20,31,39));canvas.drawRoundRect(sx-46,sy-46,sx+46,sy+46,9,9,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(4);int hue=foundation.structures[p];paint.setColor(hue==3?Color.rgb(255,95,128):hue==5?Color.rgb(177,104,255):Color.rgb(86,224,215));canvas.drawRoundRect(sx-46,sy-46,sx+46,sy+46,9,9,paint);paint.setStyle(Paint.Style.FILL);canvas.drawRect(sx-10,sy+25,sx+10,sy+48,paint);}}
         synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f&&(isWorldVisible(node.x,node.y)||isWorldRemembered(node.x,node.y))) { float sx = cx + node.x - worldX, sy = cy + node.y - worldY; if (sx > -30 && sy > -30 && sx < width + 30 && sy < height + 30) { boolean visible=isWorldVisible(node.x,node.y);int color = node.type == 0 ? Color.rgb(151, 255, 68) : node.type == 1 ? Color.rgb(61, 206, 255) : Color.rgb(255, 190, 66); paint.setColor(Color.argb(visible?90:38, 0, 0, 0)); canvas.drawOval(sx - 13, sy + 7, sx + 13, sy + 14, paint); paint.setColor(visible?color:Color.rgb(63,88,86)); float radius = 5 + node.amount * 8; canvas.drawCircle(sx, sy, radius, paint); if(visible){paint.setColor(Color.argb(210, 235, 255, 235)); canvas.drawCircle(sx - radius * .28f, sy - radius * .28f, Math.max(2f, radius * .24f), paint);} } } }
         synchronized (projectiles) { for (Projectile shot : projectiles) {
             if(!isWorldVisible(shot.x,shot.y))continue;
@@ -443,7 +444,7 @@ public final class NeuralWorldView extends View {
         if (foundation==null && organismVaeFrame != null) canvas.drawBitmap(organismVaeFrame, null, organismRect, paint);
         if (foundation==null && cellularFrame != null) { paint.setAlpha(organismVaeFrame == null ? 255 : 76); canvas.drawBitmap(cellularFrame, null, organismRect, paint); paint.setAlpha(255); }
         if(hudVisible){paint.setColor(Color.argb(150, 255, 90, 180)); paint.setStrokeWidth(3); canvas.drawLine(cx, cy - organismSize * .12f, cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, paint); canvas.drawCircle(cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, 5, paint);
-        paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(25); canvas.drawText("NULLVECTOR // NEURAL HABITAT", 28, 39, paint); paint.setTextSize(15); paint.setColor(Color.rgb(165, 199, 199)); canvas.drawText("CELLULAR CREATURE STAGE · WORLD 4096² · MATERIAL " + gathered, 29, 63, paint);
+        paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(25); canvas.drawText("NULLVECTOR // COUPLED NEURAL WORLD", 28, 39, paint); paint.setTextSize(15); paint.setColor(Color.rgb(165, 199, 199)); canvas.drawText("13-STAGE TEACHER ENSEMBLE · CELLULAR WORLD 4096² · MATERIAL " + gathered, 29, 63, paint);
         FoundationWorld.Creature selectedBody=foundation==null?null:foundation.selected();
         if(barsVisible){bar(canvas,28,78,158,cellularHealth,Color.rgb(62,224,115),"HEALTH");bar(canvas,28,102,158,cellularNeural,Color.rgb(214,72,255),"NEURAL");
         if(selectedBody!=null){bar(canvas,198,78,142,selectedBody.circulation,Color.rgb(245,77,101),"CIRCULATION");bar(canvas,198,102,142,selectedBody.respiration,Color.rgb(71,213,242),"RESPIRATION");bar(canvas,352,78,142,selectedBody.digestion,Color.rgb(245,174,62),"DIGESTION");bar(canvas,352,102,142,selectedBody.locomotion,Color.rgb(155,240,80),"LOCOMOTION");bar(canvas,506,78,142,selectedBody.sensory,Color.rgb(207,118,255),"SENSORY");bar(canvas,506,102,142,selectedBody.energy,Color.rgb(255,225,92),"ENERGY");}}
@@ -463,6 +464,11 @@ public final class NeuralWorldView extends View {
             canvas.drawText(String.format("ECOLOGY INTENT/STEERING POLICY · 125,127 PARAM · 7.5 Hz · %.2f ms", ecologyMilliseconds), panelX, panelY + 148, paint);
             canvas.drawText(String.format("ORGANISM CELL VAE · 138,539 PARAM · 3.75 Hz · %.2f ms", organismVaeMilliseconds), panelX, panelY + 168, paint);
             canvas.drawText(String.format("WORLD FRAME VAE · 91,407 PARAM · DEBUG 2 Hz · %.2f ms", decoderMilliseconds), panelX, panelY + 188, paint);
+            canvas.drawText(String.format("MACRO PATCH DYNAMICS · 1 Hz · %.2f ms", macroMilliseconds), panelX, panelY + 208, paint);
+            canvas.drawText(String.format("COLONY ROLE POLICY · 0.25 Hz · %.2f ms", colonyMilliseconds), panelX, panelY + 228, paint);
+            canvas.drawText(String.format("SOCIETY / BUILD POLICY · 0.05 Hz · %.2f ms", societyMilliseconds), panelX, panelY + 248, paint);
+            canvas.drawText(String.format("TIMELINE + COUNTERFACTUAL · %.2f + %.2f ms", timelineMilliseconds,counterfactualMilliseconds), panelX, panelY + 268, paint);
+            if(foundation!=null){String[] events={"QUIET","BIRTH","DEATH","PREDATION","MUTATION","COLONY","CLIMATE","CONSTRUCTION","DISCOVERY","MIGRATION"};String[] projects={"HABITAT","WORKSHOP","CLINIC","GRANARY","OBSERVATORY","GRAFT HOUSE","BATTERY HALL","SHRINE","MARKET"};canvas.drawText("FORECAST "+events[Math.max(0,Math.min(9,foundation.timelineEvent))]+" "+Math.round(foundation.timelineConfidence*100)+"% · PROJECT "+projects[Math.max(0,Math.min(8,foundation.societyProject))],panelX,panelY+288,paint);}
             if (neuralFrame != null) {
                 float size = Math.min(height * .28f, width * .17f), frameLeft = width - size - 38, frameTop = panelY + 148;
                 paint.setFilterBitmap(true); canvas.drawBitmap(neuralFrame, null, new android.graphics.RectF(frameLeft, frameTop, frameLeft + size, frameTop + size), paint); paint.setFilterBitmap(false);

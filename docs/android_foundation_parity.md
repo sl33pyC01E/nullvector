@@ -15,9 +15,9 @@ The Android target is a port of the desktop foundation, not a separate minigame.
 - World regions, maps, settlements, construction, crafting, trade, quests, grafting, evolution, and persistent saves.
 - Mobile neural ensemble provenance, failure-safe fallbacks, per-model timing, memory telemetry, and measured 24–30 FPS on the Galaxy S25 Ultra target.
 
-## Current replacement slice
+## Current coupled slice
 
-Implemented but not release-ready:
+Implemented and running in the Android FP32 preview:
 
 - Five selectable developmental rigs with hundreds of physical cells each.
 - Continuous-cell-VAE per-cell RGB, density, footprint, and subpixel style authority.
@@ -31,8 +31,10 @@ Implemented but not release-ready:
 - Whole-body terrain collision and hostile inter-family collision; same-family bodies can overlap.
 - Living sensory-organ health now controls an aimed vision cone and a large near-awareness/hearing radius. Current sight and persistent explored-map memory are fed into the recurrent neural action model; unseen organisms remain simulated but are not rendered.
 - Remembered terrain is dimmed instead of blacked out. Sight geometry, labels, physiology bars, diagnostics, and the full HUD are independently presentational toggles; HUD-off leaves the world and creatures visible without disabling simulation mechanisms.
+- The desktop macro-resource, colony-role, society/construction, timeline, and five-way counterfactual teacher checkpoints are exported to ONNX and scheduled against the same mobile cellular world. Macro, colony, and society outputs are causal; timeline and counterfactual outputs remain observers.
+- The selected organism is re-rasterized from its current posed, damaged cell features at 3.75 Hz. VAE color influences presentation, while physical cell opacity, attachment, and survival stay scaffold-authoritative.
 
-Still incomplete: load/brace parity for the grasper, reconnection/polyp validation, reproduction/evolution, construction/society/adventure systems, save persistence for explored-map memory, performance profiling on real hardware, and full parity capture.
+Still incomplete: full city/adventure content, save persistence, broader population scaling, neural replacement of the remaining conservation/constraint scaffold, calibrated mobile quantization, physical-S25 profiling, and a complete parity capture. Society-driven organized structures are present, but this is not yet the intended city game.
 
 The current emulator capture is mechanics evidence, not a gameplay presentation target. No Android release should be promoted until a visible parity capture covers the full desktop foundation and the Galaxy S25 Ultra meets the frame-time and memory gates above.
 
