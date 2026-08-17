@@ -100,6 +100,16 @@ they are still the safer or better authority.
 | Ecology and societies | Neural behavior, colony, society, timeline, counterfactual, and spatial city-layout specialists inside the causal scaffold |
 | World frames | Recurrent Action-DiT + adapted continuous VAE change compositor; live in the Python nature stage, not yet the native Godot authority |
 
+The mobile local-cell rule now distills the 10M-parameter causal physiology
+teacher into 492k parameters and a 2.0 MB ONNX graph. Across an untouched
+five-family holdout it reaches 0.981 response cosine over 32 recurrent steps,
+matches circulation, respiration, digestion, and neural-ablation direction,
+and keeps internal state inside the organism while surface fluid diffuses into
+the world. [Report and model artifacts](examples/neural/mobile_cell_nca_v1/)
+are checked in with the rollout comparison below.
+
+![Mobile cellular NCA: injury, teacher, and compact student](examples/showcase/mobile_cell_nca_rollout_v1.png)
+
 Composite Build 2 loads 67.7M parameters across the
 Action-DiT, world VAE, exact-parent pixel refiner, actor-state student, organism
 cell VAE, and causal physiology model. The larger 13-specialist teacher
