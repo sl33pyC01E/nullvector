@@ -62,6 +62,9 @@ public final class NeuralWorldView extends View {
     private FoundationWorld foundation;
     private volatile double groundedMilliseconds = 0;
     private volatile double ecologyMilliseconds = 0;
+    private volatile double grasperMilliseconds = 0;
+    private volatile int interactionGoal = -1, grasperOwner = -1;
+    private MaterialNode interactionTarget;
 
     private static final class Projectile {
         float x, y, z, vx, vy, vz, mass; int bounces, type; boolean resting, impacted;
@@ -195,6 +198,8 @@ public final class NeuralWorldView extends View {
         value ^= value >>> 30; value *= 0xBF58476D1CE4E5B9L; value ^= value >>> 27; value *= 0x94D049BB133111EBL; return value ^ (value >>> 31);
     }
 
+    private void tickGrasper(OrtEnvironment environment,OrtSession session)throws Exception{MaterialNode target=interactionTarget;if(foundation==null||target==null||target.amount<=0||interactionGoal<0)return;FoundationWorld.Creature body=foundation.selected();float queryX=interactionGoal==4?body.x+aimX*140:target.x,queryY=interactionGoal==4?body.y+aimY*140:target.y;FoundationWorld.GrasperInput input=foundation.encodeGrasper(queryX,queryY,target.amount,interactionGoal,heldMaterial==target);Map<String,OnnxTensor> tensors=new HashMap<>();tensors.put("owner_meta",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.owner),new long[]{1,FoundationWorld.MAX_APPENDAGES,16}));tensors.put("owner_mask",OnnxTensor.createTensor(environment,boolMatrix(input.mask,1,FoundationWorld.MAX_APPENDAGES)));tensors.put("target",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.target),new long[]{1,18}));tensors.put("global_state",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.global),new long[]{1,10}));long began=System.nanoTime();FoundationWorld.GrasperCommand command;try(OrtSession.Result result=session.run(tensors)){command=foundation.applyGrasper(((float[][])result.get(0).getValue())[0],((float[])result.get(1).getValue())[0],((float[][])result.get(2).getValue())[0],((float[])result.get(3).getValue())[0],((float[])result.get(6).getValue())[0],((float[][])result.get(7).getValue())[0]);}finally{for(OnnxTensor tensor:tensors.values())tensor.close();}grasperMilliseconds=(System.nanoTime()-began)/1_000_000.0;grasperOwner=command.owner;float[] hand=foundation.selectedGrasperWorld(command.owner);float distance=(float)Math.hypot(hand[0]-target.x,hand[1]-target.y);if(heldMaterial==null&&command.engage&&distance<22){heldMaterial=target;actionStatus="PHYSICAL GRIP CLOSED";}if(heldMaterial==target){target.x=hand[0];target.y=hand[1];if(interactionGoal==1){float[] feeder=foundation.selectedFeederWorld();float contact=(float)Math.hypot(target.x-feeder[0],target.y-feeder[1]);if(contact<19){float absorbed=Math.min(target.amount,.012f*Math.max(.15f,body.digestion));target.amount-=absorbed;pendingNutrition+=absorbed*(target.type==0?.34f:target.type==1?.12f:.04f);actionStatus="LIVE FEEDER CONTACT · "+Math.round((1-target.amount)*100)+"%";if(target.amount<=.001f){target.amount=0;heldMaterial=null;interactionTarget=null;interactionGoal=-1;}}}else if(interactionGoal==4&&command.release){float dx=command.throwX,dy=command.throwY,length=(float)Math.hypot(dx,dy);if(length<.15f){dx=aimX;dy=aimY;length=1;}synchronized(projectiles){Projectile shot=new Projectile(target.x,target.y,dx/length,dy/length,target.type,Math.max(.2f,target.amount));shot.vx*=.72f+Math.min(.55f,length*.35f);shot.vy*=.72f+Math.min(.55f,length*.35f);projectiles.add(shot);}target.amount=0;heldMaterial=null;interactionTarget=null;interactionGoal=-1;actionStatus="NEURAL BALLISTIC RELEASE";}}}
+
     private boolean terrainWalkable(float x, float y) {
         if (neuralTerrainCells == null) return true; int cellX = Math.floorMod((int)Math.floor(x / 24f), 32), cellY = Math.floorMod((int)Math.floor(y / 24f), 32);
         if (cellX == 0 || cellY == 0 || cellX == 31 || cellY == 31) return true;
@@ -205,8 +210,10 @@ public final class NeuralWorldView extends View {
 
     private void advanceHabitat(float dt) {
         if (foundation != null) {
-            foundation.setPlayerControl(controlX, controlY);
             FoundationWorld.Creature player = foundation.selected();
+            float physicalControlX=controlX,physicalControlY=controlY;
+            if(!movementTouch&&interactionTarget!=null&&heldMaterial==null&&interactionGoal>=0&&interactionGoal!=4){float dx=interactionTarget.x-player.x,dy=interactionTarget.y-player.y,distance=(float)Math.hypot(dx,dy);if(distance>78f){physicalControlX=dx/distance*.62f;physicalControlY=dy/distance*.62f;}}
+            foundation.setPlayerControl(physicalControlX, physicalControlY);
             worldX = player.x; worldY = player.y; velocityX = player.vx; velocityY = player.vy;
         }
         float targetX = controlX * 250f, targetY = controlY * 205f;
@@ -215,7 +222,7 @@ public final class NeuralWorldView extends View {
         float proposedX = Math.max(80f, Math.min(4016f, worldX + velocityX * dt)), proposedY = Math.max(80f, Math.min(4016f, worldY + velocityY * dt));
         if (terrainWalkable(proposedX, worldY)) worldX = proposedX; else velocityX *= -.08f; if (terrainWalkable(worldX, proposedY)) worldY = proposedY; else velocityY *= -.08f;
         }
-        if(heldMaterial!=null&&heldMaterial.amount>0&&foundation!=null){float[] hand=foundation.selectedGrasperWorld();heldMaterial.x=hand[0];heldMaterial.y=hand[1];}
+        if(heldMaterial!=null&&heldMaterial.amount>0&&foundation!=null){float[] hand=foundation.selectedGrasperWorld(grasperOwner);heldMaterial.x=hand[0];heldMaterial.y=hand[1];}
         if (fireRequests > 0) synchronized (projectiles) { int type=heldMaterial==null?2:heldMaterial.type;float mass=heldMaterial==null?.35f:Math.max(.2f,heldMaterial.amount);projectiles.add(new Projectile(worldX, worldY - 18f, aimX, aimY,type,mass));if(heldMaterial!=null){heldMaterial.amount=0;heldMaterial=null;}fireRequests--; }
         actionWasDown = actionTouch;
         synchronized (projectiles) {
@@ -231,10 +238,11 @@ public final class NeuralWorldView extends View {
             }
             if (projectiles.size() > 48) projectiles.subList(0, projectiles.size() - 48).clear();
         }
-        synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f && node.type != 2 && Math.hypot(worldX - node.x, worldY - node.y) < 27f) { float eaten = Math.min(node.amount, dt * .32f); node.amount -= eaten; pendingNutrition += eaten * (node.type == 0 ? 1f : .45f); gathered += node.amount <= 0f ? 1 : 0; } }
     }
 
-    private void performAction(int action){selectedAction=action;if(foundation==null)return;FoundationWorld.Creature player=foundation.selected();if(action==0){MaterialNode best=null;double distance=145; synchronized(materials){for(MaterialNode node:materials)if(node.amount>0){double d=Math.hypot(node.x-player.x,node.y-player.y);if(d<distance){distance=d;best=node;}}}heldMaterial=best;actionStatus=best==null?"GRASP MISSED":"MATERIAL GRASPED";}else if(action==1){if(heldMaterial!=null&&heldMaterial.amount>0){float nutrition=heldMaterial.amount*(heldMaterial.type==0?.34f:heldMaterial.type==1?.12f:.04f);foundation.feedSelected(nutrition);pendingNutrition+=nutrition;heldMaterial.amount=0;heldMaterial=null;actionStatus="FEEDER CONTACT · ABSORBED";}else actionStatus="FEED REQUIRES HELD MATERIAL";}else if(action==2){int hit=foundation.attackSelected(aimX,aimY);actionStatus=hit>0?"CELLULAR STRIKE · "+hit+" CELLS":"STRIKE MISSED";}else if(action==3){int hit=foundation.scrapeSelected(aimX,aimY);actionStatus=hit>0?"SURFACE SCRAPE · "+hit+" CELLS":"SCRAPE MISSED";}else if(action==4){int hit=foundation.cutSelected(aimX,aimY);actionStatus=hit>0?"BOND CUT · "+hit+" CELLS":"CUT MISSED";}else{if(heldMaterial!=null){fireRequests++;actionStatus="BALLISTIC RELEASE";}else actionStatus="THROW REQUIRES HELD MATERIAL";}}
+    private MaterialNode nearestMaterial(float maxDistance){if(foundation==null)return null;FoundationWorld.Creature player=foundation.selected();MaterialNode best=null;double distance=maxDistance;synchronized(materials){for(MaterialNode node:materials)if(node.amount>0){double d=Math.hypot(node.x-player.x,node.y-player.y);if(d<distance){distance=d;best=node;}}}return best;}
+
+    private void performAction(int action){selectedAction=action;if(foundation==null)return;float physicalWorkspace=240f;if(action==0){interactionTarget=nearestMaterial(physicalWorkspace);interactionGoal=2;actionStatus=interactionTarget==null?"NO MATERIAL IN PHYSICAL WORKSPACE":"NEURAL GRASPER REACHING";}else if(action==1){interactionTarget=heldMaterial!=null?heldMaterial:nearestMaterial(physicalWorkspace);interactionGoal=1;actionStatus=interactionTarget==null?"NO FEEDSTOCK IN PHYSICAL WORKSPACE":"ROUTING TO LIVE FEEDER";}else if(action==2){interactionGoal=-1;int hit=foundation.attackSelected(aimX,aimY);actionStatus=hit>0?"CELLULAR STRIKE · "+hit+" CELLS":"STRIKE MISSED";}else if(action==3){interactionGoal=-1;int hit=foundation.scrapeSelected(aimX,aimY);actionStatus=hit>0?"SURFACE SCRAPE · "+hit+" CELLS":"SCRAPE MISSED";}else if(action==4){interactionGoal=-1;int hit=foundation.cutSelected(aimX,aimY);actionStatus=hit>0?"BOND CUT · "+hit+" CELLS":"CUT MISSED";}else{if(heldMaterial!=null){interactionTarget=heldMaterial;interactionGoal=4;actionStatus="NEURAL THROW WINDUP";}else actionStatus="THROW REQUIRES HELD MATERIAL";}}
 
     private void runModels() {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
@@ -269,7 +277,8 @@ public final class NeuralWorldView extends View {
                  OrtSession cellularSession = environment.createSession(assetFile("mobile_cell_nca_fp32.onnx").getAbsolutePath(), options);
                  OrtSession organismVaeSession = environment.createSession(assetFile("organism_cell_vae_fp32.onnx").getAbsolutePath(), options);
                  OrtSession groundedSession = environment.createSession(assetFile("grounded_feedback_fp32.onnx").getAbsolutePath(), options);
-                 OrtSession ecologySession = environment.createSession(assetFile("mobile_ecology_fp32.onnx").getAbsolutePath(), options)) {
+                 OrtSession ecologySession = environment.createSession(assetFile("mobile_ecology_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession grasperSession = environment.createSession(assetFile("neural_grasper_fp32.onnx").getAbsolutePath(), options)) {
                 float[] rawInitial = latentAsset(), latentNorm = floatAsset("latent_normalization.f32", 96), current = new float[rawInitial.length];
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
@@ -294,6 +303,7 @@ public final class NeuralWorldView extends View {
                         try (OrtSession.Result result=groundedSession.run(groundedInputs)) { foundation.applyNeural((float[][])result.get(0).getValue(),(float[][])result.get(1).getValue(),(float[])result.get(2).getValue()); }
                         for(OnnxTensor tensor:groundedInputs.values())tensor.close();groundedMilliseconds=(System.nanoTime()-groundedBegan)/1_000_000.0;float[] previousPositions=foundation.positionSnapshot();foundation.step(1f/30f);enforceFoundationTerrain(previousPositions);
                         if((tick&3)==0){long ecologyBegan=System.nanoTime();for(int ecologyIndex=0;ecologyIndex<foundation.creatures.size();ecologyIndex++){if(ecologyIndex==foundation.selected)continue;FoundationWorld.EcologyInput ecology=foundation.encodeEcology(ecologyIndex);Map<String,OnnxTensor> ecologyInputs=new HashMap<>();ecologyInputs.put("self_features",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.self),new long[]{1,94}));ecologyInputs.put("resource",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.resource),new long[]{1,10,4}));ecologyInputs.put("neighbor",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.neighbor),new long[]{1,12,14}));ecologyInputs.put("neighbor_mask",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.mask),new long[]{1,12}));try(OrtSession.Result result=ecologySession.run(ecologyInputs)){foundation.applyEcology(ecologyIndex,((float[][])result.get(0).getValue())[0],((float[][])result.get(1).getValue())[0],((float[])result.get(2).getValue())[0]);}for(OnnxTensor tensor:ecologyInputs.values())tensor.close();}ecologyMilliseconds=(System.nanoTime()-ecologyBegan)/1_000_000.0;}
+                        tickGrasper(environment,grasperSession);
                     }
                     advanceHabitat(1f / 30f); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
@@ -430,9 +440,10 @@ public final class NeuralWorldView extends View {
             canvas.drawText(String.format("RECURRENT ACTION CORE · %s · 30 Hz · %.2f ms", BuildConfig.SPLIT_ACTION ? "INT8" : "FP32", actionMilliseconds), panelX, panelY + 68, paint);
             canvas.drawText(String.format("CELL PHYSIOLOGY NCA · 492,492 PARAM · 15 Hz · %.2f ms", cellularMilliseconds), panelX, panelY + 88, paint);
             canvas.drawText(String.format("GROUNDED MUSCLE/CONTACT POLICY · 3.50M PARAM · 30 Hz · %.2f ms", groundedMilliseconds), panelX, panelY + 108, paint);
-            canvas.drawText(String.format("ECOLOGY INTENT/STEERING POLICY · 125,127 PARAM · 7.5 Hz · %.2f ms", ecologyMilliseconds), panelX, panelY + 128, paint);
-            canvas.drawText(String.format("ORGANISM CELL VAE · 138,539 PARAM · 3.75 Hz · %.2f ms", organismVaeMilliseconds), panelX, panelY + 148, paint);
-            canvas.drawText(String.format("WORLD FRAME VAE · 91,407 PARAM · DEBUG 2 Hz · %.2f ms", decoderMilliseconds), panelX, panelY + 168, paint);
+            canvas.drawText(String.format("ARTICULATED GRASPER POLICY · 8.01M PARAM · EVENT · %.2f ms", grasperMilliseconds), panelX, panelY + 128, paint);
+            canvas.drawText(String.format("ECOLOGY INTENT/STEERING POLICY · 125,127 PARAM · 7.5 Hz · %.2f ms", ecologyMilliseconds), panelX, panelY + 148, paint);
+            canvas.drawText(String.format("ORGANISM CELL VAE · 138,539 PARAM · 3.75 Hz · %.2f ms", organismVaeMilliseconds), panelX, panelY + 168, paint);
+            canvas.drawText(String.format("WORLD FRAME VAE · 91,407 PARAM · DEBUG 2 Hz · %.2f ms", decoderMilliseconds), panelX, panelY + 188, paint);
             if (neuralFrame != null) {
                 float size = Math.min(height * .28f, width * .17f), frameLeft = width - size - 38, frameTop = panelY + 148;
                 paint.setFilterBitmap(true); canvas.drawBitmap(neuralFrame, null, new android.graphics.RectF(frameLeft, frameTop, frameLeft + size, frameTop + size), paint); paint.setFilterBitmap(false);

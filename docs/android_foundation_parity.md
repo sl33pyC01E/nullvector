@@ -22,13 +22,16 @@ Implemented but not release-ready:
 - Five selectable developmental rigs with hundreds of physical cells each.
 - Continuous-cell-VAE per-cell RGB, density, footprint, and subpixel style authority.
 - Batched 3.5M-parameter live grounded muscle/contact controller.
+- Event-driven 8.01M-parameter grasper policy exported from the accepted desktop checkpoint. It selects an intact appendage, predicts reach/force/release, and drives the same fixed-length articulated chain used by the body rig.
 - Skeleton constraints, planted appendage anchors, vertical lock, and analog world-plane travel.
 - 125k-parameter ecology intent/steering policy for autonomous organisms.
 - Five-family recurrent neural cell physiology with explicit circulation, respiration, digestion, neural, sensory, locomotion, reproduction, and repair fields.
 - Cell damage feeds the live NCA; organ failure feeds back into consciousness and locomotion. Healthy neural tissue has a scaffolded homeostatic floor to prevent out-of-distribution long-rollout collapse.
-- Physical grasp/feed/strike/scrape/cut/throw controls, all-direction ballistic elevation, cell-bond fracture, skeleton severing, persistent fragments, and diffuse ground-plane fluids.
+- Physical grasp/feed/strike/scrape/cut/throw controls, all-direction ballistic elevation, cell-bond fracture, skeleton severing, persistent fragments, and diffuse ground-plane fluids. Grasping closes only after hand/material contact; feeding requires contact with live digestive cells and absorbs gradually; throws release from the hand with independent height and a ground-plane shadow.
 - Whole-body terrain collision and hostile inter-family collision; same-family bodies can overlap.
 
-Still incomplete: high-quality feeder/grasper constraints, reconnection/polyp validation, reproduction/evolution, construction/society/adventure systems, map persistence, clean-view perception, performance profiling on real hardware, and full parity capture.
+Still incomplete: load/brace parity for the grasper, reconnection/polyp validation, reproduction/evolution, construction/society/adventure systems, map persistence, clean-view perception, performance profiling on real hardware, and full parity capture.
+
+The current emulator capture is mechanics evidence, not a gameplay presentation target. No Android release should be promoted until a visible parity capture covers the full desktop foundation and the Galaxy S25 Ultra meets the frame-time and memory gates above.
 
 The prior `android-v0.4.0-preview` release is an internal runtime prototype and is not a gameplay milestone.

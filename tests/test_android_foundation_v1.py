@@ -27,3 +27,8 @@ def test_android_foundation_exports_live_batched_controller(tmp_path):
     session = ort.InferenceSession(str(output / "grounded_feedback_fp32.onnx"), providers=["CPUExecutionProvider"])
     assert session.get_inputs()[0].shape[0] == "batch"
     assert [value.name for value in session.get_outputs()] == ["muscle_activation", "contact_logits", "body_velocity"]
+    grasper = ort.InferenceSession(str(output / "neural_grasper_fp32.onnx"), providers=["CPUExecutionProvider"])
+    assert grasper.get_inputs()[0].shape[0] == "batch"
+    assert [value.name for value in grasper.get_outputs()] == [
+        "appendage_logits", "engage_logit", "reach", "force", "type_logits", "brace", "release_logit", "throw_impulse",
+    ]

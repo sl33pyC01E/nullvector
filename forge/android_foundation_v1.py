@@ -22,6 +22,8 @@ from .creature_stage_neural_grounded_feedback_v2.contract import (
     MAX_MUSCLES,
 )
 from .creature_stage_neural_grounded_feedback_v2.runtime import NeuralGroundedFeedbackRuntime
+from .creature_stage_neural_grasper_v1.contract import MAX_APPENDAGES as GRASPER_MAX_APPENDAGES
+from .creature_stage_neural_grasper_v1.runtime import NeuralGrasperRuntime
 from .multifield_style_motion.hashing import canonical_json_bytes, sha256_file
 from .organism_cell_vae_runtime_v1.runtime import ContinuousCellVAERuntime
 from .safety import require_disk_floor
@@ -30,6 +32,7 @@ from .safety import require_disk_floor
 FORMAT = "nullvector-android-foundation-runtime/1.0.0"
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/android_foundation_v1/live_grounded_v1"
 CHECKPOINT = PROJECT_ROOT / "outputs/creature_stage_neural_grounded_feedback_v2/production_3000_v2/runtime.pt"
+GRASPER_CHECKPOINT = PROJECT_ROOT / "outputs/creature_stage_neural_grasper_v1/production_v3_physical_feeder/runtime.pt"
 SOURCE_FILES = (
     "forge/android_foundation_v1.py",
     "forge/creature_stage_neural_grounded_feedback_v2/contract.py",
@@ -41,6 +44,9 @@ SOURCE_FILES = (
     "forge/creature_stage_developmental/genomes.py",
     "forge/organism_cell_vae_runtime_v1/runtime.py",
     "forge/organism_cell_vae_v1/model.py",
+    "forge/creature_stage_neural_grasper_v1/contract.py",
+    "forge/creature_stage_neural_grasper_v1/model.py",
+    "forge/creature_stage_neural_grasper_v1/runtime.py",
 )
 
 NCA_STATIC_CHANNELS = 85
@@ -179,6 +185,18 @@ class _GroundedExport(nn.Module):
         return result.muscle_activation, result.contact_logits, result.body_velocity
 
 
+class _GrasperExport(nn.Module):
+    def __init__(self, model: nn.Module) -> None:
+        super().__init__(); self.model = model
+
+    def forward(self, owner_meta, owner_mask, target, global_state):
+        result = self.model(owner_meta, owner_mask, target, global_state)
+        return (
+            result.appendage_logits, result.engage_logit, result.reach, result.force,
+            result.type_logits, result.brace, result.release_logit, result.throw_impulse,
+        )
+
+
 def _organism_record(genome, organism, styles: np.ndarray, pixels: np.ndarray) -> dict[str, object]:
     return {
         "family": FAMILIES[int(np.argmax(genome.family_mix))],
@@ -221,6 +239,7 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
         raise FileExistsError(destination)
     require_disk_floor(destination.parent, floor_gb=100, planned_bytes=128 * 1024**2)
     runtime = NeuralGroundedFeedbackRuntime.from_checkpoint(CHECKPOINT, device="cpu")
+    grasper_runtime = NeuralGrasperRuntime.from_checkpoint(GRASPER_CHECKPOINT, device="cpu")
     raster = ContinuousCellVAERuntime.from_release(device="cpu")
     model = _GroundedExport(runtime.model).eval()
     genomes = review_genomes()[::2]
@@ -279,6 +298,22 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
             opset_version=17,
             dynamo=False,
         )
+        grasper_path = stage / "neural_grasper_fp32.onnx"
+        grasper_model = _GrasperExport(grasper_runtime.model).eval()
+        grasper_inputs = (
+            torch.zeros(2, GRASPER_MAX_APPENDAGES, 16), torch.ones(2, GRASPER_MAX_APPENDAGES, dtype=torch.bool),
+            torch.zeros(2, 18), torch.zeros(2, 10),
+        )
+        torch.onnx.export(
+            grasper_model, grasper_inputs, grasper_path,
+            input_names=("owner_meta", "owner_mask", "target", "global_state"),
+            output_names=("appendage_logits", "engage_logit", "reach", "force", "type_logits", "brace", "release_logit", "throw_impulse"),
+            dynamic_axes={name: {0: "batch"} for name in (
+                "owner_meta", "owner_mask", "target", "global_state", "appendage_logits", "engage_logit",
+                "reach", "force", "type_logits", "brace", "release_logit", "throw_impulse",
+            )},
+            opset_version=17, dynamo=False,
+        )
         artifacts = {
             name: {"path": path.name, "bytes": path.stat().st_size, "sha256": sha256_file(path)}
             for name, path in (
@@ -286,6 +321,7 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
                 ("cell_static", stage / "foundation_cell_static.f32"),
                 ("cell_state", stage / "foundation_cell_state.f32"),
                 ("cell_bonds", stage / "foundation_cell_bonds.f32"),
+                ("neural_grasper", grasper_path),
             )
         }
         manifest = {
@@ -305,7 +341,7 @@ def build(destination: Path = DEFAULT_OUTPUT) -> dict[str, object]:
                 "neural_cell_physiology": True,
                 "five_family_organ_fields": True,
             },
-            "model": {"parameters": runtime.model.parameter_count, "max_appendages": MAX_APPENDAGES, "max_muscles": MAX_MUSCLES},
+            "model": {"parameters": runtime.model.parameter_count, "grasper_parameters": grasper_runtime.model.parameter_count, "max_appendages": MAX_APPENDAGES, "max_muscles": MAX_MUSCLES},
             "artifacts": artifacts,
         }
         manifest["semantic_sha256"] = hashlib.sha256(canonical_json_bytes(manifest)).hexdigest()
