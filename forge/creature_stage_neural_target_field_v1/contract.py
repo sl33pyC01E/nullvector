@@ -10,6 +10,7 @@ TARGET_PHASE_HARMONICS=8
 TARGET_FEATURES=4+TARGET_PHASE_HARMONICS*2
 TARGET_OWNER_FEATURES=16
 TARGET_GLOBAL_FEATURES=20
+TARGET_ROOT_BASIS=12
 SOURCE_FILES=(
  "forge/creature_stage_neural_target_field_v1/contract.py",
  "forge/creature_stage_neural_target_field_v1/dataset.py",

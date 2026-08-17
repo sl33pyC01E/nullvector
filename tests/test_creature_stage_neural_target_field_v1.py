@@ -61,7 +61,7 @@ def test_target_augmentation_is_balanced_over_all_reviewed_chassis() -> None:
 
 
 def test_published_training_bank_is_source_bound_and_loadable() -> None:
-    root = Path("outputs/creature_stage_neural_target_field_v1/training_bank_v1")
+    root = Path("outputs/creature_stage_neural_target_field_v1/training_bank_v2_modular")
     if not root.is_dir():
         return
     manifest = validate_training_bank(root)

@@ -13,7 +13,9 @@ from .physics import simulate_target_field_cycle
 from .bank import load_training_bank
 
 def _target_loss(output,target,mask):
- return F.smooth_l1_loss(output[mask[:,:,None].expand_as(output)],target.float()[mask[:,:,None].expand_as(output)],beta=.015)
+ per_owner=F.smooth_l1_loss(output,target.float(),beta=.015,reduction="none").mean(-1)[mask]
+ count=max(1,int(per_owner.numel())//4)
+ return per_owner.mean()+per_owner.topk(count).values.mean()*.75
 
 def loss_fn(model,b,target_aug=None):
  o=model(b["owner_state"],b["global_state"],b["owner_mask"],b["muscle_meta"],b["muscle_owner"],b["muscle_mask"],b["target_context"]);mask=b["owner_mask"][:,:,None]
