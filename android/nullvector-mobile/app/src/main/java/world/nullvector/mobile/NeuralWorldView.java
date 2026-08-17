@@ -30,7 +30,11 @@ public final class NeuralWorldView extends View {
     private volatile double milliseconds = 0;
     private volatile double decoderMilliseconds = 0;
     private volatile double actionMilliseconds = 0;
+    private volatile double cellularMilliseconds = 0;
     private volatile Bitmap neuralFrame;
+    private volatile Bitmap cellularFrame;
+    private volatile float cellularHealth = 1f;
+    private volatile float cellularNeural = 1f;
     private volatile boolean running = true;
     private volatile float controlX = 0f, controlY = 0f;
     private volatile int actionId = 0;
@@ -84,6 +88,43 @@ public final class NeuralWorldView extends View {
         return Bitmap.createBitmap(pixels, 256, 256, Bitmap.Config.ARGB_8888);
     }
 
+    private Bitmap cellularBitmap(float[] anatomy, float[] state) {
+        int cells = 48 * 48;
+        int[] pixels = new int[cells];
+        for (int p = 0; p < cells; p++) {
+            float body = anatomy[p], health = state[p], fluid = state[cells + p];
+            float energy = state[3 * cells + p], oxygen = state[4 * cells + p];
+            float scar = state[6 * cells + p], wound = state[7 * cells + p];
+            float neural = state[8 * cells + p], surface = state[9 * cells + p];
+            float biomass = state[10 * cells + p], alive = state[11 * cells + p];
+            float circulation = Math.min(1f, anatomy[(28 * cells) + p] + anatomy[(29 * cells) + p] + anatomy[(30 * cells) + p]);
+            float respiration = Math.min(1f, anatomy[(31 * cells) + p] + anatomy[(32 * cells) + p] + anatomy[(33 * cells) + p]);
+            float digestion = Math.min(1f, anatomy[(34 * cells) + p] + anatomy[(35 * cells) + p] + anatomy[(36 * cells) + p]);
+            float neuralOrgan = Math.min(1f, anatomy[(37 * cells) + p] + anatomy[(38 * cells) + p] + anatomy[(39 * cells) + p]);
+            int r = Math.round(body * alive * (25 + 105 * health + 100 * wound + 55 * scar + 60 * biomass + 90 * circulation));
+            int g = Math.round(body * alive * (42 + 120 * health + 75 * energy + 80 * digestion + 75 * respiration) + 100 * surface);
+            int b = Math.round(body * alive * (55 + 125 * health + 75 * fluid + 70 * oxygen + 115 * neural + 100 * neuralOrgan) + 220 * surface);
+            int alpha = Math.round(Math.max(body * alive, Math.min(1f, surface * 2f)) * 255);
+            pixels[p] = Color.argb(Math.max(0, Math.min(255, alpha)), Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), Math.max(0, Math.min(255, b)));
+        }
+        return Bitmap.createBitmap(pixels, 48, 48, Bitmap.Config.ARGB_8888);
+    }
+
+    private float bodyMean(float[] anatomy, float[] state, int channel) {
+        int cells = 48 * 48, offset = channel * cells; float total = 0f, count = 0f;
+        for (int p = 0; p < cells; p++) if (anatomy[p] > .5f) { total += state[offset + p]; count += 1f; }
+        return count > 0 ? total / count : 0f;
+    }
+
+    private float organMean(float[] anatomy, float[] state, int channel, int staticStart) {
+        int cells = 48 * 48, offset = channel * cells; float total = 0f, count = 0f;
+        for (int p = 0; p < cells; p++) {
+            float mask = Math.min(1f, anatomy[staticStart * cells + p] + anatomy[(staticStart + 1) * cells + p] + anatomy[(staticStart + 2) * cells + p]);
+            total += state[offset + p] * mask; count += mask;
+        }
+        return count > 0 ? total / count : 0f;
+    }
+
     private void runModels() {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             OrtEnvironment environment = OrtEnvironment.getEnvironment();
@@ -113,17 +154,23 @@ public final class NeuralWorldView extends View {
             stage(provider + " · loading " + (BuildConfig.SPLIT_ACTION ? "INT8" : "FP32") + " action runtime…");
             try (OrtSession actionSession = environment.createSession(assetFile(actionModel).getAbsolutePath(), options);
                  OrtSession actorSession = BuildConfig.SPLIT_ACTION ? environment.createSession(assetFile("actor_state_fp32.onnx").getAbsolutePath(), options) : null;
-                 OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options)) {
+                 OrtSession decoder = environment.createSession(assetFile("frame_vae_fp32.onnx").getAbsolutePath(), options);
+                 OrtSession cellularSession = environment.createSession(assetFile("mobile_cell_nca_fp32.onnx").getAbsolutePath(), options)) {
                 float[] rawInitial = latentAsset(), latentNorm = floatAsset("latent_normalization.f32", 96), current = new float[rawInitial.length];
                 for (int c = 0, i = 0; c < 48; c++) for (int p = 0; p < 32 * 32; p++, i++) current[i] = (rawInitial[i] - latentNorm[c]) / latentNorm[48 + c];
                 float[] previous = current.clone(), actor = new float[128], previousActor = new float[128];
                 float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
+                float[] cellStatic = floatAsset("cell_static.f32", 85 * 48 * 48);
+                float[] cellState = floatAsset("cell_state.f32", 12 * 48 * 48);
+                float[] cellBonds = floatAsset("cell_bonds.f32", 8 * 48 * 48);
                 java.util.Arrays.fill(visibility, 1f); int tick = 0;
                 stage(provider + (BuildConfig.SPLIT_ACTION
-                    ? " · INT8 action + FP32 physiology + mobile VAE live"
-                    : " · FP32 action + physiology + mobile VAE live"));
-                while (running) {
-                    long frameBegan = System.nanoTime(); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = 0f;
+                    ? " · INT8 action + cellular NCA + mobile VAE live"
+                    : " · FP32 action + cellular NCA + mobile VAE live"));
+                try (OnnxTensor cellStaticTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellStatic), new long[]{1, 85, 48, 48});
+                     OnnxTensor cellBondTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellBonds), new long[]{1, 8, 48, 48})) {
+                  while (running) {
+                    long frameBegan = System.nanoTime(); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
                     actionInputs.put("current", OnnxTensor.createTensor(environment, FloatBuffer.wrap(current), new long[]{1, 48, 32, 32}));
                     actionInputs.put("previous", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previous), new long[]{1, 48, 32, 32}));
@@ -161,7 +208,20 @@ public final class NeuralWorldView extends View {
                     Map<String, OnnxTensor> decoderInput = new HashMap<>(); decoderInput.put("latent", OnnxTensor.createTensor(environment, FloatBuffer.wrap(rawLatent), new long[]{1, 48, 32, 32}));
                     long decoderBegan = System.nanoTime(); try (OrtSession.Result result = decoder.run(decoderInput)) { neuralFrame = bitmap((float[][][][])result.get(0).getValue()); }
                     decoderMilliseconds = (System.nanoTime() - decoderBegan) / 1_000_000.0; decoderInput.get("latent").close(); postInvalidateOnAnimation(); tick++;
+                    if ((tick & 1) == 0) {
+                        long cellularBegan = System.nanoTime();
+                        try (OnnxTensor cellStateTensor = OnnxTensor.createTensor(environment, FloatBuffer.wrap(cellState), new long[]{1, 12, 48, 48})) {
+                            Map<String, OnnxTensor> cellInputs = new HashMap<>(); cellInputs.put("static", cellStaticTensor); cellInputs.put("state", cellStateTensor); cellInputs.put("live_bonds", cellBondTensor);
+                            try (OrtSession.Result result = cellularSession.run(cellInputs)) {
+                                float[][][][] value = (float[][][][])result.get(0).getValue(); int cursor = 0;
+                                for (int c = 0; c < 12; c++) for (int y = 0; y < 48; y++) for (int x = 0; x < 48; x++) cellState[cursor++] = value[0][c][y][x];
+                            }
+                        }
+                        cellularMilliseconds = (System.nanoTime() - cellularBegan) / 1_000_000.0;
+                        cellularHealth = bodyMean(cellStatic, cellState, 0); cellularNeural = organMean(cellStatic, cellState, 8, 37); cellularFrame = cellularBitmap(cellStatic, cellState);
+                    }
                     long remaining = 33_333_333L - (System.nanoTime() - frameBegan); if (remaining > 0) Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
+                  }
                 }
             }
         } catch (Throwable failure) {
@@ -188,8 +248,14 @@ public final class NeuralWorldView extends View {
             canvas.drawBitmap(neuralFrame, null, new android.graphics.RectF(width * .73f - size * .5f, cy - size * .5f, width * .73f + size * .5f, cy + size * .5f), paint);
             paint.setFilterBitmap(false);
         }
+        if (cellularFrame != null) {
+            float size = Math.min(height * .34f, width * .23f); paint.setFilterBitmap(false);
+            canvas.drawBitmap(cellularFrame, null, new android.graphics.RectF(cx - size * .5f, cy - size * .5f, cx + size * .5f, cy + size * .5f), paint);
+            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawRect(cx - size * .5f, cy - size * .5f, cx + size * .5f, cy + size * .5f, paint); paint.setStyle(Paint.Style.FILL);
+        }
         paint.setTextSize(28); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawText("NULLVECTOR // GALAXY S25 ULTRA", 42, 54, paint);
-        paint.setTextSize(20); paint.setColor(Color.rgb(170, 195, 202)); canvas.drawText(status, 42, 88, paint); canvas.drawText(String.format("context %.2f ms · action %.2f ms · raster %.2f ms · target 30 FPS", milliseconds, actionMilliseconds, decoderMilliseconds), 42, 118, paint);
+        paint.setTextSize(20); paint.setColor(Color.rgb(170, 195, 202)); canvas.drawText(status, 42, 88, paint); canvas.drawText(String.format("context %.2f ms · action %.2f ms · cells %.2f ms · VAE %.2f ms", milliseconds, actionMilliseconds, cellularMilliseconds, decoderMilliseconds), 42, 118, paint);
+        canvas.drawText(String.format("live cellular physiology 15 Hz · health %.3f · neural %.3f · display 30 FPS", cellularHealth, cellularNeural), 42, 146, paint);
         paint.setTextSize(16); canvas.drawText("left touch: move · right touch: action selection/act · recurrent context → action → VAE", 42, height - 42, paint);
         paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(movementTouch ? Color.rgb(67, 239, 220) : Color.rgb(55, 85, 92)); canvas.drawCircle(width * .16f, height * .82f, 72, paint);
         paint.setStyle(Paint.Style.FILL); canvas.drawCircle(width * .16f + controlX * 58, height * .82f + controlY * 58, 14, paint);

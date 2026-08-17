@@ -1,0 +1,22 @@
+{
+  "format": "nullvector-android-cellular-runtime-v1",
+  "sample_index": 13,
+  "sample_id": "breed_13_e77873b1d0",
+  "family": "humanoid",
+  "held_out_from_student_training": true,
+  "tensor_shapes": {
+    "cell_static.f32": [1, 85, 48, 48],
+    "cell_state.f32": [1, 12, 48, 48],
+    "cell_bonds.f32": [1, 8, 48, 48]
+  },
+  "dynamic_channels": [
+    "health", "fluid", "nutrient", "energy", "oxygen", "clot",
+    "scar", "wound", "neural_activity", "surface_fluid", "biomass", "alive"
+  ],
+  "artifacts": {
+    "mobile_cell_nca_fp32.onnx": "4f7b832e460d90ef795ff06afbaa0688e183b6ee16bc94b70ea3aff6efcb0941",
+    "cell_static.f32": "f0493f96d4d912fe9631b6f43b29bec2612ce19358c4e4cc953aaa02ddc58f75",
+    "cell_state.f32": "3df556bb51bbdb44ba148b8ee90bd8c5b8f22fa8696a2cedbae60d7a853f681d",
+    "cell_bonds.f32": "743221abc099008b46971f07f24ae6fbfa4e189073e04a749ee5e04a8e06b996"
+  }
+}
