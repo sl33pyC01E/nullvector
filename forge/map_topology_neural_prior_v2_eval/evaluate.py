@@ -20,6 +20,7 @@ from ..map_topology_neural_prior_training.dataset import PriorTrainingDataset
 from ..map_topology_neural_prior_v2.model import build_prior_v2, sample_parallel_v2
 from ..map_topology_neural_prior_v2_training.checkpoint import load_checkpoint as load_prior_checkpoint
 from ..map_topology_neural_prior_v2_training.contract import PriorV2CalibrationConfig, canonical_json_bytes, sha256_file
+from ..map_topology_neural_prior_v3.training import FORMAT as V3_FORMAT, load_checkpoint as load_v3_checkpoint
 from ..map_topology_neural_production.checkpoint import load_checkpoint as load_codec_checkpoint
 from ..map_topology_neural.codec import build_codec
 from ..map_topology_neural_production.dataset import TopologyProductionDataset
@@ -57,8 +58,9 @@ def evaluate_checkpoint(checkpoint: Path, output: Path, *, device_name: str="cud
     if output.exists():raise FileExistsError("Topology-prior evaluation output is immutable.")
     require_disk_floor(output.parent,floor_gb=100.0,planned_bytes=256*1024*1024)
     device=torch.device("cuda" if device_name=="cuda" and torch.cuda.is_available() else "cpu")
-    prior_payload=load_prior_checkpoint(Path(checkpoint)); config=PriorV2CalibrationConfig.from_dict(prior_payload["config"])
-    prior=build_prior_v2(config.model_config()).to(device);prior.load_state_dict(prior_payload["ema_state"],strict=True);prior.eval()
+    raw_checkpoint=torch.load(Path(checkpoint),map_location="cpu",weights_only=True)
+    prior_payload=load_v3_checkpoint(Path(checkpoint)) if raw_checkpoint.get("format")==V3_FORMAT else load_prior_checkpoint(Path(checkpoint)); config=PriorV2CalibrationConfig.from_dict(prior_payload["config"])
+    prior=build_prior_v2(config.model_config()).to(device);prior.load_state_dict(prior_payload["ema_state"],strict=True);prior.eval();reported_step=int(prior_payload.get("base_step",0))+int(prior_payload.get("semantic_step",prior_payload.get("step",0)))
     codec_payload=load_codec_checkpoint(PROJECT_ROOT/CODEC_CHECKPOINT_RELATIVE);codec_config=codec_payload["config"]
     from ..map_topology_neural_production.contract import TopologyCodecCalibrationConfig
     codec_training=TopologyCodecCalibrationConfig.from_dict(codec_config);codec=build_codec(codec_training.codec_config(),init_seed=codec_training.seed);codec.load_state_dict(codec_payload["ema_state"],strict=True);codec.eval()
@@ -71,7 +73,7 @@ def evaluate_checkpoint(checkpoint: Path, output: Path, *, device_name: str="cud
             with torch.inference_mode(),torch.autocast(device_type="cuda",dtype=torch.bfloat16,enabled=device.type=="cuda"):sample=sample_parallel_v2(prior,conditions,sampling_steps=config.sampling_steps)
             terrain,hazard,elevation=_decode(codec,sample["tokens"].cpu(),source.config.height,source.config.width);raw=make_raw_topology(terrain,hazard,elevation,shape=(source.config.height,source.config.width));compiled=compile_topology(raw,seed=config.seed,theme=source.theme,config=source.config,start=source.start,exit=source.exit,objectives=source.objectives,spawns=source.spawns)
             walk=np.isin(terrain,tuple(WALKABLE_TERRAIN));targets=(source.exit,*source.objectives);repair=float(compiled.report["costs"]["repair_fraction"]);name=f"{source.theme}.png";preview=case_preview_png_bytes(source,raw,compiled.data,scale=4);(staging/name).write_bytes(preview);rows.append((source.theme,preview));records.append({"theme":source.theme,"raw_required_reachable":_reachable(walk,source.start,targets),"raw_radius_one_required_reachable":_reachable(_radius_one(walk),source.start,targets),"repair_fraction":repair,"raw_openness":float(walk.mean()),"raw_hazard_fraction":float((hazard!=0).mean()),"unique_tokens":int(torch.unique(sample["tokens"]).numel()),"preview":name})
-        contact=contact_sheet_png_bytes(rows);(staging/"contact_sheet.png").write_bytes(contact);report={"format":"nullvector-map-topology-prior-v2-decoded-evaluation/1.0.0","checkpoint_sha256":sha256_file(Path(checkpoint)),"step":prior_payload["step"],"cases":records,"aggregate":{"raw_required_reachable_rate":sum(row["raw_required_reachable"] for row in records)/len(records),"raw_radius_one_required_reachable_rate":sum(row["raw_radius_one_required_reachable"] for row in records)/len(records),"mean_repair_fraction":sum(row["repair_fraction"] for row in records)/len(records),"mean_unique_tokens":sum(row["unique_tokens"] for row in records)/len(records)},"contact_sheet_sha256":hashlib.sha256(contact).hexdigest()};report["report_sha256"]=hashlib.sha256(canonical_json_bytes(report)).hexdigest();(staging/"evaluation.json").write_bytes(canonical_json_bytes(report));os.replace(staging,output);return report
+        contact=contact_sheet_png_bytes(rows);(staging/"contact_sheet.png").write_bytes(contact);report={"format":"nullvector-map-topology-prior-v2-decoded-evaluation/1.0.0","checkpoint_sha256":sha256_file(Path(checkpoint)),"step":reported_step,"cases":records,"aggregate":{"raw_required_reachable_rate":sum(row["raw_required_reachable"] for row in records)/len(records),"raw_radius_one_required_reachable_rate":sum(row["raw_radius_one_required_reachable"] for row in records)/len(records),"mean_repair_fraction":sum(row["repair_fraction"] for row in records)/len(records),"mean_unique_tokens":sum(row["unique_tokens"] for row in records)/len(records)},"contact_sheet_sha256":hashlib.sha256(contact).hexdigest()};report["report_sha256"]=hashlib.sha256(canonical_json_bytes(report)).hexdigest();(staging/"evaluation.json").write_bytes(canonical_json_bytes(report));os.replace(staging,output);return report
     finally:
         if staging.exists():
             for child in staging.iterdir():child.unlink(missing_ok=True)
