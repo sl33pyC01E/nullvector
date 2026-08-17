@@ -8,6 +8,8 @@ from ..organism_cell_vae_runtime_v1 import ContinuousCellVAERuntime
 from ..living_body_nca_v1 import LivingBodyNCARuntime
 from ..world_frame_vae.contract import ModelConfig as VAEConfig
 from ..world_frame_vae.model import WorldFrameVAE
+from ..world_frame_vae_refiner.contract import ModelConfig as RefinerConfig
+from ..world_frame_vae_refiner.model import PixelCellRefiner
 from ..world_latent_dit.contract import ModelConfig as DiTConfig
 from ..world_latent_dit.model import ActionDiT
 from .contract import ARTIFACTS,file_sha256,tensor_state_sha256
@@ -19,20 +21,23 @@ def _bound(name,payload,report_relative,artifact_relative):
     return report
 class CompositeWorldRuntime:
     """Callable Action-DiT + VAE world path with causal actor/body specialists."""
-    def __init__(self,dit,vae,actor,device,dit_mean,dit_std,actor_mean,actor_std,actor_threshold,actor_alpha,organism,physiology):self.dit=dit;self.vae=vae;self.actor=actor;self.device=device;self.dit_mean=dit_mean;self.dit_std=dit_std;self.actor_mean=actor_mean;self.actor_std=actor_std;self.actor_threshold=actor_threshold;self.actor_alpha=actor_alpha;self.organism=organism;self.physiology=physiology
+    def __init__(self,dit,vae,refiner,actor,device,dit_mean,dit_std,actor_mean,actor_std,actor_threshold,actor_alpha,organism,physiology):self.dit=dit;self.vae=vae;self.refiner=refiner;self.actor=actor;self.device=device;self.dit_mean=dit_mean;self.dit_std=dit_std;self.actor_mean=actor_mean;self.actor_std=actor_std;self.actor_threshold=actor_threshold;self.actor_alpha=actor_alpha;self.organism=organism;self.physiology=physiology
     @classmethod
     def from_release(cls,*,device="cuda"):
         target=torch.device(device if device!="cuda" or torch.cuda.is_available() else "cpu")
         dit_report,dit_art=ARTIFACTS["action_dit"];dit_payload=_load(dit_art);_bound("Action-DiT",dit_payload,dit_report,dit_art);dit=ActionDiT(DiTConfig(**dit_payload["model_config"]));dit.load_state_dict(dit_payload["ema_state"],strict=True);dit.to(target).eval();dit_mean=torch.tensor(dit_payload["latent_mean"],device=target)[None,:,None,None];dit_std=torch.tensor(dit_payload["latent_std"],device=target)[None,:,None,None]
         vae_report,vae_art=ARTIFACTS["world_vae"];vae_payload=_load(vae_art);_bound("world VAE",vae_payload,vae_report,vae_art);vae=WorldFrameVAE(VAEConfig(**vae_payload["model_config"]));vae.load_state_dict(vae_payload["ema_state"],strict=True);vae.to(target).eval()
+        ref_report,ref_art=ARTIFACTS["pixel_refiner"];ref_payload=_load(ref_art);ref_evidence=json.loads((PROJECT_ROOT/ref_report).read_text("utf-8"))
+        if ref_payload.get("source_sha256")!=ref_evidence.get("source_sha256") or ref_payload.get("base_checkpoint_sha256")!=file_sha256(PROJECT_ROOT/vae_art) or tensor_state_sha256(ref_payload["ema_state"])!=ref_payload.get("ema_state_sha256"):raise ValueError("composite bound refiner drifted")
+        refiner=PixelCellRefiner(RefinerConfig());refiner.load_state_dict(ref_payload["ema_state"],strict=True);refiner.to(target).eval()
         actor_report,actor_art=ARTIFACTS["actor_state"];report=json.loads((PROJECT_ROOT/actor_report).read_text("utf-8"));actor_payload=_load(actor_art);key="model_state" if report["selection"]["variant"]=="raw" else "ema_state";actor=ActorStateStudent();actor.load_state_dict(actor_payload[key],strict=True);actor.to(target).eval();actor_mean=torch.tensor(actor_payload["normalization"]["mean"],device=target);actor_std=torch.tensor(actor_payload["normalization"]["std"],device=target)
         organism=ContinuousCellVAERuntime.from_release(device=str(target));physiology=LivingBodyNCARuntime.from_output(device=str(target))
-        return cls(dit,vae,actor,target,dit_mean,dit_std,actor_mean,actor_std,report["selection"]["threshold"],report["selection"]["alpha"],organism,physiology)
+        return cls(dit,vae,refiner,actor,target,dit_mean,dit_std,actor_mean,actor_std,report["selection"]["threshold"],report["selection"]["alpha"],organism,physiology)
     @torch.inference_mode()
     def encode(self,frame):
         value=torch.as_tensor(np.asarray(frame),device=self.device).permute(2,0,1).unsqueeze(0).float()/255;return self.vae.encode(value)[0]
     @torch.inference_mode()
-    def decode(self,latent):return self.vae.decode(latent.to(self.device))
+    def decode(self,latent):return self.refiner(self.vae.decode(latent.to(self.device)))
     @torch.inference_mode()
     def step_visual(self,latent,*,action,control,state,steps=8):
         value=(latent.to(self.device)-self.dit_mean)/self.dit_std;actions=torch.as_tensor(action,dtype=torch.long,device=self.device).reshape(-1);control=torch.as_tensor(control,dtype=torch.float32,device=self.device).reshape(len(value),4);state=torch.as_tensor(state,dtype=torch.float32,device=self.device).reshape(len(value),64)

@@ -72,10 +72,10 @@ they are still the safer or better authority.
 | Ecology and societies | Deterministic causal scaffold; neural replacement has started but is incomplete |
 | World frames | Callable Action-DiT + VAE composite; the native game has not switched authority yet |
 
-The first composite neural foundation now loads 67.1M parameters across the
-Action-DiT, world VAE, actor-state student, organism cell VAE, and causal
-physiology model. The larger 13-specialist teacher ensemble is hash-closed for
-reverse distillation.
+The first composite neural foundation now loads 67.7M parameters across the
+Action-DiT, world VAE, exact-parent pixel refiner, actor-state student, organism
+cell VAE, and causal physiology model. The larger 13-specialist teacher
+ensemble is hash-closed for reverse distillation.
 
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The next
