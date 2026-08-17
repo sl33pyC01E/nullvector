@@ -4,7 +4,8 @@ The Android target is a port of the desktop foundation, not a separate minigame.
 
 ## Acceptance gates
 
-- Five selectable organism families with distinct anatomy, traits, appendages, organs, and neural VAE cell appearance.
+- Five selectable organism families with distinct anatomy, traits, appendages, and organs.
+- HUD-off organism play is decoded as a complete VAE viewport from recurrent world latents. Traditional rendering is limited to menus, HUD, accessibility, and debug overlays.
 - Live neural muscle/contact inference executed through grounded skeleton constraints. No frame-loop locomotion.
 - Analog movement over the full ground plane while sprites remain vertically aligned in 2.5D.
 - Physical cells can be damaged, healed, severed, leaked, scarred, killed, and converted to material.
@@ -32,7 +33,7 @@ Implemented and running in the Android FP32 preview:
 - Living sensory-organ health now controls an aimed vision cone and a large near-awareness/hearing radius. Current sight and persistent explored-map memory are fed into the recurrent neural action model; unseen organisms remain simulated but are not rendered.
 - Remembered terrain is dimmed instead of blacked out. Sight geometry, labels, physiology bars, diagnostics, and the full HUD are independently presentational toggles; HUD-off leaves the world and creatures visible without disabling simulation mechanisms.
 - The desktop macro-resource, colony-role, society/construction, timeline, and five-way counterfactual teacher checkpoints are exported to ONNX and scheduled against the same mobile cellular world. Macro, colony, and society outputs are causal; timeline and counterfactual outputs remain observers.
-- The selected organism is re-rasterized from its current posed, damaged cell features at 3.75 Hz. VAE color influences presentation, while physical cell opacity, attachment, and survival stay scaffold-authoritative.
+- The organism VAE currently updates cell appearance at 3.75 Hz, but the visible habitat is still a traditional scaffold raster. Whole-viewport VAE decoding is the required presentation gate, not an implemented claim.
 - The compact Android flavor runs the same causal ensemble with quantized action and high-level teacher weights. Five high-level graphs compress from 351.2 MiB to 93.6 MiB, retain at least 99.5% decision agreement on deterministic held-out probes, and complete a live Android world cycle with roughly 432 MiB RSS.
 
 Still incomplete: full city/adventure content, save persistence, broader population scaling, neural replacement of the remaining conservation/constraint scaffold, calibrated mobile quantization, physical-S25 profiling, and a complete parity capture. Society-driven organized structures are present, but this is not yet the intended city game.

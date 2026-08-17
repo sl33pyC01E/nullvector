@@ -43,7 +43,7 @@ final class FoundationWorld {
         final float[] cellStatic = new float[CELL_STATIC_CHANNELS * CELL_PIXELS];
         final float[] cellState = new float[CELL_STATE_CHANNELS * CELL_PIXELS];
         final float[] cellBonds = new float[CELL_BOND_CHANNELS * CELL_PIXELS];
-        float x, y, vx, vy, desiredX, desiredY, phase, bodyProgress, bodyVelocity, health = 1f, neural = 1f, energy = .82f;
+        float x, y, z, vx, vy, vz, desiredX, desiredY, phase, bodyProgress, bodyVelocity, health = 1f, neural = 1f, energy = .82f, abilityCooldown; boolean carried;
         float circulation=1f, respiration=1f, digestion=1f, sensory=1f, locomotion=1f;
         int manipulationOwner=-1;boolean manipulationActive;float manipulationX,manipulationY,manipulationForce;
         int intent = 11; float urgency = .5f;
@@ -108,6 +108,19 @@ final class FoundationWorld {
 
     synchronized Creature selected(){ return creatures.get(selected); }
     synchronized void select(int index){if(index<0||index>=creatures.size())return;creatures.get(selected).selected=false;selected=index;creatures.get(selected).selected=true;}
+
+    synchronized void configureSelected(float speed,float sensory,float resilience){Creature c=selected();c.traits[6]=clamp(speed,0,1);c.traits[11]=clamp(resilience,0,1);c.sensory=.55f+.75f*clamp(sensory,0,1);c.energy=.72f+.35f*resilience;c.health=1;c.neural=1;c.circulation=c.respiration=c.digestion=c.locomotion=1;}
+
+    synchronized void enforceSelectedGodMode(){Creature c=selected();c.health=c.neural=c.circulation=c.respiration=c.digestion=c.sensory=c.locomotion=1;c.energy=1.2f;for(Cell cell:c.cells)if(!cell.detached){cell.health=1;int p=cell.ncaY*48+cell.ncaX;c.cellState[p]=1;c.cellState[3*CELL_PIXELS+p]=1;c.cellState[4*CELL_PIXELS+p]=1;}}
+
+    synchronized void carryCreature(Creature c,float x,float y){if(c==selected())return;c.carried=true;c.x=wrap(x,4096);c.y=wrap(y,4096);c.z=34;c.vx=c.vy=c.vz=0;c.desiredX=c.desiredY=0;}
+
+    synchronized void throwCreature(Creature c,float aimX,float aimY,float strength){if(c==selected())return;float length=Math.max(.001f,(float)Math.hypot(aimX,aimY));c.carried=false;c.x=wrap(c.x,4096);c.y=wrap(c.y,4096);c.z=42;c.vx=aimX/length*strength;c.vy=aimY/length*strength;c.vz=245;c.desiredX=c.desiredY=0;}
+
+    /** 1 machine kinetic, 2 anomaly phase, 3 acquired hybrid emitter. */
+    synchronized int selectedProjectileAbility(){Creature c=selected();if(c.family==4)return 1;if(c.family==3)return 2;return c.traits[13]>.72f?3:0;}
+
+    synchronized boolean consumeSelectedProjectileCost(){Creature c=selected();int ability=selectedProjectileAbility();float cost=ability==2?.115f:ability==1?.075f:.095f;if(ability==0||c.abilityCooldown>0||c.energy<cost)return false;c.energy-=cost;c.abilityCooldown=ability==1?.22f:ability==2?.48f:.34f;return true;}
 
     synchronized VaeInput encodeSelectedVae(){Creature c=selected();VaeInput result=new VaeInput();int row=0;for(Cell cell:c.cells){if(row>=576||cell.detached||cell.health<=.01f)continue;int offset=row*52;float localX=c.cellX(cell),localY=c.cellY(cell);result.features[offset]=clamp(localX/23.5f,-1,1);result.features[offset+1]=clamp(localY/23.5f,-1,1);int tissue=Math.max(0,Math.min(14,cell.tissue));result.features[offset+2+tissue]=1;result.features[offset+17+c.family]=1;for(int i=0;i<8;i++)result.features[offset+22+i]=c.traits[i];result.features[offset+30]=c.health;result.features[offset+31]=c.neural;result.features[offset+32]=c.energy;result.features[offset+33]=c.circulation;result.features[offset+34]=c.respiration;result.features[offset+35]=c.digestion;result.features[offset+36]=c.locomotion;int kind=0,side=0;if(cell.appendage>=0&&cell.appendage<c.appendages.length){Appendage appendage=c.appendages[cell.appendage];kind=Math.max(0,Math.min(8,kindIndex(appendage.kind)));side=appendage.side;}result.features[offset+37+kind]=1;result.features[offset+46]=side;result.features[offset+47]=(float)Math.sin(Math.PI*2*c.phase);result.features[offset+48]=(float)Math.cos(Math.PI*2*c.phase);result.features[offset+49]=cell.health;result.features[offset+50]=cell.appendage>=0?1:0;result.features[offset+51]=1;result.mask[row]=1;row++;}return result;}
 
@@ -184,7 +197,7 @@ final class FoundationWorld {
     synchronized float[] positionSnapshot(){float[] values=new float[creatures.size()*2];for(int i=0;i<creatures.size();i++){values[i*2]=creatures.get(i).x;values[i*2+1]=creatures.get(i).y;}return values;}
     synchronized void rollbackPosition(int index,float x,float y){Creature c=creatures.get(index);c.x=x;c.y=y;c.vx*=-.08f;c.vy*=-.08f;}
 
-    private void resolveCreatureCollisions(){for(int i=0;i<creatures.size();i++)for(int j=i+1;j<creatures.size();j++){Creature a=creatures.get(i),b=creatures.get(j);if(a.family==b.family)continue;float dx=shortDelta(a.x,b.x,4096),dy=shortDelta(a.y,b.y,4096),distance=Math.max(.001f,(float)Math.hypot(dx,dy)),radius=42+18*(a.traits[0]+b.traits[0]);if(distance>=radius)continue;float overlap=radius-distance,nx=dx/distance,ny=dy/distance;a.x=wrap(a.x-nx*overlap*.5f,4096);a.y=wrap(a.y-ny*overlap*.5f,4096);b.x=wrap(b.x+nx*overlap*.5f,4096);b.y=wrap(b.y+ny*overlap*.5f,4096);float closing=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(closing>0){a.vx-=nx*closing*.55f;a.vy-=ny*closing*.55f;b.vx+=nx*closing*.55f;b.vy+=ny*closing*.55f;if(hostile(a.family,b.family)&&closing>115){damageCreature(a,a.x+nx*radius*.4f,a.y+ny*radius*.4f,24,Math.min(.18f,closing/900));damageCreature(b,b.x-nx*radius*.4f,b.y-ny*radius*.4f,24,Math.min(.18f,closing/900));}}}}
+    private void resolveCreatureCollisions(){for(int i=0;i<creatures.size();i++)for(int j=i+1;j<creatures.size();j++){Creature a=creatures.get(i),b=creatures.get(j);if(a.family==b.family||a.carried||b.carried||a.z>2||b.z>2)continue;float dx=shortDelta(a.x,b.x,4096),dy=shortDelta(a.y,b.y,4096),distance=Math.max(.001f,(float)Math.hypot(dx,dy)),radius=42+18*(a.traits[0]+b.traits[0]);if(distance>=radius)continue;float overlap=radius-distance,nx=dx/distance,ny=dy/distance;a.x=wrap(a.x-nx*overlap*.5f,4096);a.y=wrap(a.y-ny*overlap*.5f,4096);b.x=wrap(b.x+nx*overlap*.5f,4096);b.y=wrap(b.y+ny*overlap*.5f,4096);float closing=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(closing>0){a.vx-=nx*closing*.55f;a.vy-=ny*closing*.55f;b.vx+=nx*closing*.55f;b.vy+=ny*closing*.55f;if(hostile(a.family,b.family)&&closing>115){damageCreature(a,a.x+nx*radius*.4f,a.y+ny*radius*.4f,24,Math.min(.18f,closing/900));damageCreature(b,b.x-nx*radius*.4f,b.y-ny*radius*.4f,24,Math.min(.18f,closing/900));}}}}
 
     synchronized float[] selectedGrasperWorld(){Creature c=selected();int owner=-1;for(int i=0;i<c.appendages.length;i++){String kind=c.appendages[i].kind;if((kind.equals("arm")||kind.equals("tendril")||kind.equals("frond")||kind.equals("hardpoint"))&&appendageIntegrity(c,i)>.2f){owner=i;break;}}if(owner<0)return new float[]{c.x,c.y};int tip=c.terminal[owner];return new float[]{c.x+(c.node[tip][0]-c.bodyProgress)*4f,c.y+c.node[tip][1]*4f};}
 
@@ -223,6 +236,7 @@ final class FoundationWorld {
     private static float appendageIntegrity(Creature c,int owner){float total=0,count=0;for(Cell cell:c.cells)if(cell.appendage==owner){total+=cell.health;count++;}return count>0?total/count:1;}
 
     private void stepCreature(Creature c,float dt){
+        c.abilityCooldown=Math.max(0,c.abilityCooldown-dt);if(c.carried)return;if(c.z>0){c.x=wrap(c.x+c.vx*dt,4096);c.y=wrap(c.y+c.vy*dt,4096);c.z+=c.vz*dt;c.vz-=560f*dt;if(c.z<=0){c.z=0;if(Math.abs(c.vz)>95){c.vz=-c.vz*.24f;c.vx*=.68f;c.vy*=.68f;}else{c.vz=0;c.vx*=.35f;c.vy*=.35f;}if(Math.hypot(c.vx,c.vy)>145)damageCreature(c,c.x,c.y,38,Math.min(.25f,(float)Math.hypot(c.vx,c.vy)/1200f));}return;}
         float activity=Math.min(1f,(float)Math.hypot(c.desiredX,c.desiredY));float roleSpeed=c.colonyRole==1?1.12f:c.colonyRole==2?1.04f:1f;float cadence=.16f+activity*(.72f+.40f*c.traits[6])*roleSpeed;c.phase=(c.phase+dt*cadence)%1f;
         float ground=Float.NEGATIVE_INFINITY;for(Appendage a:c.appendages)if(a.grounded())ground=Math.max(ground,a.endY);if(!Float.isFinite(ground))ground=maxRestY(c)+3;
         float[][] target=authoredPose(c,c.phase);

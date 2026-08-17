@@ -45,6 +45,29 @@ def test_android_foundation_supplies_live_perception_and_clean_view():
     assert "hudVisible" in source and "sightOverlay" in source and "labelsVisible" in source and "barsVisible" in source
 
 
+def test_android_foundation_has_setup_dual_sticks_and_physical_actions():
+    view = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
+    world = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/FoundationWorld.java").read_text(encoding="utf-8")
+    for token in ("ENTER LIVING WORLD", "SURVIVAL", "GOD MODE", "LEFT STICK MOVE · RIGHT STICK LOOK / AIM"):
+        assert token in view
+    assert "movementPointer" in view and "aimPointer" in view
+    assert "THROW LOCKED · GRASP SOMETHING FIRST" in view
+    assert "ENTITY GRIP CLOSED" in view and "TISSUE GRIP CLOSED" in view
+    assert "AIMED BALLISTIC RELEASE" in view
+    assert "throwCreature" in world and "carried" in world
+    assert "groundSy-creature.z" in view
+
+
+def test_android_projectiles_are_trait_gated_and_distinct_from_throwing():
+    view = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
+    world = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/FoundationWorld.java").read_text(encoding="utf-8")
+    assert '"GRASP","FEED","STRIKE","SCRAPE","CUT","THROW","FIRE"' in view
+    assert "selectedProjectileAbility" in world and "consumeSelectedProjectileCost" in world
+    assert "c.family==4" in world and "c.family==3" in world and "c.traits[13]>.72f" in world
+    assert "MACHINE KINETIC FIRED" in view and "ANOMALY PHASE BOLT FIRED" in view and "GRAFTED EMITTER FIRED" in view
+    assert "heldMaterial!=null" in view
+
+
 def test_android_world_runs_the_coupled_teacher_ensemble():
     assets = PROJECT_ROOT / "android/nullvector-mobile/app/src/fp32/assets"
     manifest = json.loads((assets / "coupled_ensemble_manifest.json").read_bytes())

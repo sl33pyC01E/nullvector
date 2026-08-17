@@ -112,11 +112,17 @@ are checked in with the rollout comparison below.
 
 ## Android preview
 
-The Android build now opens into a playable 2.5D neural habitat instead of the
-old model harness. It runs the recurrent action core, cellular physiology NCA,
-continuous organism cell VAE, and neural garden map together. Touch controls
-move and aim; materials persist, collide, feed physiology, and can be thrown
-with height, shadow, bounce, roll, and impact response.
+The Android preview runs the recurrent action core, cellular physiology NCA,
+grounded controller, grasper policy, ecology, and high-level world ensemble in
+one 2.5D habitat. It now has a proper setup screen, independent movement and
+aim sticks, physical grasp/feed/throw interactions, and trait-gated machine and
+anomaly projectiles.
+
+Its visible world is still the deterministic cell scaffold. The VAE currently
+feeds cell appearance and diagnostic frames; it does not yet decode the whole
+viewport. The target renderer is controls + recurrent world state -> visual
+latent field -> VAE viewport, with ordinary graphics limited to menus, HUD,
+accessibility, and debug overlays.
 
 | Playable habitat | Optional neural debug |
 |---|---|
