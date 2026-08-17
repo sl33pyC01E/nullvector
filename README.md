@@ -67,10 +67,15 @@ they are still the safer or better authority.
 | Sprite rasterization | Promoted continuous cell VAE; current posed cells in, 96x96 RGBA out |
 | Grounded motion | Neural muscle/contact feedback inside physical constraints |
 | Limb pose and grasping | Neural inverse-muscle and grasp controllers inside an articulated solver |
-| Local cell dynamics | Neural cellular automata experiments; deterministic physiology remains primary |
+| Local cell dynamics | Promoted causal cellular NCA with organ-ablation and rollout gates |
 | Maps | Procedural topology authority with neural topology and decoration models under evaluation |
 | Ecology and societies | Deterministic causal scaffold; neural replacement has started but is incomplete |
-| World frames | VAE and sparse action-DiT prototypes, not yet the game authority |
+| World frames | Callable Action-DiT + VAE composite; the native game has not switched authority yet |
+
+The first composite neural foundation now loads 67.1M parameters across the
+Action-DiT, world VAE, actor-state student, organism cell VAE, and causal
+physiology model. The larger 13-specialist teacher ensemble is hash-closed for
+reverse distillation.
 
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The next
