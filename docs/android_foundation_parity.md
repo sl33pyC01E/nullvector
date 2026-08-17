@@ -29,8 +29,10 @@ Implemented but not release-ready:
 - Cell damage feeds the live NCA; organ failure feeds back into consciousness and locomotion. Healthy neural tissue has a scaffolded homeostatic floor to prevent out-of-distribution long-rollout collapse.
 - Physical grasp/feed/strike/scrape/cut/throw controls, all-direction ballistic elevation, cell-bond fracture, skeleton severing, persistent fragments, and diffuse ground-plane fluids. Grasping closes only after hand/material contact; feeding requires contact with live digestive cells and absorbs gradually; throws release from the hand with independent height and a ground-plane shadow.
 - Whole-body terrain collision and hostile inter-family collision; same-family bodies can overlap.
+- Living sensory-organ health now controls an aimed vision cone and a large near-awareness/hearing radius. Current sight and persistent explored-map memory are fed into the recurrent neural action model; unseen organisms remain simulated but are not rendered.
+- Remembered terrain is dimmed instead of blacked out. Sight geometry, labels, physiology bars, diagnostics, and the full HUD are independently presentational toggles; HUD-off leaves the world and creatures visible without disabling simulation mechanisms.
 
-Still incomplete: load/brace parity for the grasper, reconnection/polyp validation, reproduction/evolution, construction/society/adventure systems, map persistence, clean-view perception, performance profiling on real hardware, and full parity capture.
+Still incomplete: load/brace parity for the grasper, reconnection/polyp validation, reproduction/evolution, construction/society/adventure systems, save persistence for explored-map memory, performance profiling on real hardware, and full parity capture.
 
 The current emulator capture is mechanics evidence, not a gameplay presentation target. No Android release should be promoted until a visible parity capture covers the full desktop foundation and the Galaxy S25 Ultra meets the frame-time and memory gates above.
 

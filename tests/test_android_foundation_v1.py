@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
 
 from forge.android_foundation_v1 import build, validate
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_android_foundation_exports_live_batched_controller(tmp_path):
@@ -32,3 +35,11 @@ def test_android_foundation_exports_live_batched_controller(tmp_path):
     assert [value.name for value in grasper.get_outputs()] == [
         "appendage_logits", "engage_logit", "reach", "force", "type_logits", "brace", "release_logit", "throw_impulse",
     ]
+
+
+def test_android_foundation_supplies_live_perception_and_clean_view():
+    source = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
+    assert "updatePerception(visibility,memory)" in source
+    assert "visibleOffset" in source and "exploredWorld" in source
+    assert "!creature.selected&&!isWorldVisible" in source
+    assert "hudVisible" in source and "sightOverlay" in source and "labelsVisible" in source and "barsVisible" in source

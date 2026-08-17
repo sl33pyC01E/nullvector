@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.view.View;
 import android.view.MotionEvent;
 import android.util.Log;
@@ -48,6 +49,8 @@ public final class NeuralWorldView extends View {
     private volatile float worldX = 2048f, worldY = 2048f;
     private volatile float velocityX = 0f, velocityY = 0f;
     private volatile boolean diagnostics = false;
+    private volatile boolean hudVisible = true, sightOverlay = true, labelsVisible = true, barsVisible = true;
+    private final boolean[] exploredWorld = new boolean[128 * 128];
     private volatile int gathered = 0;
     private volatile int fireRequests = 0;
     private volatile float pendingNutrition = 0f;
@@ -198,6 +201,18 @@ public final class NeuralWorldView extends View {
         value ^= value >>> 30; value *= 0xBF58476D1CE4E5B9L; value ^= value >>> 27; value *= 0x94D049BB133111EBL; return value ^ (value >>> 31);
     }
 
+    private static float wrappedDelta(float from,float to){float value=to-from;if(value>2048f)value-=4096f;else if(value<-2048f)value+=4096f;return value;}
+
+    private boolean visibleOffset(float dx,float dy,float sensory){float distance=(float)Math.hypot(dx,dy),hearing=150f+sensory*150f;if(distance<=hearing)return true;float vision=430f+sensory*470f;if(distance>vision)return false;float inverse=1f/Math.max(1f,distance),dot=(dx*aimX+dy*aimY)*inverse;return dot>=.48f;}
+
+    private boolean isWorldVisible(float x,float y){if(foundation==null)return true;FoundationWorld.Creature body=foundation.selected();return visibleOffset(wrappedDelta(body.x,x),wrappedDelta(body.y,y),body.sensory);}
+
+    private int exploredIndex(float x,float y){int gx=Math.floorMod((int)Math.floor(x/32f),128),gy=Math.floorMod((int)Math.floor(y/32f),128);return gy*128+gx;}
+
+    private boolean isWorldRemembered(float x,float y){return exploredWorld[exploredIndex(x,y)];}
+
+    private void updatePerception(float[] visibility,float[] memory){if(foundation==null){java.util.Arrays.fill(visibility,1f);java.util.Arrays.fill(memory,1f);return;}FoundationWorld.Creature body=foundation.selected();for(int y=0;y<32;y++)for(int x=0;x<32;x++){int index=y*32+x;float dx=(x-15.5f)*32f,dy=(y-15.5f)*32f;boolean seen=visibleOffset(dx,dy,body.sensory);visibility[index]=seen?1f:0f;int worldIndex=exploredIndex(body.x+dx,body.y+dy);if(seen)exploredWorld[worldIndex]=true;memory[index]=exploredWorld[worldIndex]?1f:0f;}}
+
     private void tickGrasper(OrtEnvironment environment,OrtSession session)throws Exception{MaterialNode target=interactionTarget;if(foundation==null||target==null||target.amount<=0||interactionGoal<0)return;FoundationWorld.Creature body=foundation.selected();float queryX=interactionGoal==4?body.x+aimX*140:target.x,queryY=interactionGoal==4?body.y+aimY*140:target.y;FoundationWorld.GrasperInput input=foundation.encodeGrasper(queryX,queryY,target.amount,interactionGoal,heldMaterial==target);Map<String,OnnxTensor> tensors=new HashMap<>();tensors.put("owner_meta",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.owner),new long[]{1,FoundationWorld.MAX_APPENDAGES,16}));tensors.put("owner_mask",OnnxTensor.createTensor(environment,boolMatrix(input.mask,1,FoundationWorld.MAX_APPENDAGES)));tensors.put("target",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.target),new long[]{1,18}));tensors.put("global_state",OnnxTensor.createTensor(environment,FloatBuffer.wrap(input.global),new long[]{1,10}));long began=System.nanoTime();FoundationWorld.GrasperCommand command;try(OrtSession.Result result=session.run(tensors)){command=foundation.applyGrasper(((float[][])result.get(0).getValue())[0],((float[])result.get(1).getValue())[0],((float[][])result.get(2).getValue())[0],((float[])result.get(3).getValue())[0],((float[])result.get(6).getValue())[0],((float[][])result.get(7).getValue())[0]);}finally{for(OnnxTensor tensor:tensors.values())tensor.close();}grasperMilliseconds=(System.nanoTime()-began)/1_000_000.0;grasperOwner=command.owner;float[] hand=foundation.selectedGrasperWorld(command.owner);float distance=(float)Math.hypot(hand[0]-target.x,hand[1]-target.y);if(heldMaterial==null&&command.engage&&distance<22){heldMaterial=target;actionStatus="PHYSICAL GRIP CLOSED";}if(heldMaterial==target){target.x=hand[0];target.y=hand[1];if(interactionGoal==1){float[] feeder=foundation.selectedFeederWorld();float contact=(float)Math.hypot(target.x-feeder[0],target.y-feeder[1]);if(contact<19){float absorbed=Math.min(target.amount,.012f*Math.max(.15f,body.digestion));target.amount-=absorbed;pendingNutrition+=absorbed*(target.type==0?.34f:target.type==1?.12f:.04f);actionStatus="LIVE FEEDER CONTACT · "+Math.round((1-target.amount)*100)+"%";if(target.amount<=.001f){target.amount=0;heldMaterial=null;interactionTarget=null;interactionGoal=-1;}}}else if(interactionGoal==4&&command.release){float dx=command.throwX,dy=command.throwY,length=(float)Math.hypot(dx,dy);if(length<.15f){dx=aimX;dy=aimY;length=1;}synchronized(projectiles){Projectile shot=new Projectile(target.x,target.y,dx/length,dy/length,target.type,Math.max(.2f,target.amount));shot.vx*=.72f+Math.min(.55f,length*.35f);shot.vy*=.72f+Math.min(.55f,length*.35f);projectiles.add(shot);}target.amount=0;heldMaterial=null;interactionTarget=null;interactionGoal=-1;actionStatus="NEURAL BALLISTIC RELEASE";}}}
 
     private boolean terrainWalkable(float x, float y) {
@@ -285,7 +300,7 @@ public final class NeuralWorldView extends View {
                 float[] control = new float[4], visibility = new float[32 * 32], memory = new float[32 * 32];
                 float[] organismFeatures = floatAsset("organism_vae_features.f32", 576 * 52);
                 float[] organismMask = floatAsset("organism_vae_mask.f32", 576);
-                java.util.Arrays.fill(visibility, 1f); int tick = 0;
+                int tick = 0;
                 stage(provider + (BuildConfig.SPLIT_ACTION
                     ? " · INT8 action + cellular NCA + mobile VAE live"
                     : " · FP32 action + cellular NCA + mobile VAE live"));
@@ -305,7 +320,7 @@ public final class NeuralWorldView extends View {
                         if((tick&3)==0){long ecologyBegan=System.nanoTime();for(int ecologyIndex=0;ecologyIndex<foundation.creatures.size();ecologyIndex++){if(ecologyIndex==foundation.selected)continue;FoundationWorld.EcologyInput ecology=foundation.encodeEcology(ecologyIndex);Map<String,OnnxTensor> ecologyInputs=new HashMap<>();ecologyInputs.put("self_features",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.self),new long[]{1,94}));ecologyInputs.put("resource",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.resource),new long[]{1,10,4}));ecologyInputs.put("neighbor",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.neighbor),new long[]{1,12,14}));ecologyInputs.put("neighbor_mask",OnnxTensor.createTensor(environment,FloatBuffer.wrap(ecology.mask),new long[]{1,12}));try(OrtSession.Result result=ecologySession.run(ecologyInputs)){foundation.applyEcology(ecologyIndex,((float[][])result.get(0).getValue())[0],((float[][])result.get(1).getValue())[0],((float[])result.get(2).getValue())[0]);}for(OnnxTensor tensor:ecologyInputs.values())tensor.close();}ecologyMilliseconds=(System.nanoTime()-ecologyBegan)/1_000_000.0;}
                         tickGrasper(environment,grasperSession);
                     }
-                    advanceHabitat(1f / 30f); control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
+                    advanceHabitat(1f / 30f);updatePerception(visibility,memory);control[0] = controlX; control[1] = controlY; control[2] = actionTouch ? 1f : 0f; control[3] = Math.max(-1f, Math.min(1f, cellularHealth * cellularNeural * 2f - 1f));
                     Map<String, OnnxTensor> actionInputs = new HashMap<>();
                     actionInputs.put("current", OnnxTensor.createTensor(environment, FloatBuffer.wrap(current), new long[]{1, 48, 32, 32}));
                     actionInputs.put("previous", OnnxTensor.createTensor(environment, FloatBuffer.wrap(previous), new long[]{1, 48, 32, 32}));
@@ -384,13 +399,13 @@ public final class NeuralWorldView extends View {
 
     private void drawFoundationCreatures(Canvas canvas,float cx,float cy,float width,float height){
         if(foundation==null)return; synchronized(foundation){
-            for(int index=0;index<foundation.creatures.size();index++){FoundationWorld.Creature creature=foundation.creatures.get(index);float sx=cx+creature.x-worldX,sy=cy+creature.y-worldY;if(sx<-180||sy<-180||sx>width+180||sy>height+180)continue;float scale=creature.selected?4.4f:3.5f;
+            for(int index=0;index<foundation.creatures.size();index++){FoundationWorld.Creature creature=foundation.creatures.get(index);if(!creature.selected&&!isWorldVisible(creature.x,creature.y))continue;float sx=cx+creature.x-worldX,sy=cy+creature.y-worldY;if(sx<-180||sy<-180||sx>width+180||sy>height+180)continue;float scale=creature.selected?4.4f:3.5f;
                 paint.setColor(Color.argb(100,0,0,0));canvas.drawOval(sx-28*scale/4,sy+16*scale,sx+28*scale/4,sy+22*scale,paint);
                 paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(creature.selected?2.4f:1.2f);paint.setColor(creature.selected?Color.rgb(95,255,222):Color.argb(90,120,220,220));
                 for(int edgeIndex=0;edgeIndex<creature.edges.length;edgeIndex++){if(!creature.edgeAlive[edgeIndex])continue;int[] edge=creature.edges[edgeIndex];float ax=sx+(creature.node[edge[0]][0]-creature.bodyProgress)*scale,ay=sy+creature.node[edge[0]][1]*scale,bx=sx+(creature.node[edge[1]][0]-creature.bodyProgress)*scale,by=sy+creature.node[edge[1]][1]*scale;canvas.drawLine(ax,ay,bx,by,paint);}paint.setStyle(Paint.Style.FILL);
                 int fluidColor=creature.family==0?Color.rgb(204,45,76):creature.family==1?Color.rgb(123,73,167):creature.family==2?Color.rgb(115,211,66):creature.family==3?Color.rgb(195,77,255):Color.rgb(67,213,239);for(int p=0;p<FoundationWorld.CELL_PIXELS;p++){float surface=creature.cellState[9*FoundationWorld.CELL_PIXELS+p];if(surface>.035f){float puddleX=sx+((p%48)-24)*2.4f,puddleY=sy+22*scale+((p/48)-24)*1.25f;paint.setColor(Color.argb(Math.min(88,(int)(surface*130)),Color.red(fluidColor),Color.green(fluidColor),Color.blue(fluidColor)));canvas.drawCircle(puddleX,puddleY,2.2f+surface*5.5f,paint);}}
                 for(FoundationWorld.Cell cell:creature.cells){if(cell.health<=.01f)continue;float px=cell.detached?cx+cell.detachedWorldX-worldX:sx+creature.cellX(cell)*scale,py=cell.detached?cy+cell.detachedWorldY-worldY:sy+creature.cellY(cell)*scale;int alpha=Math.max(35,Math.min(255,(int)(255*cell.alpha*cell.health))),red=Math.min(255,(int)(255*cell.red)),green=Math.min(255,(int)(255*cell.green)),blue=Math.min(255,(int)(255*cell.blue));paint.setColor(Color.argb(alpha,red,green,blue));float radius=(.72f+cell.sigma*.72f)*(creature.selected?2.05f:1.72f);canvas.drawRect(px-radius,py-radius,px+radius,py+radius,paint);}
-                paint.setTextSize(12);paint.setColor(creature.selected?Color.rgb(95,255,222):Color.argb(190,190,220,220));String[] intents={"REST","FORAGE","HUNT","FLEE","MATE","FOLLOW","PHOTOSYNTHESIZE","MINE","PHASE FEED","REPAIR","GUARD","EXPLORE"};canvas.drawText(FoundationWorld.FAMILIES[creature.family]+(creature.selected?" // CONTROLLED":" // "+intents[Math.max(0,Math.min(intents.length-1,creature.intent))]),sx-52,sy+34*scale,paint);
+                if(hudVisible&&labelsVisible){paint.setTextSize(12);paint.setColor(creature.selected?Color.rgb(95,255,222):Color.argb(190,190,220,220));String[] intents={"REST","FORAGE","HUNT","FLEE","MATE","FOLLOW","PHOTOSYNTHESIZE","MINE","PHASE FEED","REPAIR","GUARD","EXPLORE"};canvas.drawText(FoundationWorld.FAMILIES[creature.family]+(creature.selected?" // CONTROLLED":" // "+intents[Math.max(0,Math.min(intents.length-1,creature.intent))]),sx-52,sy+34*scale,paint);}
             }
         }
     }
@@ -398,6 +413,8 @@ public final class NeuralWorldView extends View {
     private void bar(Canvas canvas, float x, float y, float width, float value, int color, String label) {
         paint.setColor(Color.argb(180, 5, 11, 16)); canvas.drawRect(x, y, x + width, y + 18, paint); paint.setColor(color); canvas.drawRect(x + 2, y + 2, x + 2 + (width - 4) * Math.max(0f, Math.min(1f, value)), y + 16, paint); paint.setTextSize(13); paint.setColor(Color.WHITE); canvas.drawText(label, x + 6, y + 14, paint);
     }
+
+    private void drawPerceptionOverlay(Canvas canvas,float cx,float cy){if(foundation==null||!hudVisible||!sightOverlay)return;FoundationWorld.Creature body=foundation.selected();float hearing=150f+body.sensory*150f,vision=430f+body.sensory*470f,angle=(float)Math.acos(.48),heading=(float)Math.atan2(aimY,aimX);Path cone=new Path();cone.moveTo(cx,cy);cone.lineTo(cx+(float)Math.cos(heading-angle)*vision,cy+(float)Math.sin(heading-angle)*vision);cone.lineTo(cx+(float)Math.cos(heading+angle)*vision,cy+(float)Math.sin(heading+angle)*vision);cone.close();paint.setColor(Color.argb(20,65,239,220));canvas.drawPath(cone,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(Color.argb(105,65,239,220));canvas.drawPath(cone,paint);paint.setColor(Color.argb(120,170,120,255));canvas.drawCircle(cx,cy,hearing,paint);paint.setStyle(Paint.Style.FILL);}
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas); canvas.drawColor(Color.rgb(4, 9, 12)); float width = getWidth(), height = getHeight(); float cx = width * .5f, cy = height * .54f;
@@ -409,29 +426,31 @@ public final class NeuralWorldView extends View {
             if (neuralTerrain == null) { int base = 13 + (int)Math.floorMod(hash >>> 9, 8); if (kind < 3) paint.setColor(Color.rgb(8, 30 + base, 40 + base)); else if (kind < 6) paint.setColor(Color.rgb(27 + base, 25 + base, 20 + base / 2)); else paint.setColor(Color.rgb(8 + base / 2, 29 + base, 24 + base / 2)); canvas.drawRect(sx, sy, sx + tile + 1, sy + tile + 1, paint); }
             paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(1); paint.setColor(Color.argb(32, 95, 210, 190)); canvas.drawRect(sx, sy, sx + tile, sy + tile, paint); paint.setStyle(Paint.Style.FILL);
             if (Math.floorMod(hash >>> 22, 29) == 0) { paint.setColor(Color.rgb(155, 112, 64)); canvas.drawRect(sx + 23, sy + 20, sx + 41, sy + 46, paint); paint.setColor(Color.rgb(205, 159, 83)); canvas.drawCircle(sx + 32, sy + 19, 11, paint); }
+            float tileWorldX=tx*tile+tile*.5f,tileWorldY=ty*tile+tile*.5f;if(!isWorldVisible(tileWorldX,tileWorldY)){paint.setColor(isWorldRemembered(tileWorldX,tileWorldY)?Color.argb(112,0,8,11):Color.argb(178,0,5,8));canvas.drawRect(sx,sy,sx+tile+1,sy+tile+1,paint);}
         }
-        synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f) { float sx = cx + node.x - worldX, sy = cy + node.y - worldY; if (sx > -30 && sy > -30 && sx < width + 30 && sy < height + 30) { int color = node.type == 0 ? Color.rgb(151, 255, 68) : node.type == 1 ? Color.rgb(61, 206, 255) : Color.rgb(255, 190, 66); paint.setColor(Color.argb(90, 0, 0, 0)); canvas.drawOval(sx - 13, sy + 7, sx + 13, sy + 14, paint); paint.setColor(color); float radius = 5 + node.amount * 8; canvas.drawCircle(sx, sy, radius, paint); paint.setColor(Color.argb(210, 235, 255, 235)); canvas.drawCircle(sx - radius * .28f, sy - radius * .28f, Math.max(2f, radius * .24f), paint); } } }
+        synchronized (materials) { for (MaterialNode node : materials) if (node.amount > 0f&&(isWorldVisible(node.x,node.y)||isWorldRemembered(node.x,node.y))) { float sx = cx + node.x - worldX, sy = cy + node.y - worldY; if (sx > -30 && sy > -30 && sx < width + 30 && sy < height + 30) { boolean visible=isWorldVisible(node.x,node.y);int color = node.type == 0 ? Color.rgb(151, 255, 68) : node.type == 1 ? Color.rgb(61, 206, 255) : Color.rgb(255, 190, 66); paint.setColor(Color.argb(visible?90:38, 0, 0, 0)); canvas.drawOval(sx - 13, sy + 7, sx + 13, sy + 14, paint); paint.setColor(visible?color:Color.rgb(63,88,86)); float radius = 5 + node.amount * 8; canvas.drawCircle(sx, sy, radius, paint); if(visible){paint.setColor(Color.argb(210, 235, 255, 235)); canvas.drawCircle(sx - radius * .28f, sy - radius * .28f, Math.max(2f, radius * .24f), paint);} } } }
         synchronized (projectiles) { for (Projectile shot : projectiles) {
+            if(!isWorldVisible(shot.x,shot.y))continue;
             float sx = cx + shot.x - worldX, ground = cy + shot.y - worldY; float scale = 1f + shot.z / 260f;
             paint.setColor(Color.argb(90, 0, 0, 0)); canvas.drawOval(sx - 10 * scale, ground - 3, sx + 10 * scale, ground + 4, paint);
             paint.setColor(shot.resting ? Color.rgb(160, 130, 76) : Color.rgb(255, 211, 91)); canvas.drawCircle(sx, ground - shot.z, 7 * scale, paint); paint.setColor(Color.rgb(255, 245, 185)); canvas.drawCircle(sx - 2, ground - shot.z - 2, 2 * scale, paint);
         } }
-        drawFoundationCreatures(canvas,cx,cy,width,height);
+        drawPerceptionOverlay(canvas,cx,cy);drawFoundationCreatures(canvas,cx,cy,width,height);
         float organismSize = Math.min(250f, height * .31f); paint.setColor(Color.argb(115, 0, 0, 0));
         if(foundation==null) canvas.drawOval(cx - organismSize * .34f, cy + organismSize * .38f, cx + organismSize * .34f, cy + organismSize * .52f, paint);
         android.graphics.RectF organismRect = new android.graphics.RectF(cx - organismSize * .5f, cy - organismSize * .52f, cx + organismSize * .5f, cy + organismSize * .48f);
         paint.setFilterBitmap(false); paint.setAlpha(255);
         if (foundation==null && organismVaeFrame != null) canvas.drawBitmap(organismVaeFrame, null, organismRect, paint);
         if (foundation==null && cellularFrame != null) { paint.setAlpha(organismVaeFrame == null ? 255 : 76); canvas.drawBitmap(cellularFrame, null, organismRect, paint); paint.setAlpha(255); }
-        paint.setColor(Color.argb(150, 255, 90, 180)); paint.setStrokeWidth(3); canvas.drawLine(cx, cy - organismSize * .12f, cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, paint); canvas.drawCircle(cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, 5, paint);
+        if(hudVisible){paint.setColor(Color.argb(150, 255, 90, 180)); paint.setStrokeWidth(3); canvas.drawLine(cx, cy - organismSize * .12f, cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, paint); canvas.drawCircle(cx + aimX * 92f, cy - organismSize * .12f + aimY * 92f, 5, paint);
         paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(25); canvas.drawText("NULLVECTOR // NEURAL HABITAT", 28, 39, paint); paint.setTextSize(15); paint.setColor(Color.rgb(165, 199, 199)); canvas.drawText("CELLULAR CREATURE STAGE · WORLD 4096² · MATERIAL " + gathered, 29, 63, paint);
         FoundationWorld.Creature selectedBody=foundation==null?null:foundation.selected();
-        bar(canvas,28,78,158,cellularHealth,Color.rgb(62,224,115),"HEALTH");bar(canvas,28,102,158,cellularNeural,Color.rgb(214,72,255),"NEURAL");
-        if(selectedBody!=null){bar(canvas,198,78,142,selectedBody.circulation,Color.rgb(245,77,101),"CIRCULATION");bar(canvas,198,102,142,selectedBody.respiration,Color.rgb(71,213,242),"RESPIRATION");bar(canvas,352,78,142,selectedBody.digestion,Color.rgb(245,174,62),"DIGESTION");bar(canvas,352,102,142,selectedBody.locomotion,Color.rgb(155,240,80),"LOCOMOTION");bar(canvas,506,78,142,selectedBody.sensory,Color.rgb(207,118,255),"SENSORY");bar(canvas,506,102,142,selectedBody.energy,Color.rgb(255,225,92),"ENERGY");}
+        if(barsVisible){bar(canvas,28,78,158,cellularHealth,Color.rgb(62,224,115),"HEALTH");bar(canvas,28,102,158,cellularNeural,Color.rgb(214,72,255),"NEURAL");
+        if(selectedBody!=null){bar(canvas,198,78,142,selectedBody.circulation,Color.rgb(245,77,101),"CIRCULATION");bar(canvas,198,102,142,selectedBody.respiration,Color.rgb(71,213,242),"RESPIRATION");bar(canvas,352,78,142,selectedBody.digestion,Color.rgb(245,174,62),"DIGESTION");bar(canvas,352,102,142,selectedBody.locomotion,Color.rgb(155,240,80),"LOCOMOTION");bar(canvas,506,78,142,selectedBody.sensory,Color.rgb(207,118,255),"SENSORY");bar(canvas,506,102,142,selectedBody.energy,Color.rgb(255,225,92),"ENERGY");}}
         if(foundation!=null){float cardWidth=Math.min(112,(width-40)/5);for(int i=0;i<5;i++){float left=20+i*cardWidth;paint.setColor(i==foundation.selected?Color.argb(220,16,75,75):Color.argb(190,5,17,22));canvas.drawRect(left,130,left+cardWidth-5,166,paint);paint.setColor(i==foundation.selected?Color.rgb(105,255,220):Color.rgb(160,190,200));paint.setTextSize(11);canvas.drawText(FoundationWorld.FAMILIES[i],left+5,152,paint);}}
         paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(movementTouch ? Color.rgb(67, 239, 220) : Color.argb(145, 67, 125, 130)); canvas.drawCircle(width * .13f, height * .82f, 72, paint); paint.setStyle(Paint.Style.FILL); paint.setColor(Color.rgb(67, 239, 220)); canvas.drawCircle(width * .13f + controlX * 58, height * .82f + controlY * 58, 14, paint);
         String[] actions={"GRASP","FEED","STRIKE","SCRAPE","CUT","THROW"};float actionStart=width*.54f,actionGap=Math.min(105,width*.073f),actionY=height*.84f;for(int i=0;i<actions.length;i++){float x=actionStart+i*actionGap;paint.setColor(i==selectedAction?Color.rgb(132,42,103):Color.rgb(48,30,47));canvas.drawCircle(x,actionY,39,paint);paint.setColor(Color.WHITE);paint.setTextSize(11);canvas.drawText(actions[i],x-20,actionY+4,paint);}paint.setColor(Color.rgb(170,205,205));paint.setTextSize(12);canvas.drawText(actionStatus,actionStart,actionY+62,paint);
-        paint.setColor(Color.argb(180, 5, 10, 14)); canvas.drawRect(width - 145, 18, width - 18, 58, paint); paint.setColor(Color.rgb(140, 205, 205)); paint.setTextSize(14); canvas.drawText(diagnostics ? "HIDE MODELS" : "MODEL INFO", width - 132, 43, paint);
+        paint.setColor(Color.argb(180, 5, 10, 14)); canvas.drawRect(width - 525, 18, width - 405, 58, paint); paint.setColor(Color.rgb(140, 205, 205)); paint.setTextSize(13); canvas.drawText(diagnostics ? "HIDE MODELS" : "MODEL INFO", width - 514, 43, paint);
         if (diagnostics) {
             float left = width * .47f, panelX = left + 18, panelY = 100; paint.setColor(Color.argb(238, 2, 6, 10)); canvas.drawRect(left, 72, width - 20, height * .73f, paint);
             paint.setColor(Color.rgb(67, 239, 220)); paint.setTextSize(17); canvas.drawText("NEURAL DEBUG // INTERNAL RUNTIME", panelX, panelY, paint);
@@ -454,11 +473,14 @@ public final class NeuralWorldView extends View {
             for (int i = 0; i < Math.min(32, context.length); i++) { double angle = i * Math.PI * 2 / 32; float radius = 28 + Math.abs(context[i]) * 40; paint.setColor(Color.argb(180, 67, 239, 220)); canvas.drawCircle(orbitX + (float)Math.cos(angle) * radius, orbitY + (float)Math.sin(angle) * radius, 2 + Math.min(5, Math.abs(context[i]) * 4), paint); }
             paint.setColor(Color.rgb(150, 175, 185)); paint.setTextSize(12); canvas.drawText("64D WORLD CONTEXT", orbitX - 64, orbitY + 90, paint);
         }
+        paint.setTextSize(12);String[] toggleNames={sightOverlay?"SIGHT ON":"SIGHT OFF",labelsVisible?"LABELS ON":"LABELS OFF",barsVisible?"BARS ON":"BARS OFF"};for(int i=0;i<3;i++){float left=width-395+i*92;paint.setColor(Color.argb(190,5,16,20));canvas.drawRect(left,18,left+86,58,paint);paint.setColor(Color.rgb(135,210,202));canvas.drawText(toggleNames[i],left+8,43,paint);}
+        }
+        paint.setColor(Color.argb(220,5,16,20));canvas.drawRect(width-112,18,width-18,58,paint);paint.setColor(hudVisible?Color.rgb(140,205,205):Color.rgb(95,255,222));paint.setTextSize(13);canvas.drawText(hudVisible?"HUD OFF":"HUD ON",width-95,43,paint);
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
         boolean move = false, act = false; float width = Math.max(1, getWidth()), height = Math.max(1, getHeight());
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && event.getX() > width - 165 && event.getY() < 75) { diagnostics = !diagnostics; invalidate(); return true; }
+        if(event.getActionMasked()==MotionEvent.ACTION_DOWN&&event.getY()<75){float x=event.getX();if(x>width-125){hudVisible=!hudVisible;if(!hudVisible)diagnostics=false;invalidate();return true;}if(hudVisible&&x>width-217){barsVisible=!barsVisible;invalidate();return true;}if(hudVisible&&x>width-309){labelsVisible=!labelsVisible;invalidate();return true;}if(hudVisible&&x>width-401){sightOverlay=!sightOverlay;invalidate();return true;}if(hudVisible&&x>width-535&&x<width-395){diagnostics=!diagnostics;invalidate();return true;}}
         if(event.getActionMasked()==MotionEvent.ACTION_DOWN&&foundation!=null&&event.getY()>=126&&event.getY()<=174){int index=(int)((event.getX()-20)/Math.min(112,(width-40)/5));if(index>=0&&index<5){foundation.select(index);FoundationWorld.Creature selected=foundation.selected();worldX=selected.x;worldY=selected.y;invalidate();return true;}}
         if(event.getActionMasked()==MotionEvent.ACTION_DOWN&&event.getY()>height*.76f&&event.getX()>width*.49f){float gap=Math.min(105,width*.073f),start=width*.54f;int index=Math.round((event.getX()-start)/gap);if(index>=0&&index<6){performAction(index);invalidate();return true;}}
         if (event.getActionMasked() != MotionEvent.ACTION_UP && event.getActionMasked() != MotionEvent.ACTION_CANCEL) for (int pointer = 0; pointer < event.getPointerCount(); pointer++) {
