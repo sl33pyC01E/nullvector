@@ -1,0 +1,17 @@
+{
+  "format": "nullvector-neural-world-synthesis-showcase-v1/1.0.0",
+  "source_build": "outputs/neural_world_synthesis_v1/build_004",
+  "status": "experimental_ready",
+  "themes": 6,
+  "raw_required_reachable_rate": 0.8333333333333334,
+  "raw_radius_one_required_reachable_rate": 0.5,
+  "mean_repair_fraction": 0.05452473966666666,
+  "maximum_repair_fraction": 0.1484375,
+  "elapsed_seconds": 6.877579200001492,
+  "peak_reserved_bytes": 115343360,
+  "display_target_fps": 30,
+  "embodied_motion_hz": 30,
+  "causal_world_hz": 15,
+  "manifest_sha256": "6da0cc120b81cb21b1799d37d0321e6ed1cb03432f7a1cdb1f25a426161d9468",
+  "prior_checkpoint_sha256": "b4b4d7f749917fe956b2b25d39887223d851b3221b50447b0d8331e78c69bdec"
+}

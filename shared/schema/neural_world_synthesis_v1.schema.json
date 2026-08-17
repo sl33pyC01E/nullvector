@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nullvector neural world synthesis v1",
+  "type": "object",
+  "required": ["format", "status", "source_sha256", "prior_checkpoint_sha256", "prior_step", "topology_cases", "decorator_report", "decorator_report_sha256", "aggregate", "contact_sheets", "runtime", "gates", "manifest_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-neural-world-synthesis-v1/1.0.0"},
+    "status": {"enum": ["experimental_ready", "failed"]},
+    "source_sha256": {"$ref": "#/$defs/sha"},
+    "prior_checkpoint_sha256": {"$ref": "#/$defs/sha"},
+    "prior_step": {"type": "integer", "minimum": 1},
+    "topology_cases": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/case"}},
+    "decorator_report": {"type": "string", "minLength": 1},
+    "decorator_report_sha256": {"$ref": "#/$defs/sha"},
+    "aggregate": {
+      "type": "object",
+      "required": ["raw_required_reachable_rate", "raw_radius_one_required_reachable_rate", "mean_repair_fraction", "maximum_repair_fraction"],
+      "additionalProperties": false,
+      "properties": {
+        "raw_required_reachable_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "raw_radius_one_required_reachable_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "mean_repair_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum_repair_fraction": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "contact_sheets": {"type": "object", "required": ["topology", "decorated"], "additionalProperties": {"$ref": "#/$defs/artifact"}},
+    "runtime": {
+      "type": "object",
+      "required": ["elapsed_seconds", "peak_reserved_bytes", "display_target_fps", "embodied_motion_hz", "causal_world_hz", "world_synthesis_cadence"],
+      "properties": {
+        "elapsed_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "peak_reserved_bytes": {"type": "integer", "minimum": 0},
+        "display_target_fps": {"const": 30},
+        "embodied_motion_hz": {"const": 30},
+        "causal_world_hz": {"const": 15},
+        "world_synthesis_cadence": {"const": "region_entry_or_background_only"}
+      }
+    },
+    "gates": {"type": "object", "minProperties": 6, "additionalProperties": {"type": "boolean"}},
+    "manifest_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "required": ["path", "bytes", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "bytes": {"type": "integer", "minimum": 1}, "sha256": {"$ref": "#/$defs/sha"}, "visually_inspected": {"type": "boolean"}}
+    },
+    "case": {
+      "type": "object",
+      "required": ["theme", "condition_identity_sha256", "map_id", "map_manifest", "map_manifest_sha256", "raw_sha256", "raw_arrays_sha256", "compiled_arrays_sha256", "repair_ledger_sha256", "repair_ledger_file_sha256", "repair_fraction", "raw_required_reachable", "raw_radius_one_required_reachable", "unique_tokens", "raw_artifacts", "preview"],
+      "properties": {
+        "theme": {"enum": ["arena", "rooms", "caves", "archipelago", "garden", "anomaly"]},
+        "condition_identity_sha256": {"$ref": "#/$defs/sha"},
+        "map_id": {"type": "string", "minLength": 1},
+        "map_manifest": {"type": "string", "minLength": 1},
+        "map_manifest_sha256": {"$ref": "#/$defs/sha"},
+        "raw_sha256": {"$ref": "#/$defs/sha"},
+        "raw_arrays_sha256": {"$ref": "#/$defs/sha"},
+        "compiled_arrays_sha256": {"$ref": "#/$defs/sha"},
+        "repair_ledger_sha256": {"$ref": "#/$defs/sha"},
+        "repair_ledger_file_sha256": {"$ref": "#/$defs/sha"},
+        "repair_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "raw_required_reachable": {"type": "boolean"},
+        "raw_radius_one_required_reachable": {"type": "boolean"},
+        "unique_tokens": {"type": "integer", "minimum": 1},
+        "raw_artifacts": {"type": "object", "required": ["tokens", "terrain", "hazard", "elevation"], "additionalProperties": {"$ref": "#/$defs/artifact"}},
+        "preview": {"$ref": "#/$defs/artifact"}
+      }
+    }
+  }
+}

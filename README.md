@@ -68,6 +68,18 @@ physiology, feeding, behavior, colonies, societies, and forecasts.
 
 More results are in the [output gallery](examples/README.md).
 
+| Neural world synthesis | Raw topology and safety repair |
+|---|---|
+| ![Six neural world regions](examples/showcase/neural_world_synthesis_v1.png) | ![Neural topology repair audit](examples/showcase/neural_world_topology_repair_v1.png) |
+
+The current world-synthesis path composes a decoder-coupled neural topology
+prior with the accepted neural decal/prop selector. It produces all six biome
+regions in 6.9 seconds with about 110 MiB peak reserved VRAM. Raw maps connect
+required mission points in 83.3% of the six-theme sentinel set and support the
+full agent radius in 50%; the safety compiler changes 5.45% of cells on average.
+That compiler is still authoritative, so this is an experimental neural world
+foundation rather than a claim that topology is fully learned.
+
 ## What is neural
 
 NULLVECTOR currently uses an ensemble. Deterministic systems remain wherever
@@ -107,10 +119,10 @@ MAE 7.24%, and edge error 1.72%. The packaged 57.0M-parameter recurrent + VAE
 pipeline runs at 76.7 decoded 256x256 frames/s on the development GPU, with
 432 MiB peak reserved VRAM and 228 MB of checkpoint artifacts.
 
-The live nature stage targets 30 rendered frames/s. Its grounded organism and
-appendage presentation advances at 24 Hz while the causal world advances at 12
-Hz and interpolates through presentation. Causal physiology advances four organisms per
-world tick (about 3 Hz each at the default population) through a batched neural update;
+The live nature stage targets 30 rendered frames/s. Grounded organism and
+appendage physics now advance at 30 Hz while the causal world and physiology
+advance at 15 Hz. Causal physiology advances four organisms per world tick
+through a batched neural update;
 slower ecology and society decisions stay on their own cadence. The organism VAE decodes identity-stable
 cell appearance once, then physics moves those neural-authored cells without
 rerasterizing an entire body per pose. Peak reserved VRAM is about 770 MiB.

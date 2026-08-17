@@ -121,7 +121,8 @@ def test_live_cadence_contract_keeps_organisms_above_floor() -> None:
     assert 24<=DISPLAY_FPS<=30
     assert MINIMUM_ORGANISM_HZ==12
     assert MINIMUM_ORGANISM_HZ<EMBODIED_MOTION_HZ<=DISPLAY_FPS
-    assert CAUSAL_WORLD_HZ==12
+    assert EMBODIED_MOTION_HZ==30
+    assert CAUSAL_WORLD_HZ==15
 
 
 def test_overlay_controls_only_change_presentation_and_information() -> None:
