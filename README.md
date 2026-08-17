@@ -89,7 +89,8 @@ The first recurrent action-frame student now beats exact frame persistence by
 10.43% on its untouched cellular world. Its decoder adaptation cuts cellular
 reconstruction MAE by 91.0% while keeping the original encoder and latent
 contract frozen. This result is promoted as a tested component, not yet as the
-whole game runtime.
+authoritative world simulation. It is callable in the nature stage as the live
+action-conditioned future view.
 
 The physical projector still enforces bone lengths, attached roots, planted
 contacts, collision safety, and feeder contact. That is intentional. The
