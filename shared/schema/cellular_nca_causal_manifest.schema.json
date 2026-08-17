@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullvector.local/schema/cellular_nca_causal_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "status", "source_sha256", "parent", "training", "provenance", "evaluation", "visual", "gates", "limitations", "manifest_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-organism-neural-cellular-automaton-causal-v2"},
+    "status": {"enum": ["ready", "experimental"]},
+    "source_sha256": {"$ref": "#/$defs/hash"},
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "source_sha256", "manifest_sha256", "checkpoint_sha256", "ema_state_sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^outputs/[a-zA-Z0-9_./-]+$"},
+        "source_sha256": {"$ref": "#/$defs/hash"},
+        "manifest_sha256": {"$ref": "#/$defs/hash"},
+        "checkpoint_sha256": {"$ref": "#/$defs/hash"},
+        "ema_state_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_steps", "segment_steps", "batch_size", "attempt_count", "retry_count", "recovered_checkpoint_count", "first_loss", "final_loss", "runtime"],
+      "properties": {
+        "total_steps": {"type": "integer", "minimum": 64, "maximum": 4096},
+        "segment_steps": {"type": "integer", "minimum": 64, "maximum": 4096},
+        "batch_size": {"type": "integer", "minimum": 4, "maximum": 16},
+        "attempt_count": {"type": "integer", "minimum": 1},
+        "retry_count": {"type": "integer", "minimum": 0},
+        "recovered_checkpoint_count": {"type": "integer", "minimum": 0},
+        "first_loss": {"$ref": "#/$defs/nonnegative"},
+        "final_loss": {"$ref": "#/$defs/nonnegative"},
+        "runtime": {"$ref": "#/$defs/runtime"}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["training_contract_sha256", "checkpoint_path", "checkpoint_sha256", "model_state_sha256", "ema_state_sha256"],
+      "properties": {
+        "training_contract_sha256": {"$ref": "#/$defs/hash"},
+        "checkpoint_path": {"type": "string", "pattern": "^causal_segment_[0-9]{7}\\.pt$"},
+        "checkpoint_sha256": {"$ref": "#/$defs/hash"},
+        "model_state_sha256": {"$ref": "#/$defs/hash"},
+        "ema_state_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rollout_steps", "causal_steps", "organ_counterfactuals", "parent_counterfactual_mae", "causal_counterfactual_mae", "parent_rollout_mae", "causal_rollout_mae"],
+      "properties": {
+        "rollout_steps": {"const": 32},
+        "causal_steps": {"const": 16},
+        "organ_counterfactuals": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/organ_row"}},
+        "parent_counterfactual_mae": {"$ref": "#/$defs/nonnegative"},
+        "causal_counterfactual_mae": {"$ref": "#/$defs/nonnegative"},
+        "parent_rollout_mae": {"$ref": "#/$defs/mae"},
+        "causal_rollout_mae": {"$ref": "#/$defs/mae"}
+      }
+    },
+    "visual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "visually_inspected"],
+      "properties": {
+        "path": {"const": "organ_causality_comparison.png"},
+        "bytes": {"type": "integer", "minimum": 100, "maximum": 16777216},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "visually_inspected": {"type": "boolean"}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all_values_finite", "all_four_organs_reduce_their_readout", "counterfactual_error_improves_over_parent", "general_health_mae_below_0_02", "general_fluid_mae_below_0_04", "general_neural_mae_below_0_06", "general_rollout_not_regressed_50_percent"],
+      "properties": {
+        "all_values_finite": {"type": "boolean"},
+        "all_four_organs_reduce_their_readout": {"type": "boolean"},
+        "counterfactual_error_improves_over_parent": {"type": "boolean"},
+        "general_health_mae_below_0_02": {"type": "boolean"},
+        "general_fluid_mae_below_0_04": {"type": "boolean"},
+        "general_neural_mae_below_0_06": {"type": "boolean"},
+        "general_rollout_not_regressed_50_percent": {"type": "boolean"}
+      }
+    },
+    "limitations": {"type": "array", "minItems": 3, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "minLength": 8, "maxLength": 512}},
+    "manifest_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nonnegative": {"type": "number", "minimum": 0},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment_seconds", "updates_per_second", "peak_allocated_bytes", "peak_reserved_bytes", "device", "torch"],
+      "properties": {
+        "segment_seconds": {"$ref": "#/$defs/nonnegative"},
+        "updates_per_second": {"$ref": "#/$defs/nonnegative"},
+        "peak_allocated_bytes": {"type": "integer", "minimum": 0},
+        "peak_reserved_bytes": {"type": "integer", "minimum": 0},
+        "device": {"type": "string", "minLength": 1, "maxLength": 256},
+        "torch": {"type": "string", "minLength": 1, "maxLength": 64}
+      }
+    },
+    "organ_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "readout", "parent_relative_change", "causal_relative_change", "teacher_relative_change"],
+      "properties": {
+        "system": {"enum": ["circulation", "respiration", "digestion", "neural"]},
+        "readout": {"type": "integer", "minimum": 0, "maximum": 11},
+        "parent_relative_change": {"type": "number"},
+        "causal_relative_change": {"type": "number"},
+        "teacher_relative_change": {"type": "number"}
+      }
+    },
+    "mae": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["health", "fluid", "nutrient", "energy", "oxygen", "clot", "scar", "wound", "neural_activity", "surface_fluid", "biomass", "alive"],
+      "properties": {
+        "health": {"$ref": "#/$defs/nonnegative"},
+        "fluid": {"$ref": "#/$defs/nonnegative"},
+        "nutrient": {"$ref": "#/$defs/nonnegative"},
+        "energy": {"$ref": "#/$defs/nonnegative"},
+        "oxygen": {"$ref": "#/$defs/nonnegative"},
+        "clot": {"$ref": "#/$defs/nonnegative"},
+        "scar": {"$ref": "#/$defs/nonnegative"},
+        "wound": {"$ref": "#/$defs/nonnegative"},
+        "neural_activity": {"$ref": "#/$defs/nonnegative"},
+        "surface_fluid": {"$ref": "#/$defs/nonnegative"},
+        "biomass": {"$ref": "#/$defs/nonnegative"},
+        "alive": {"$ref": "#/$defs/nonnegative"}
+      }
+    }
+  }
+}
