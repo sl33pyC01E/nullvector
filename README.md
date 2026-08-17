@@ -118,10 +118,10 @@ rerasterizing an entire body per pose. Peak reserved VRAM is about 770 MiB.
 The width-96 neural topology prior now trains through the frozen VQ decoder, not
 only against token IDs. A 200-step semantic fine-tune adds rare-token balancing,
 required-point walkability, decoded condition matching, categorical sharpness,
-and differentiable agent-width reachability. Its decoded six-biome sentinel audit
-reaches 100% raw required-route connectivity and 50% agent-radius connectivity.
-Across all 24 held-out size/theme maps, those rates are 58.3% and 29.2%; mean
-repair is 5.1% on the 18 maps that completed isolated compiler verification.
+and scale-aware differentiable agent-width reachability. The selected 500-step
+semantic checkpoint reaches 70.8% raw required-route connectivity and 41.7%
+agent-radius connectivity across all 24 held-out size/theme maps. Its six-biome
+32px sentinel slice reaches 83.3% and 50%, with 5.5% mean deterministic repair.
 Hazard placement remains a separate neural-decorator responsibility. This is a
 measurable improvement and a useful failure boundary—not a promoted world generator.
 

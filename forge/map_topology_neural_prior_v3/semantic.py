@@ -33,12 +33,13 @@ def frequency_weights(counts: Tensor, *, maximum: float=5.0) -> Tensor:
 def semantic_topology_loss(
     logits: Tensor,targets: Tensor,mask: Tensor,valid_mask: Tensor,point_conditions: Tensor,
     global_conditions: Tensor,token_weights: Tensor,walkable_table: Tensor,hazard_table: Tensor,
-    *,propagation_steps: int=16,codec: torch.nn.Module|None=None,
+    *,propagation_steps: int|None=None,codec: torch.nn.Module|None=None,
 ) -> dict[str,Tensor]:
     batch,vocabulary,height,width=logits.shape
     if targets.shape!=(batch,height,width) or mask.shape!=targets.shape or valid_mask.shape!=(batch,1,height,width):raise ValueError("Semantic topology tensor shapes disagree.")
     if point_conditions.shape!=(batch,4,height,width) or global_conditions.shape!=(batch,14):raise ValueError("Semantic topology conditions disagree.")
     if token_weights.shape!=(vocabulary,) or walkable_table.shape!=(vocabulary,) or hazard_table.shape!=(vocabulary,):raise ValueError("Semantic topology token tables disagree.")
+    propagation_steps=height+width if propagation_steps is None else propagation_steps
     if propagation_steps<1:raise ValueError("Propagation steps must be positive.")
     per_cell=F.cross_entropy(logits.float(),targets.long(),weight=token_weights.float(),reduction="none")
     token_loss=per_cell[mask].mean()

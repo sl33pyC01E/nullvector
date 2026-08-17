@@ -1,75 +1,88 @@
 {
   "aggregate": {
-    "mean_repair_fraction": 0.055989583333333336,
-    "mean_unique_tokens": 7.166666666666667,
+    "mean_repair_fraction": 0.05452473966666666,
+    "mean_unique_tokens": 8.5,
     "raw_radius_one_required_reachable_rate": 0.5,
-    "raw_required_reachable_rate": 1.0
+    "raw_required_reachable_rate": 0.8333333333333334
   },
   "cases": [
     {
-      "preview": "anomaly.png",
+      "height": 32,
+      "preview": "anomaly_32x32_00.png",
       "raw_hazard_fraction": 0.0,
-      "raw_openness": 0.5224609375,
+      "raw_openness": 0.5595703125,
       "raw_radius_one_required_reachable": true,
       "raw_required_reachable": true,
-      "repair_fraction": 0.14453125,
+      "repair_fraction": 0.1484375,
       "theme": "anomaly",
-      "unique_tokens": 8
+      "unique_tokens": 11,
+      "width": 32
     },
     {
-      "preview": "archipelago.png",
+      "height": 32,
+      "preview": "archipelago_32x32_01.png",
       "raw_hazard_fraction": 0.0,
-      "raw_openness": 0.3759765625,
-      "raw_radius_one_required_reachable": false,
+      "raw_openness": 0.46484375,
+      "raw_radius_one_required_reachable": true,
       "raw_required_reachable": true,
-      "repair_fraction": 0.100585938,
+      "repair_fraction": 0.095703125,
       "theme": "archipelago",
-      "unique_tokens": 6
+      "unique_tokens": 8,
+      "width": 32
     },
     {
-      "preview": "arena.png",
+      "height": 32,
+      "preview": "arena_32x32_02.png",
       "raw_hazard_fraction": 0.0,
-      "raw_openness": 0.767578125,
+      "raw_openness": 0.7666015625,
       "raw_radius_one_required_reachable": false,
       "raw_required_reachable": true,
-      "repair_fraction": 0.017578125,
+      "repair_fraction": 0.018554688,
       "theme": "arena",
-      "unique_tokens": 5
+      "unique_tokens": 7,
+      "width": 32
     },
     {
-      "preview": "caves.png",
-      "raw_hazard_fraction": 0.001953125,
-      "raw_openness": 0.8623046875,
+      "height": 32,
+      "preview": "caves_32x32_03.png",
+      "raw_hazard_fraction": 0.0,
+      "raw_openness": 0.8466796875,
       "raw_radius_one_required_reachable": true,
       "raw_required_reachable": true,
-      "repair_fraction": 0.004882812,
+      "repair_fraction": 0.009765625,
       "theme": "caves",
-      "unique_tokens": 10
+      "unique_tokens": 8,
+      "width": 32
     },
     {
-      "preview": "garden.png",
-      "raw_hazard_fraction": 0.0,
-      "raw_openness": 0.810546875,
-      "raw_radius_one_required_reachable": true,
-      "raw_required_reachable": true,
-      "repair_fraction": 0.02734375,
+      "height": 32,
+      "preview": "garden_32x32_04.png",
+      "raw_hazard_fraction": 0.0029296875,
+      "raw_openness": 0.8779296875,
+      "raw_radius_one_required_reachable": false,
+      "raw_required_reachable": false,
+      "repair_fraction": 0.012695312,
       "theme": "garden",
-      "unique_tokens": 6
+      "unique_tokens": 3,
+      "width": 32
     },
     {
-      "preview": "rooms.png",
+      "height": 32,
+      "preview": "rooms_32x32_05.png",
       "raw_hazard_fraction": 0.0,
-      "raw_openness": 0.47265625,
+      "raw_openness": 0.4404296875,
       "raw_radius_one_required_reachable": false,
       "raw_required_reachable": true,
-      "repair_fraction": 0.041015625,
+      "repair_fraction": 0.041992188,
       "theme": "rooms",
-      "unique_tokens": 8
+      "unique_tokens": 14,
+      "width": 32
     }
   ],
-  "checkpoint_sha256": "a9f0a8ab9893064fd86771c93686ab7fed4b9fe62ceb168264f0564e7c9a9afb",
-  "contact_sheet_sha256": "0801bbb0717701204c4b3d496ada7982598d5d07ad10aba1ccb1a1b684e9866e",
+  "checkpoint_sha256": "b4b4d7f749917fe956b2b25d39887223d851b3221b50447b0d8331e78c69bdec",
+  "compiled": true,
+  "contact_sheet_sha256": "803f4c932db317c1d2e959dfe993c769239eb96fbfd8a2037084d534c6ff71b5",
   "format": "nullvector-map-topology-prior-v2-decoded-evaluation/1.0.0",
-  "report_sha256": "c7007c428c764b72ed952d50a24a532a9f3e802000142b36c5ec1137aefaefa0",
-  "step": 2200
+  "report_sha256": "e2dc8da3ceac41e88187156e2d54740ad46ce24d062f910a00786285721645a3",
+  "step": 2500
 }
