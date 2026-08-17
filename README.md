@@ -118,10 +118,12 @@ rerasterizing an entire body per pose. Peak reserved VRAM is about 770 MiB.
 The width-96 neural topology prior now trains through the frozen VQ decoder, not
 only against token IDs. A 200-step semantic fine-tune adds rare-token balancing,
 required-point walkability, decoded condition matching, categorical sharpness,
-and differentiable agent-width reachability. Its decoded six-biome audit reaches
-100% raw required-route connectivity, 50% agent-radius connectivity, and 5.6%
-mean deterministic repair. Hazard placement remains a separate neural-decorator
-responsibility, so this checkpoint is evidence—not yet the promoted world generator.
+and differentiable agent-width reachability. Its decoded six-biome sentinel audit
+reaches 100% raw required-route connectivity and 50% agent-radius connectivity.
+Across all 24 held-out size/theme maps, those rates are 58.3% and 29.2%; mean
+repair is 5.1% on the 18 maps that completed isolated compiler verification.
+Hazard placement remains a separate neural-decorator responsibility. This is a
+measurable improvement and a useful failure boundary—not a promoted world generator.
 
 ![Decoded neural topology prior: source, raw sample, repaired map, and edit overlay](examples/showcase/neural_topology_prior_v2_2000step.png)
 
