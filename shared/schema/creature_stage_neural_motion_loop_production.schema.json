@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NULLVECTOR loop-aware neural motion production contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "source_sha256", "loop_source_sha256", "rollout_source_sha256", "parent", "teacher", "model", "training", "seed", "total_updates", "segment_updates", "batch_size", "optimizer", "ema_decay", "precision", "minimum_free_vram_bytes", "minimum_free_disk_bytes", "semantic_sha256"],
+  "properties": {
+    "format": {"const": "nullvector-creature-stage-neural-motion-loop-production-v1"},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "loop_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rollout_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "update", "model_state_sha256", "ema_state_sha256", "contract_semantic_sha256"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "update": {"const": 1000},
+        "model_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ema_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "contract_semantic_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "teacher": {"type": "object"},
+    "model": {"type": "object"},
+    "training": {"type": "object"},
+    "seed": {"type": "integer"},
+    "total_updates": {"type": "integer", "minimum": 100, "maximum": 1000, "multipleOf": 100},
+    "segment_updates": {"type": "integer", "minimum": 100, "maximum": 1000, "multipleOf": 100},
+    "batch_size": {"type": "integer", "minimum": 5, "maximum": 20, "multipleOf": 5},
+    "optimizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "lr", "weight_decay", "warmup_updates", "gradient_clip"],
+      "properties": {
+        "name": {"const": "AdamW"},
+        "lr": {"const": 0.00004},
+        "weight_decay": {"const": 0.00001},
+        "warmup_updates": {"type": "integer", "minimum": 1, "maximum": 100},
+        "gradient_clip": {"const": 1.0}
+      }
+    },
+    "ema_decay": {"const": 0.999},
+    "precision": {"const": "bf16-autocast-float32-loss"},
+    "minimum_free_vram_bytes": {"const": 6442450944},
+    "minimum_free_disk_bytes": {"const": 107374182400},
+    "semantic_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

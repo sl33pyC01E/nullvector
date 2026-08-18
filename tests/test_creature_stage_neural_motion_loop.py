@@ -14,6 +14,12 @@ from forge.creature_stage_neural_motion_rollout.contract import source_sha256 as
 from forge.creature_stage_neural_motion_loop.contract import LoopTrainingConfig, source_sha256
 from forge.creature_stage_neural_motion_loop.sampler import LoopAwareRolloutBatchSampler
 from forge.creature_stage_neural_motion_loop.smoke import run_cpu_smoke, validate_cpu_smoke
+from forge.creature_stage_neural_motion_loop.production import (
+    production_source_sha256,
+    prepare_production,
+    train_segment,
+)
+from forge.creature_stage_neural_motion_loop.evaluation import evaluation_source_sha256
 
 
 TEACHER = PROJECT_ROOT / "outputs/creature_stage_motion_corpus_v1_final_a"
@@ -89,4 +95,37 @@ def test_loop_cpu_smoke_exact_replay_and_rehashed_tamper(
 
 def test_loop_successor_preserves_parent_rollout_authority() -> None:
     assert len(source_sha256()) == 64
+    assert len(production_source_sha256()) == 64
+    assert len(evaluation_source_sha256()) == 64
     assert parent_rollout_source_sha256() == "045b88495134b8dfdcadbd76a6587f4138ea37a5645e60ddd5d33d3b4bb80856"
+
+
+def test_loop_production_contract_is_parent_bound_and_cuda_gated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "production"
+    contract = prepare_production(output, total_updates=100)
+    assert contract["parent"]["update"] == 1000
+    assert contract["total_updates"] == contract["segment_updates"] == 100
+    assert contract["training"] == LoopTrainingConfig().to_dict()
+    assert contract["source_sha256"] == production_source_sha256()
+    assert prepare_production(output, total_updates=100) == contract
+    with pytest.raises(ValueError, match="exactly one bounded segment"):
+        train_segment(output, end_update=50)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "-1")
+    with pytest.raises(RuntimeError, match="deterministic CUDA BF16"):
+        train_segment(output, end_update=100)
+
+
+def test_loop_production_rejects_rehashed_parent_tamper(tmp_path: Path) -> None:
+    output = tmp_path / "production"
+    prepare_production(output, total_updates=100)
+    path = output / "production_contract.json"
+    payload = json.loads(path.read_bytes())
+    payload["parent"]["ema_state_sha256"] = "0" * 64
+    payload["semantic_sha256"] = hashlib.sha256(
+        _canonical({key: value for key, value in payload.items() if key != "semantic_sha256"})
+    ).hexdigest()
+    path.write_bytes(_canonical(payload))
+    with pytest.raises(ValueError, match="parent provenance"):
+        train_segment(output, end_update=100)

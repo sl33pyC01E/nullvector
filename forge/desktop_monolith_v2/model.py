@@ -29,6 +29,7 @@ class DesktopWorldMonolith(nn.Module):
         self.counter_queries = nn.Parameter(torch.randn(1, 5, width) * .015)
         self.type_embedding = nn.Parameter(torch.randn(7, width) * .015)
         self.fusion = nn.ModuleList(DiTBlock(width, config.heads) for _ in range(config.fusion_layers))
+        self.visual_fusion_gate = nn.Parameter(torch.tensor(-4.0))
         patch = config.macro_patch
         self.macro_out = nn.Linear(width, 32 * patch * patch)
         self.global_out = nn.Linear(width, 44)
@@ -53,8 +54,9 @@ class DesktopWorldMonolith(nn.Module):
     def _condition(self, action: Tensor, control: Tensor, state: Tensor, actor: Tensor, dtype: torch.dtype) -> Tensor:
         backbone = self.visual.backbone
         time = torch.zeros(len(action), device=action.device, dtype=dtype)
+        actor_conditioned_state = state + self.visual.actor(actor.float())
         return (backbone.time(backbone.time_embedding(time)) + backbone.action(action) +
-                backbone.control(control) + backbone.state(state) + self.visual.actor(actor.float()))
+                backbone.control(control) + backbone.state(actor_conditioned_state))
 
     def _visual_tokens(self, current: Tensor, previous: Tensor, condition: Tensor) -> Tensor:
         backbone = self.visual.backbone
@@ -78,7 +80,8 @@ class DesktopWorldMonolith(nn.Module):
         if macro.shape[1:] != (32, 32, 32) or members.shape[1:] != (16, 64) or sequence.shape[1:] != (24, 64):
             raise ValueError("desktop monolith world input contract drifted")
         condition = self._condition(action, control, state, actor, current.dtype)
-        visual = self._visual_tokens(current, previous, condition) + self.type_embedding[0]
+        visual_parent = self._visual_tokens(current, previous, condition)
+        visual = visual_parent
         macro_delta = macro - previous_macro
         macro_tokens = self.macro_patch(torch.cat((macro, macro_delta), 1)).flatten(2).transpose(1, 2) + self.macro_position + self.type_embedding[1]
         global_token = self.global_token(torch.cat((global_state, previous_global), 1))[:, None] + self.type_embedding[2]
@@ -104,7 +107,8 @@ class DesktopWorldMonolith(nn.Module):
         timeline = (sequence[:, -1] + .2 * torch.tanh(self.timeline_state(timeline_tokens[:, -1]))).clamp(0, 1)
         counter_state = (sequence[:, -1, None] + .3 * torch.tanh(self.counter_state(counter_tokens))).clamp(0, 1)
         counter_value = torch.sigmoid(self.counter_value(counter_tokens))
-        return (self._decode_visual(visual, condition), next_macro, next_global,
+        fused_visual = visual_parent + torch.sigmoid(self.visual_fusion_gate) * (visual - visual_parent)
+        return (self._decode_visual(fused_visual, condition), next_macro, next_global,
                 self.member_role(member_tokens), torch.sigmoid(self.member_action(member_tokens)),
                 self.society_activity(society_token), self.society_labor(society_token),
                 self.society_diplomacy(society_token), self.society_project(society_token),

@@ -23,7 +23,9 @@ from ..organism_cell_vae_v1.training import load_final
 FORMAT = "nullvector-android-neural-organism-v1/1.0.0"
 DEFAULT_RELEASE = PROJECT_ROOT / "outputs/organism_cell_vae_v1/production_v3_calibrated"
 DEFAULT_OUTPUT = PROJECT_ROOT / "outputs/android_neural_organism_v1/machine_heldout_44"
+DEFAULT_FAMILY_OUTPUT = PROJECT_ROOT / "outputs/android_neural_organism_v1/family_bank_v1"
 SAMPLE_INDEX = 44
+FAMILY_SAMPLE_INDICES = (6, 20, 35, 41, 44)
 FAMILY_NAMES = ("humanoid", "animalian", "plantlike", "anomaly", "machine")
 
 
@@ -165,3 +167,24 @@ def validate_neural_organism(output: Path = DEFAULT_OUTPUT) -> dict[str, Any]:
         path = output / name
         if not path.is_file() or path.stat().st_size != row["bytes"] or _sha(path) != row["sha256"]: raise ValueError(f"Android organism artifact drifted: {name}")
     return {"passed": True, "status": manifest["status"], "sample_id": manifest["sample_id"], "family": manifest["family"], "cell_count": manifest["cell_count"], "desktop_cpu_milliseconds": manifest["desktop_cpu_milliseconds"], "manifest_sha256": manifest["manifest_sha256"]}
+
+
+def export_family_bank(output: Path = DEFAULT_FAMILY_OUTPUT) -> dict[str, Any]:
+    output = Path(output).resolve()
+    if output.exists(): raise FileExistsError(output)
+    model, _, _ = load_final(DEFAULT_RELEASE); graph = _RasterGraph(model).eval(); features = []; masks = []; identities = []; previews = []
+    for expected_family, sample_index in enumerate(FAMILY_SAMPLE_INDICES):
+        sample = _load_cellular_sample(sample_index); family_id = int(sample["family_id"])
+        if family_id != expected_family: raise ValueError("family specimen registry drifted")
+        feature, mask = cellular_static_to_vae_features(sample["static"]); features.append(feature[0]); masks.append(mask[0])
+        with torch.inference_mode(): rgba = graph(torch.from_numpy(feature), torch.from_numpy(mask)).numpy()
+        previews.append(_rgba_png(rgba)); identities.append({"family_id": family_id, "family": FAMILY_NAMES[family_id], "sample_index": sample_index, "sample_id": str(sample["sample_id"]), "cell_count": int(mask.sum())})
+    feature_bank = np.stack(features).astype("<f4"); mask_bank = np.stack(masks).astype("<f4"); staging = output.with_name(f".{output.name}.tmp-{os.getpid()}"); staging.mkdir(parents=True)
+    try:
+        (staging / "family_organism_vae_features.f32").write_bytes(feature_bank.tobytes()); (staging / "family_organism_vae_masks.f32").write_bytes(mask_bank.tobytes())
+        for family_id, encoded in enumerate(previews): (staging / f"family_{family_id}_{FAMILY_NAMES[family_id]}.png").write_bytes(encoded)
+        artifacts = {path.name: {"bytes": path.stat().st_size, "sha256": _sha(path)} for path in sorted(staging.iterdir())}
+        manifest = {"format": FORMAT + "-family-bank", "families": identities, "feature_shape": [5, MAX_CELLS, CELL_FEATURES], "mask_shape": [5, MAX_CELLS], "vae_checkpoint_sha256": sha256_file(DEFAULT_RELEASE / "cell_vae_0001200.pt"), "artifacts": artifacts, "gates": {"all_five_families": [row["family_id"] for row in identities] == list(range(5)), "all_fit_cell_vae": all(row["cell_count"] <= MAX_CELLS for row in identities)}}; manifest["manifest_sha256"] = hashlib.sha256(canonical(manifest)).hexdigest(); (staging / "manifest.json").write_bytes(canonical(manifest)); os.replace(staging, output)
+    finally:
+        if staging.exists(): shutil.rmtree(staging)
+    return {"passed": True, "families": identities, "manifest_sha256": manifest["manifest_sha256"], "artifacts": artifacts}

@@ -38,6 +38,20 @@ def test_damage_is_synchronized_into_recurrent_state() -> None:
     assert np.allclose(second.state[0,y,x],body.health) and float(second.state[7,y,x].max())>0
 
 
+def test_reload_equivalent_body_raster_remains_recurrent() -> None:
+    body=LivingBody(develop(review_genomes()[0]),seed=18);first=rasterize_body(body);Equivalent=type("BodyRaster",(),{});previous=Equivalent()
+    for name in ("static","state","live_bonds","canvas_xy","organism_sha256"):setattr(previous,name,getattr(first,name))
+    second=rasterize_body(body,previous)
+    assert second.organism_sha256==first.organism_sha256
+    assert np.array_equal(second.canvas_xy,first.canvas_xy)
+
+
+def test_stale_body_raster_is_reinitialized_for_new_anatomy() -> None:
+    old=LivingBody(develop(review_genomes()[0]),seed=19);new=LivingBody(develop(review_genomes()[1]),seed=20);previous=rasterize_body(old);current=rasterize_body(new,previous)
+    assert current.organism_sha256==new.organism.identity_sha256
+    assert current.organism_sha256!=previous.organism_sha256
+
+
 def test_live_bonds_are_reciprocal_and_dead_cells_do_not_conduct() -> None:
     body = LivingBody(develop(review_genomes()[2]), seed=9)
     body.alive_mask[body.organism.appendage_index == 0] = False
