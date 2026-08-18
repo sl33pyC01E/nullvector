@@ -5,6 +5,7 @@ import numpy as np
 from ..action_teacher_viewport_v5 import validate_trajectory
 
 NAMES=("frame","spatial","organisms","organism_mask","state","actor_state","actor_field","visibility","memory","control","action")
+MACRO_HOLDOUT_INDICES=(0,5,7,14,21,28)
 
 def load_corpus(root:Path):
     episodes=[];manifests=[]
@@ -28,3 +29,9 @@ def sequence_starts(data, length:int):
     if count < length:return np.empty(0,np.int64)
     starts=np.arange(count-length+1,dtype=np.int64)
     return starts[data["episode_index"][starts] == data["episode_index"][starts+length-1]]
+
+def split_episodes(episodes):
+    if len(episodes)==30:
+        heldout=set(MACRO_HOLDOUT_INDICES)
+        return [item for index,item in enumerate(episodes) if index not in heldout],[item for index,item in enumerate(episodes) if index in heldout],list(MACRO_HOLDOUT_INDICES)
+    return episodes[:-1],episodes[-1:],[len(episodes)-1]

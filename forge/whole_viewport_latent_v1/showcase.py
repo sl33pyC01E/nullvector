@@ -12,15 +12,15 @@ import numpy as np
 from PIL import Image, ImageDraw
 import torch
 
-from ..recurrent_world_pipeline_v1.runtime import RecurrentWorldPipeline
 from .contract import ModelConfig, canonical, source_sha256
 from .data import load_corpus, rows
+from .decoder import load_decoder
 from .model import WholeViewportLatentModel
 from .training import _prepare_latents, _tensor
 
 
 @torch.inference_mode()
-def render(*, release: Path, corpus: Path, output: Path, frames=96, device="cuda"):
+def render(*, release: Path, corpus: Path, output: Path, frames=96, device="cuda", decoder_release: Path | None = None):
     release, corpus, output = Path(release), Path(corpus), Path(output)
     manifest_raw=(release/"manifest.json").read_bytes();manifest=json.loads(manifest_raw)
     if manifest_raw != canonical(manifest) or manifest.get("source_sha256") != source_sha256():
@@ -31,7 +31,9 @@ def render(*, release: Path, corpus: Path, output: Path, frames=96, device="cuda
     target=torch.device(device if device=="cpu" or torch.cuda.is_available() else "cpu")
     payload=torch.load(artifact,map_location=target,weights_only=False)
     model=WholeViewportLatentModel(ModelConfig(**payload["model_config"])).to(target).eval();model.load_state_dict(payload["state"])
-    pipeline=RecurrentWorldPipeline.load(str(target));decoder=pipeline.decoder.eval()
+    decoder,decoder_provenance=load_decoder(target,decoder_release)
+    if manifest.get("decoder") != decoder_provenance:
+        raise ValueError("showcase decoder does not match release")
     episodes,_=load_corpus(corpus);data=_prepare_latents(decoder,rows(episodes[-1:]),target);count=min(int(frames),len(data["frame"]));previous=_tensor({"value":data["previous_latent"][:1]},"value",target)
     staging=output.parent/f".{output.name}.tmp-{uuid.uuid4().hex}";staging.mkdir(parents=True)
     generated=[]
@@ -53,7 +55,7 @@ def render(*, release: Path, corpus: Path, output: Path, frames=96, device="cuda
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("--release",type=Path,required=True);parser.add_argument("--corpus",type=Path,required=True);parser.add_argument("--output",type=Path,required=True);parser.add_argument("--frames",type=int,default=96);parser.add_argument("--device",default="cuda");args=parser.parse_args();print(json.dumps(render(release=args.release,corpus=args.corpus,output=args.output,frames=args.frames,device=args.device),indent=2))
+    parser=argparse.ArgumentParser();parser.add_argument("--release",type=Path,required=True);parser.add_argument("--corpus",type=Path,required=True);parser.add_argument("--output",type=Path,required=True);parser.add_argument("--decoder-release",type=Path);parser.add_argument("--frames",type=int,default=96);parser.add_argument("--device",default="cuda");args=parser.parse_args();print(json.dumps(render(release=args.release,corpus=args.corpus,output=args.output,frames=args.frames,device=args.device,decoder_release=args.decoder_release),indent=2))
 
 
 if __name__=="__main__":main()

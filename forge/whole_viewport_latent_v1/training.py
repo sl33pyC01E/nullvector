@@ -6,9 +6,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ..recurrent_world_pipeline_v1.runtime import RecurrentWorldPipeline
 from .contract import CHECKPOINT_FORMAT,DEFAULT_CORPUS,DEFAULT_OUTPUT,ModelConfig,TrainingConfig,canonical,config_dict,source_sha256
-from .data import load_corpus,rows,sequence_starts
+from .data import load_corpus,rows,sequence_starts,split_episodes
+from .decoder import load_decoder
 from .model import WholeViewportLatentModel
 
 def _tensor(batch,name,device,dtype=torch.float32):return torch.as_tensor(batch[name],device=device,dtype=dtype)
@@ -62,21 +62,28 @@ def evaluate_rollout(model,decoder,data,starts,device,horizon,batch_size=8):
         n=len(chosen);latent_total+=F.l1_loss(previous.float(),target).item()*n;rgb_total+=F.l1_loss(decoded,image).item()*n;persistence_total+=F.l1_loss(persistence,image).item()*n;count+=n
     return {f"rollout_{horizon}_latent_mae":latent_total/max(count,1),f"rollout_{horizon}_rgb_mae":rgb_total/max(count,1),f"rollout_{horizon}_persistence_rgb_mae":persistence_total/max(count,1),f"rollout_{horizon}_rgb_improvement":1-rgb_total/max(persistence_total,1e-8)}
 
-def train(*,corpus:Path=DEFAULT_CORPUS,output:Path=DEFAULT_OUTPUT,model_config=ModelConfig(),training=TrainingConfig(),device="cuda"):
+def _load_initializer(path:Path|None,model,model_config):
+    if path is None:return None
+    path=Path(path).resolve();payload=torch.load(path,map_location="cpu",weights_only=False)
+    if payload.get("format")!=CHECKPOINT_FORMAT or payload.get("model_config")!=config_dict(model_config):raise ValueError("whole-viewport initializer contract drifted")
+    model.load_state_dict(payload["state"])
+    return {"path":str(path),"sha256":hashlib.sha256(path.read_bytes()).hexdigest(),"source_sha256":payload.get("source_sha256")}
+
+def train(*,corpus:Path=DEFAULT_CORPUS,output:Path=DEFAULT_OUTPUT,model_config=ModelConfig(),training=TrainingConfig(),device="cuda",decoder_release:Path|None=None,initialize_from:Path|None=None):
     output=Path(output);corpus=Path(corpus)
     if output.exists():raise FileExistsError(output)
     episodes,manifests=load_corpus(corpus);count=sum(len(item["frame"]) for item in episodes)
     if count<64 or len(episodes)<3:raise ValueError("whole-viewport corpus needs at least three trajectories")
     target=torch.device(device if device=="cpu" or torch.cuda.is_available() else "cpu");torch.manual_seed(training.seed);np.random.seed(training.seed&0xffffffff);random.seed(training.seed)
-    pipeline=RecurrentWorldPipeline.load(str(target));decoder=pipeline.decoder.eval()
+    decoder,decoder_provenance=load_decoder(target,decoder_release)
     for parameter in decoder.parameters():parameter.requires_grad_(False)
-    train_data=_prepare_latents(decoder,rows(episodes[:-1]),target);validation_data=_prepare_latents(decoder,rows(episodes[-1:]),target);train_indices=np.arange(len(train_data["frame"]));validation=np.arange(len(validation_data["frame"]));train_starts=sequence_starts(train_data,training.rollout_steps);validation_starts=sequence_starts(validation_data,training.rollout_steps)
+    train_episodes,validation_episodes,holdout_indices=split_episodes(episodes);train_data=_prepare_latents(decoder,rows(train_episodes),target);validation_data=_prepare_latents(decoder,rows(validation_episodes),target);train_indices=np.arange(len(train_data["frame"]));validation=np.arange(len(validation_data["frame"]));train_starts=sequence_starts(train_data,training.rollout_steps);validation_starts=sequence_starts(validation_data,training.rollout_steps)
     if not len(train_starts) or not len(validation_starts):raise ValueError("whole-viewport rollout corpus is incomplete")
-    model=WholeViewportLatentModel(model_config).to(target);optimizer=torch.optim.AdamW(model.parameters(),lr=training.learning_rate,weight_decay=training.weight_decay);scaler=torch.amp.GradScaler("cuda",enabled=target.type=="cuda");ema={name:value.detach().clone() for name,value in model.state_dict().items()};rng=np.random.default_rng(training.seed);history=[];best=None;best_state=None;start_step=0
+    model=WholeViewportLatentModel(model_config).to(target);initializer=_load_initializer(initialize_from,model,model_config);optimizer=torch.optim.AdamW(model.parameters(),lr=training.learning_rate,weight_decay=training.weight_decay);scaler=torch.amp.GradScaler("cuda",enabled=target.type=="cuda");ema={name:value.detach().clone() for name,value in model.state_dict().items()};rng=np.random.default_rng(training.seed);history=[];best=None;best_state=None;start_step=0
     work=output.parent/f".{output.name}.work";latest=work/"latest.pt";manifest_ids=[item["manifest_sha256"] for item in manifests]
     if latest.exists():
         resume=torch.load(latest,map_location=target,weights_only=False)
-        expected={"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids}
+        expected={"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids,"holdout_indices":holdout_indices,"decoder":decoder_provenance,"initializer":initializer}
         if any(resume.get(name)!=value for name,value in expected.items()):raise ValueError("whole-viewport resume provenance drifted")
         model.load_state_dict(resume["model"]);optimizer.load_state_dict(resume["optimizer"]);scaler.load_state_dict(resume["scaler"]);ema=resume["ema"];rng.bit_generator.state=resume["rng_state"];history=resume["history"];best=resume["best"];best_state=resume["best_state"];start_step=int(resume["step"])
     model.train()
@@ -96,6 +103,6 @@ def train(*,corpus:Path=DEFAULT_CORPUS,output:Path=DEFAULT_OUTPUT,model_config=M
             if best is None or score<best:best=score;best_state={name:value.detach().cpu().clone() for name,value in ema.items()}
             print(json.dumps({"step":step,**metrics,"best":best}),flush=True)
         if step%training.checkpoint_every==0 or step==training.steps:
-            _atomic_torch_save({"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids,"step":step,"model":model.state_dict(),"optimizer":optimizer.state_dict(),"scaler":scaler.state_dict(),"ema":ema,"rng_state":rng.bit_generator.state,"history":history,"best":best,"best_state":best_state},latest)
+            _atomic_torch_save({"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids,"holdout_indices":holdout_indices,"decoder":decoder_provenance,"initializer":initializer,"step":step,"model":model.state_dict(),"optimizer":optimizer.state_dict(),"scaler":scaler.state_dict(),"ema":ema,"rng_state":rng.bit_generator.state,"history":history,"best":best,"best_state":best_state},latest)
     model.load_state_dict(best_state);final=evaluate(model,decoder,validation_data,validation,target,training.batch_size);final.update(evaluate_rollout(model,decoder,validation_data,validation_starts,target,training.rollout_steps,training.batch_size));staging=output.parent/f".{output.name}.tmp-{uuid.uuid4().hex}";staging.mkdir(parents=True)
-    payload={"format":CHECKPOINT_FORMAT,"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids,"state":best_state,"validation":final,"parameters":sum(p.numel() for p in model.parameters())};checkpoint=staging/"model.pt";torch.save(payload,checkpoint);gates={"beats_rgb_persistence":final["rgb_improvement"]>0,"beats_changed_region_persistence":final["changed_rgb_improvement"]>0,"stable_region_regression_bounded":final["stable_rgb_regression"]<.10,f"beats_{training.rollout_steps}_step_persistence":final[f"rollout_{training.rollout_steps}_rgb_improvement"]>0};accepted=all(gates.values());manifest={"format":"nullvector-whole-viewport-latent-release/1.0.0","status":"accepted" if accepted else "rejected","source_sha256":source_sha256(),"frames":count,"episodes":len(manifests),"parameters":payload["parameters"],"validation":final,"gates":gates,"contract":{"runtime_graph":"previous visual latent + numeric ensemble tensors -> next visual latent -> full-frame VAE decode","traditional_world_graphics":False,"native_code_scope":["menus","hud","accessibility","debug"],"autoregressive_training_steps":training.rollout_steps},"artifact":{"path":checkpoint.name,"bytes":checkpoint.stat().st_size,"sha256":hashlib.sha256(checkpoint.read_bytes()).hexdigest()},"history":history};manifest["manifest_sha256"]=hashlib.sha256(canonical(manifest)).hexdigest();(staging/"manifest.json").write_bytes(canonical(manifest));os.replace(staging,output);return manifest
+    payload={"format":CHECKPOINT_FORMAT,"source_sha256":source_sha256(),"model_config":config_dict(model_config),"training_config":config_dict(training),"corpus_manifests":manifest_ids,"holdout_indices":holdout_indices,"decoder":decoder_provenance,"initializer":initializer,"state":best_state,"validation":final,"parameters":sum(p.numel() for p in model.parameters())};checkpoint=staging/"model.pt";torch.save(payload,checkpoint);gates={"beats_rgb_persistence":final["rgb_improvement"]>0,"beats_changed_region_persistence":final["changed_rgb_improvement"]>0,"stable_region_regression_bounded":final["stable_rgb_regression"]<.10,f"beats_{training.rollout_steps}_step_persistence":final[f"rollout_{training.rollout_steps}_rgb_improvement"]>0};accepted=all(gates.values());manifest={"format":"nullvector-whole-viewport-latent-release/1.0.0","status":"accepted" if accepted else "rejected","source_sha256":source_sha256(),"decoder":decoder_provenance,"initializer":initializer,"holdout_indices":holdout_indices,"frames":count,"episodes":len(manifests),"parameters":payload["parameters"],"validation":final,"gates":gates,"contract":{"runtime_graph":"previous visual latent + numeric ensemble tensors -> next visual latent -> full-frame VAE decode","traditional_world_graphics":False,"native_code_scope":["menus","hud","accessibility","debug"],"autoregressive_training_steps":training.rollout_steps},"artifact":{"path":checkpoint.name,"bytes":checkpoint.stat().st_size,"sha256":hashlib.sha256(checkpoint.read_bytes()).hexdigest()},"history":history};manifest["manifest_sha256"]=hashlib.sha256(canonical(manifest)).hexdigest();(staging/"manifest.json").write_bytes(canonical(manifest));os.replace(staging,output);return manifest

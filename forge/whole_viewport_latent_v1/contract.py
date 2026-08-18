@@ -8,7 +8,7 @@ FORMAT="nullvector-whole-viewport-latent/1.0.0"
 CHECKPOINT_FORMAT="nullvector-whole-viewport-latent-checkpoint/1.0.0"
 DEFAULT_CORPUS=PROJECT_ROOT/"outputs/action_teacher_viewport_v5/pilot_v1"
 DEFAULT_OUTPUT=PROJECT_ROOT/"outputs/whole_viewport_latent_v1/production_v1"
-SOURCE_FILES=("forge/whole_viewport_latent_v1/contract.py","forge/whole_viewport_latent_v1/model.py","forge/whole_viewport_latent_v1/data.py","forge/whole_viewport_latent_v1/training.py","forge/whole_viewport_latent_v1/showcase.py")
+SOURCE_FILES=("forge/whole_viewport_latent_v1/contract.py","forge/whole_viewport_latent_v1/model.py","forge/whole_viewport_latent_v1/data.py","forge/whole_viewport_latent_v1/decoder.py","forge/whole_viewport_latent_v1/training.py","forge/whole_viewport_latent_v1/showcase.py")
 
 @dataclass(frozen=True)
 class ModelConfig:
