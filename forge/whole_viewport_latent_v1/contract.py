@@ -30,6 +30,7 @@ class TrainingConfig:
     weight_decay:float=1e-3
     ema_decay:float=.999
     rgb_weight:float=.15
+    stable_rgb_weight:float=4.0
     validation_every:int=250
     checkpoint_every:int=250
     seed:int=0x57484F4C45564945
