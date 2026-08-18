@@ -80,7 +80,7 @@ final class FoundationWorld {
         float cellY(Cell c){float value=c.y+c.offsetY;for(int k=0;k<3;k++){int n=c.nearest[k];value+=(node[n][1]-rest[n][1])*c.weight[k];}return value;}
     }
 
-    final List<Creature> creatures = new ArrayList<>(); int selected = 0; float time;
+    final List<Creature> creatures = new ArrayList<>(); int selected = 0; float time; boolean selectedAutonomous;
     final float[] resources = new float[10 * MACRO_CELLS];
     final int[] structures = new int[MACRO_CELLS];
     final float[] macroPrevious = new float[MACRO_CHANNELS * MACRO_CELLS];
@@ -108,6 +108,7 @@ final class FoundationWorld {
 
     synchronized Creature selected(){ return creatures.get(selected); }
     synchronized void select(int index){if(index<0||index>=creatures.size())return;creatures.get(selected).selected=false;selected=index;creatures.get(selected).selected=true;}
+    synchronized void setSelectedAutonomous(boolean value){selectedAutonomous=value;}
 
     synchronized void configureSelected(float speed,float sensory,float resilience){Creature c=selected();c.traits[6]=clamp(speed,0,1);c.traits[11]=clamp(resilience,0,1);c.sensory=.55f+.75f*clamp(sensory,0,1);c.energy=.72f+.35f*resilience;c.health=1;c.neural=1;c.circulation=c.respiration=c.digestion=c.locomotion=1;}
 
@@ -126,7 +127,7 @@ final class FoundationWorld {
 
     synchronized void applySelectedVae(float[][][][] rgba){Creature c=selected();for(Cell cell:c.cells){if(cell.detached||cell.health<=.01f)continue;int x=Math.max(0,Math.min(47,Math.round(c.cellX(cell)+23.5f))),y=Math.max(0,Math.min(47,Math.round(c.cellY(cell)+23.5f)));float predictedAlpha=clamp(rgba[0][3][y][x],0,1),luminance=(rgba[0][0][y][x]+rgba[0][1][y][x]+rgba[0][2][y][x])/3f;if(predictedAlpha<.2f||luminance<.04f)continue;float blend=.12f;cell.red+=(clamp(rgba[0][0][y][x],0,1)-cell.red)*blend;cell.green+=(clamp(rgba[0][1][y][x],0,1)-cell.green)*blend;cell.blue+=(clamp(rgba[0][2][y][x],0,1)-cell.blue)*blend;}}
 
-    synchronized void setPlayerControl(float x,float y){Creature c=selected();c.desiredX=x;c.desiredY=y;}
+    synchronized void setPlayerControl(float x,float y){if(selectedAutonomous)return;Creature c=selected();c.desiredX=x;c.desiredY=y;}
 
     synchronized NeuralBatch encodeNeural(){
         int count=creatures.size();NeuralBatch b=new NeuralBatch(count);
@@ -154,7 +155,7 @@ final class FoundationWorld {
         input.intentIndex=index;return input;
     }
 
-    synchronized void applyEcology(int index,float[] logits,float[] direction,float urgency){if(index==selected)return;Creature c=creatures.get(index);int intent=0;for(int i=1;i<logits.length;i++)if(logits[i]>logits[intent])intent=i;c.intent=intent;c.urgency=1f/(1f+(float)Math.exp(-urgency));float length=Math.max(.001f,(float)Math.hypot(direction[0],direction[1]));c.desiredX=direction[0]/length*c.urgency;c.desiredY=direction[1]/length*c.urgency;}
+    synchronized void applyEcology(int index,float[] logits,float[] direction,float urgency){if(index==selected&&!selectedAutonomous)return;Creature c=creatures.get(index);int intent=0;for(int i=1;i<logits.length;i++)if(logits[i]>logits[intent])intent=i;c.intent=intent;c.urgency=1f/(1f+(float)Math.exp(-urgency));float length=Math.max(.001f,(float)Math.hypot(direction[0],direction[1]));c.desiredX=direction[0]/length*c.urgency;c.desiredY=direction[1]/length*c.urgency;}
 
     synchronized MacroInput encodeMacro(){
         java.util.Arrays.fill(macroCurrent,0);System.arraycopy(resources,0,macroCurrent,0,resources.length);
@@ -185,6 +186,35 @@ final class FoundationWorld {
     synchronized void applyCounterfactual(float[] benefit,float[] risk){counterfactualAction=0;float best=benefit[0]-.35f*risk[0];for(int i=1;i<benefit.length;i++){float score=benefit[i]-.35f*risk[i];if(score>best){best=score;counterfactualAction=i;}}}
 
     synchronized WorldContextInput encodeWorldContext(){long[] terrain=new long[MACRO_CELLS],city=new long[MACRO_CELLS];float[] continuous=new float[7*MACRO_CELLS],condition=new float[15];for(int p=0;p<MACRO_CELLS;p++){int best=0;for(int r=1;r<8;r++)if(resources[r*MACRO_CELLS+p]>resources[best*MACRO_CELLS+p])best=r;terrain[p]=best;city[p]=Math.min(7,Math.max(0,structures[p]));for(int r=0;r<7;r++)continuous[r*MACRO_CELLS+p]=resources[r*MACRO_CELLS+p];}condition[4]=1;for(Creature c:creatures)condition[6+c.family]+=1f/creatures.size();float season=time*.012f;condition[11]=(float)Math.sin(season);condition[12]=(float)Math.cos(season);condition[13]=Math.min(1,buildingCount/24f);condition[14]=Math.min(1,Math.abs(settlementFood-settlementPower)*.25f);return new WorldContextInput(terrain,city,continuous,condition);}
+
+    /** Exact Android-side tensor contract for the trained whole-viewport action graph. */
+    synchronized ViewportActionInput encodeViewportAction(float cameraX,float cameraY,float span){
+        ViewportActionInput out=new ViewportActionInput();
+        for(int gy=0;gy<32;gy++)for(int gx=0;gx<32;gx++){
+            float wx=wrap(cameraX+((gx+.5f)/32f-.5f)*span,4096),wy=wrap(cameraY+((gy+.5f)/32f-.5f)*span,4096);int p=gy*32+gx,macro=macroIndex(wx,wy);
+            for(int channel=0;channel<10;channel++)out.spatial[channel*1024+p]=resources[channel*1024+macro];
+            out.spatial[10*1024+p]=1;int structure=structures[macro];if(structure>0){out.spatial[10*1024+p]=0;out.spatial[17*1024+p]=1;out.spatial[23*1024+p]=.92f;out.spatial[26*1024+p]=1;out.spatial[47*1024+p]=Math.min(1,structure/9f);}
+            out.spatial[49*1024+p]=structure>0?1:0;out.spatial[57*1024+p]=1;out.spatial[63*1024+p]=structure>0?1:.1f;
+        }
+        float[] organismWeights=new float[1024];int row=0;for(Creature c:creatures){float dx=shortDelta(cameraX,c.x,4096),dy=shortDelta(cameraY,c.y,4096);if(Math.max(Math.abs(dx),Math.abs(dy))>span*.62f||row>=64)continue;int px=Math.max(0,Math.min(31,(int)Math.floor((dx/span+.5f)*32))),py=Math.max(0,Math.min(31,(int)Math.floor((dy/span+.5f)*32))),p=py*32+px;out.spatial[(27+c.family)*1024+p]=1;out.spatial[32*1024+p]=Math.max(out.spatial[32*1024+p],c.health);out.spatial[33*1024+p]=Math.max(out.spatial[33*1024+p],fluidRatio(c));out.spatial[34*1024+p]=Math.max(out.spatial[34*1024+p],scarMean(c));out.spatial[35*1024+p]=Math.max(out.spatial[35*1024+p],c.neural);out.spatial[36*1024+p]=Math.max(out.spatial[36*1024+p],Math.min(Math.min(c.circulation,c.respiration),c.digestion));out.spatial[37*1024+p]=c.health<=.01f?1:0;out.spatial[38*1024+p]=c==selected()?1:0;out.spatial[39*1024+p]=clamp(c.vx/240f,-1,1);out.spatial[40*1024+p]=clamp(c.vy/240f,-1,1);
+            float[] actor=actorFeatures(c);int base=row*164;out.organisms[base]=dx/span;out.organisms[base+1]=dy/span;out.organisms[base+2]=c==selected()?1:0;out.organisms[base+3]=c.health>.01f?1:0;System.arraycopy(actor,0,out.organisms,base+4,128);for(int a=0;a<Math.min(8,c.appendages.length);a++){int tip=c.terminal[a],o=base+132+a*4;out.organisms[o]=(c.node[tip][0]-c.bodyProgress)/24f;out.organisms[o+1]=c.node[tip][1]/24f;out.organisms[o+2]=appendageIntegrity(c,a);out.organisms[o+3]=c.contact[a]?1:0;}for(int feature=0;feature<164;feature++)out.organismField[feature*1024+p]+=out.organisms[base+feature];organismWeights[p]++;out.organismMask[row]=true;row++;
+        }
+        for(int p=0;p<1024;p++)if(organismWeights[p]>1)for(int feature=0;feature<164;feature++)out.organismField[feature*1024+p]/=organismWeights[p];
+        float[] actor=actorFeatures(selected());System.arraycopy(actor,0,out.actorState,0,128);fillActorField(selected(),out.actorField);fillWorldState(out.state);return out;
+    }
+
+    private float[] actorFeatures(Creature c){
+        float[] row=new float[128];row[c.family]=1;row[7]=1;row[11+Math.max(0,Math.min(11,c.intent))]=1;row[23+c.family]=1;for(int i=0;i<15;i++)row[28+i]=c.traits[i];for(int i=0;i<16;i++)row[43+i]=c.traits[i%15];for(int r=0;r<10;r++)row[59+r]=dietAffinity(c.family,r);row[69]=c.health;row[70]=c.neural;row[71]=c.circulation;row[72]=c.respiration;row[73]=c.digestion;row[74]=c.sensory;row[75]=c.locomotion;row[76]=c.energy;row[77]=Math.min(1,c.energy*.7f);row[82]=c.energy;row[83]=c.health>.01f?1:0;row[84]=(c.neural<.12f||c.respiration<.08f)?1:0;row[85]=c.health<=.01f?1:0;row[86]=clamp(c.vx/240f,-1,1);row[87]=clamp(c.vy/240f,-1,1);float heading=(float)Math.atan2(c.vy,c.vx);row[88]=(float)Math.sin(heading);row[89]=(float)Math.cos(heading);row[90]=Math.min(1,c.cells.length/1024f);int alive=0,detached=0;float min=1,mean=0,variance=0;float[] tissueTotal=new float[15],tissueCount=new float[15];for(Cell cell:c.cells){if(cell.health>.01f)alive++;if(cell.detached)detached++;min=Math.min(min,cell.health);mean+=cell.health;int tissue=Math.max(0,Math.min(14,cell.tissue));tissueTotal[tissue]+=cell.health;tissueCount[tissue]++;}mean/=Math.max(1,c.cells.length);for(Cell cell:c.cells)variance+=(cell.health-mean)*(cell.health-mean);row[91]=alive/(float)Math.max(1,c.cells.length);row[92]=(alive-detached)/(float)Math.max(1,c.cells.length);row[93]=detached/(float)Math.max(1,c.cells.length);row[94]=Math.min(1,leakAmount(c)/8f);row[101]=contactRatio(c);row[102]=muscleMean(c);row[104]=muscleMax(c);row[105]=Math.min(1,c.appendages.length/32f);row[106]=Math.min(1,componentCount(c)/32f);for(int i=0;i<15;i++)row[109+i]=tissueCount[i]>0?tissueTotal[i]/tissueCount[i]:0;row[124]=fluidRatio(c);row[125]=scarMean(c);row[126]=min;row[127]=(float)Math.sqrt(variance/Math.max(1,c.cells.length));return row;
+    }
+
+    private void fillActorField(Creature c,float[] field){for(Cell cell:c.cells){if(cell.detached)continue;int x=Math.max(0,Math.min(31,Math.round(c.cellX(cell)*.6f+15.5f))),y=Math.max(0,Math.min(31,Math.round(c.cellY(cell)*.6f+15.5f))),p=y*32+x;field[p]=1;field[1024+p]=Math.max(field[1024+p],cell.health);field[2*1024+p]=Math.max(field[2*1024+p],c.cellState[CELL_PIXELS+cell.ncaY*48+cell.ncaX]);field[4*1024+p]=1;field[5*1024+p]=Math.max(field[5*1024+p],cell.tissue==5?1:0);field[6*1024+p]=Math.max(field[6*1024+p],cell.tissue>=5&&cell.tissue<=8?1:0);field[7*1024+p]=Math.max(field[7*1024+p],cell.appendage>=0?1:0);}}
+    private void fillWorldState(float[] row){row[0]=creatures.size()/180f;for(Creature c:creatures)row[1+c.family]+=1f/creatures.size();row[7]=Math.min(1,buildingCount/20f);for(int r=0;r<10;r++){float total=0;for(int p=0;p<1024;p++)total+=resources[r*1024+p];row[12+r]=total/1024f;}row[22]=.72f;row[23]=.45f;row[24]=.4f;row[25]=.2f;row[28+Math.floorMod((int)(time*.003f),4)]=1;for(Creature c:creatures){row[32]+=c.health/creatures.size();row[33]+=c.neural/creatures.size();row[34]+=c.circulation/creatures.size();row[35]+=c.respiration/creatures.size();row[36]+=c.digestion/creatures.size();row[37]+=c.sensory/creatures.size();row[38]+=c.locomotion/creatures.size();row[39+Math.max(0,Math.min(11,c.intent))]+=1f/creatures.size();}}
+    private static float fluidRatio(Creature c){float total=0,cap=0;for(int p=0;p<CELL_PIXELS;p++)if(c.cellStatic[p]>.5f){total+=c.cellState[CELL_PIXELS+p];cap++;}return total/Math.max(1,cap);}
+    private static float scarMean(Creature c){float total=0,count=0;for(int p=0;p<CELL_PIXELS;p++)if(c.cellStatic[p]>.5f){total+=c.cellState[6*CELL_PIXELS+p];count++;}return total/Math.max(1,count);}
+    private static float leakAmount(Creature c){float total=0;for(int p=0;p<CELL_PIXELS;p++)total+=c.cellState[9*CELL_PIXELS+p];return total/Math.max(1,c.cells.length);}
+    private static float contactRatio(Creature c){float total=0;for(boolean value:c.contact)if(value)total++;return total/Math.max(1,c.contact.length);}
+    private static float muscleMean(Creature c){float total=0;for(float value:c.muscleActivation)total+=value;return total/Math.max(1,c.muscleActivation.length);}
+    private static float muscleMax(Creature c){float value=0;for(float item:c.muscleActivation)value=Math.max(value,item);return value;}
 
     synchronized boolean structureBlocked(float x,float y){return structures[macroIndex(x,y)]>0;}
     synchronized float resourceAt(int channel,float x,float y){return resources[Math.max(0,Math.min(9,channel))*MACRO_CELLS+macroIndex(x,y)];}
@@ -274,4 +304,5 @@ final class FoundationWorld {
     static final class SocietyInput {final float[] features;SocietyInput(float[] f){features=f;}}
     static final class WorldContextInput {final long[] terrain,city;final float[] continuous,condition;WorldContextInput(long[] t,long[] c,float[] v,float[] k){terrain=t;city=c;continuous=v;condition=k;}}
     static final class VaeInput {final float[] features=new float[576*52],mask=new float[576];}
+    static final class ViewportActionInput {final float[] spatial=new float[68*32*32],organisms=new float[64*164],organismField=new float[164*32*32],state=new float[64],actorState=new float[128],actorField=new float[8*32*32];final boolean[] organismMask=new boolean[64];}
 }

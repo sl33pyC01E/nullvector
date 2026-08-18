@@ -9,8 +9,8 @@ android {
         applicationId = "world.nullvector.mobile"
         minSdk = 29
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.6.1-input-deadlock-hotfix"
+        versionCode = 12
+        versionName = "0.8.0-neural-gpu"
         ndk { abiFilters += if (emulatorAbi) "x86_64" else "arm64-v8a" }
     }
     flavorDimensions += "runtime"
@@ -40,10 +40,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    androidResources { noCompress += "onnx" }
+    androidResources { noCompress += listOf("onnx", "tflite") }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
 dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.3")
+    implementation("com.google.android.gms:play-services-tflite-java:16.5.0")
+    implementation("com.google.android.gms:play-services-tflite-gpu:16.5.0")
 }

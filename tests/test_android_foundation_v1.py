@@ -48,7 +48,7 @@ def test_android_foundation_supplies_live_perception_and_clean_view():
 def test_android_foundation_has_setup_dual_sticks_and_physical_actions():
     view = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/NeuralWorldView.java").read_text(encoding="utf-8")
     world = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/FoundationWorld.java").read_text(encoding="utf-8")
-    for token in ("ENTER LIVING WORLD", "SURVIVAL", "GOD MODE", "LEFT STICK MOVE · RIGHT STICK LOOK / AIM"):
+    for token in ("ENTER LIVING WORLD", "SURVIVAL", "CREATIVE / OBSERVER", "LEFT STICK MOVE · RIGHT STICK LOOK / AIM"):
         assert token in view
     assert "movementPointer" in view and "aimPointer" in view
     assert "THROW LOCKED · GRASP SOMETHING FIRST" in view
@@ -80,7 +80,22 @@ def test_android_world_runs_the_coupled_teacher_ensemble():
         assert token in world
     for stem in ("macro", "colony", "society", "timeline", "counterfactual"):
         assert f'ensembleModel("{stem}")' in view
-    assert "applySelectedVae(rgba)" in view
+    assert "organismVaeFrame=rgbaBitmap(rgba)" in view
+    assert "applySelectedVae(rgba)" not in view
+    assert "STATE_ALIGNED_VIEWPORT_VAE_READY = true" in view
+    assert "LIVE STATE → ACTION MODEL → VAE" in view
+    assert "encodeViewportAction" in world
+    assert 'assetFile("viewport_encoder_fp32.onnx")' in view
+    renderer = (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/java/world/nullvector/mobile/MobileViewportGpuRenderer.java").read_text(encoding="utf-8")
+    assert 'MobileViewportGpuRenderer.create(getContext(), "viewport_action_v5_fp16.tflite", "frame_vae_mobile_v1_fp16.tflite")' in view
+    assert "LITERT GPU FP16 WEIGHTS · ACTION V5 + MOBILE VAE" in renderer
+    assert "action.runForMultipleInputsOutputs" in renderer
+    assert "decoder.runForMultipleInputsOutputs" in renderer
+    assert "viewportLatent=frame.latent" in view
+    assert "viewportLatent==null&&viewportSourceFrame" in view
+    for artifact in ("viewport_action_v5_fp16.tflite", "frame_vae_mobile_v1_fp16.tflite"):
+        assert (PROJECT_ROOT / "android/nullvector-mobile/app/src/main/assets" / artifact).stat().st_size > 1_000_000
+    assert "drawLocalizedLeak" in view and "(.62f-cell.health)/.62f" in view
     assert "COUPLED_ENSEMBLE_OK" in view
     compact = PROJECT_ROOT / "android/nullvector-mobile/app/src/int8/assets"
     compact_manifest = json.loads((compact / "coupled_ensemble_int8_manifest.json").read_bytes())
