@@ -57,12 +57,42 @@ final class MobileViewportGpuRenderer implements AutoCloseable {
 
     static MobileViewportGpuRenderer create(Context context, String actionAsset, String decoderAsset) throws Exception {
         Tasks.await(TfLite.initialize(context, TfLiteInitializationOptions.builder().setEnableGpuDelegateSupport(true).build()));
-        boolean gpu = Tasks.await(TfLiteGpu.isGpuDelegateAvailable(context));
-        GpuDelegate actionDelegate = gpu ? new GpuDelegate() : null, decoderDelegate = gpu ? new GpuDelegate() : null;
-        InterpreterApi action = InterpreterApi.create(readAsset(context, actionAsset), options(actionDelegate));
-        InterpreterApi decoder = InterpreterApi.create(readAsset(context, decoderAsset), options(decoderDelegate));
-        return new MobileViewportGpuRenderer(action, decoder, actionDelegate, decoderDelegate,
-            gpu ? "LITERT GPU FP16 WEIGHTS · ACTION V5 + MOBILE VAE" : "LITERT XNNPACK FALLBACK");
+        if (!Tasks.await(TfLiteGpu.isGpuDelegateAvailable(context))) {
+            throw new IllegalStateException("LITERT GPU delegate unavailable on this device");
+        }
+
+        GpuDelegate actionDelegate = null, decoderDelegate = null;
+        InterpreterApi action = null, decoder = null;
+        try {
+            actionDelegate = createGpuDelegate("viewport_action_v5_fp16.tflite");
+            decoderDelegate = createGpuDelegate("frame_vae_mobile_v1_fp16.tflite");
+            action = createInterpreter(context, actionAsset, actionDelegate, "viewport action");
+            decoder = createInterpreter(context, decoderAsset, decoderDelegate, "viewport decoder");
+            return new MobileViewportGpuRenderer(action, decoder, actionDelegate, decoderDelegate, "LITERT GPU FP16 WEIGHTS · ACTION V5 + MOBILE VAE");
+        } catch (Throwable failure) {
+            if (decoder != null) decoder.close();
+            if (action != null) action.close();
+            if (decoderDelegate != null) decoderDelegate.close();
+            if (actionDelegate != null) actionDelegate.close();
+            if (failure instanceof Exception) throw (Exception) failure;
+            throw new IllegalStateException("Viewport LITERT GPU bootstrap failed: " + failure.getMessage(), failure);
+        }
+    }
+
+    private static GpuDelegate createGpuDelegate(String modelTag) {
+        try {
+            return new GpuDelegate();
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("Unable to construct LiteRT GPU delegate for " + modelTag, failure);
+        }
+    }
+
+    private static InterpreterApi createInterpreter(Context context, String modelAsset, GpuDelegate delegate, String stage) throws Exception {
+        try {
+            return InterpreterApi.create(readAsset(context, modelAsset), options(delegate));
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("Unable to create LiteRT GPU interpreter for " + stage + " (" + modelAsset + "): " + failure.getMessage(), failure);
+        }
     }
 
     private static InterpreterApi.Options options(GpuDelegate delegate) {
